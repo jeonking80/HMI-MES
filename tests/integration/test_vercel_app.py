@@ -11,6 +11,7 @@ import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import httpx
 import psycopg
@@ -106,9 +107,14 @@ async def test_initializer_runtime_readiness_and_admin_role_rejected(runtime):
         assert (await client.get("/api/health")).json() == {"alive": True}
         response = await client.get("/api/ready")
         assert response.status_code == 200 and response.json() == {"ready": True}
+        assert response.headers["cache-control"] == "no-store"
     async with client_for(runtime, engine=runtime.admin) as client:
         response = await client.get("/api/ready")
-        assert response.status_code == 503 and response.json() == {"ready": False}
+        assert response.status_code == 503 and response.json() == {
+            "ready": False,
+            "stage": "runtime_role",
+            "reason": "RUNTIME_ROLE_REQUIRED",
+        }
 
 
 async def test_https_auth_rotation_secure_cookie_and_passive_scoped_screen(runtime):
@@ -274,3 +280,123 @@ async def test_lazy_import_and_missing_env_fail_closed_without_db_side_effects(m
         response = await client.get("/api/ready")
     assert response.status_code == 503
     assert response.json() == {"detail": "deployment configuration unavailable"} and not calls
+
+
+@pytest.mark.parametrize(
+    "state,reason",
+    [
+        ("28P01", "AUTHENTICATION_FAILED"),
+        ("28000", "AUTHENTICATION_FAILED"),
+        ("42501", "PERMISSION_DENIED"),
+        ("42P01", "SCHEMA_MISSING"),
+        ("3D000", "DATABASE_MISSING"),
+        ("53300", "CONNECTION_CAPACITY"),
+        ("08006", "CONNECTION_UNAVAILABLE"),
+        ("XX999", "CHECK_FAILED"),
+    ],
+)
+async def test_readiness_connection_sqlstate_allowlist_sanitizes_error(state, reason, caplog):
+    secret = "fixture-private-host-user-password-and-SELECT-token"
+
+    class DatabaseError(Exception):
+        sqlstate = state
+
+    class FailedEngine:
+        dialect = SimpleNamespace(name="postgresql")
+        hide_parameters = True
+        echo = False
+
+        def connect(self):
+            raise sa.exc.OperationalError(secret, {"password": secret}, DatabaseError(secret))
+
+    app = serverless.create_vercel_app(serverless.VercelConfig(ORIGIN, DSN), engine=FailedEngine())
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=ORIGIN) as client:
+        response = await client.get("/api/ready")
+    assert response.status_code == 503
+    assert response.json() == {"ready": False, "stage": "connection", "reason": reason}
+    assert secret not in response.text + caplog.text
+    assert response.headers["cache-control"] == "no-store"
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "certificate verify failed: fixture-private-host-user-password",
+        'server certificate for "fixture-private-host-user-password" does not match host name',
+    ],
+)
+async def test_readiness_libpq_certificate_failure_is_safe_fixed_code(message, caplog):
+    class FailedEngine:
+        dialect = SimpleNamespace(name="postgresql")
+        hide_parameters = True
+        echo = False
+
+        def connect(self):
+            raise sa.exc.OperationalError(message, {}, psycopg.OperationalError(message))
+
+    app = serverless.create_vercel_app(serverless.VercelConfig(ORIGIN, DSN), engine=FailedEngine())
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=ORIGIN) as client:
+        response = await client.get("/api/ready")
+    assert response.status_code == 503
+    assert response.json() == {
+        "ready": False,
+        "stage": "connection",
+        "reason": "TLS_CERTIFICATE_FAILED",
+    }
+    assert "fixture-private-host-user-password" not in response.text + caplog.text
+
+
+async def test_readiness_actual_schema_and_reference_failure_stages(runtime):
+    # Roll back each deliberate change before returning this shared disposable DB.
+    async with client_for(runtime) as client:
+        with runtime.admin.begin() as db:
+            db.execute(sa.text("UPDATE alembic_version SET version_num='fixture-unsupported'"))
+        try:
+            response = await client.get("/api/ready")
+            assert response.json() == {
+                "ready": False,
+                "stage": "schema",
+                "reason": "REVISION_UNSUPPORTED",
+            }
+        finally:
+            with runtime.admin.begin() as db:
+                db.execute(
+                    sa.text("UPDATE alembic_version SET version_num='0014_mixed_alarm_runtime'")
+                )
+        with runtime.admin.begin() as db:
+            db.execute(sa.text("REVOKE SELECT ON tag_definitions FROM hmi_app"))
+        try:
+            response = await client.get("/api/ready")
+            assert response.json() == {
+                "ready": False,
+                "stage": "reference_data",
+                "reason": "PERMISSION_DENIED",
+            }
+        finally:
+            with runtime.admin.begin() as db:
+                db.execute(sa.text("GRANT SELECT ON tag_definitions TO hmi_app"))
+        assert (await client.get("/api/ready")).json() == {"ready": True}
+
+
+async def test_readiness_connect_time_authentication_without_sqlstate(caplog):
+    private = "fixture-private-host-user-password"
+
+    class FailedEngine:
+        dialect = SimpleNamespace(name="postgresql")
+        hide_parameters = True
+        echo = False
+
+        def connect(self):
+            raise psycopg.OperationalError("password authentication failed for user " + private)
+
+    app = serverless.create_vercel_app(serverless.VercelConfig(ORIGIN, DSN), engine=FailedEngine())
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=ORIGIN) as client:
+        response = await client.get("/api/ready")
+    assert response.status_code == 503
+    assert response.json() == {
+        "ready": False,
+        "stage": "connection",
+        "reason": "AUTHENTICATION_FAILED",
+    }
+    assert response.headers["cache-control"] == "no-store"
+    assert private not in response.text + caplog.text
