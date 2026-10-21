@@ -8,11 +8,13 @@ PostgreSQL is not a remote TLS certificate verification test.
 import hashlib
 import importlib
 import secrets
+import ssl
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
+import certifi
 import httpx
 import psycopg
 import pytest
@@ -256,8 +258,14 @@ def test_effective_neon_tls_no_preparation_and_no_retained_pool():
         with pytest.raises(RuntimeError, match="local-connect-intercept"):
             engine.connect()
         assert captured["user"] == "hmi_app"
-        assert captured["sslmode"] == "verify-full" and captured["sslrootcert"] == "system"
+        assert captured["sslmode"] == "verify-full" and captured["sslrootcert"] == certifi.where()
         assert captured["prepare_threshold"] is None
+        ca_file = Path(captured["sslrootcert"])
+        assert ca_file.is_file() and ca_file.stat().st_size > 0
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        context.load_verify_locations(cafile=str(ca_file))
+        assert context.cert_store_stats()["x509_ca"] > 0
+        assert context.check_hostname and context.verify_mode == ssl.CERT_REQUIRED
     finally:
         engine.dispose()
 

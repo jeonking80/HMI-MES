@@ -234,6 +234,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "alembic" },
     { name = "asyncua" },
+    { name = "certifi" },
     { name = "cryptography" },
     { name = "fastapi" },
     { name = "httpx" },
@@ -257,6 +258,7 @@ dev = [
 requires-dist = [
     { name = "alembic", specifier = "==1.20.0" },
     { name = "asyncua", specifier = "==2.1.0" },
+    { name = "certifi", specifier = "==2026.10.19" },
     { name = "cryptography", specifier = "==50.0.2" },
     { name = "fastapi", specifier = "==0.152.0" },
     { name = "httpx", specifier = "==0.28.1" },

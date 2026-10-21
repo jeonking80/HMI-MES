@@ -7,6 +7,7 @@ import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 
+import certifi
 import psycopg
 import sqlalchemy as sa
 from fastapi import FastAPI
@@ -91,7 +92,7 @@ def neon_engine(config: VercelConfig):
             "connect_timeout": 10,
             "prepare_threshold": None,
             "sslmode": "verify-full",
-            "sslrootcert": "system",
+            "sslrootcert": certifi.where(),
         },
     )
 
