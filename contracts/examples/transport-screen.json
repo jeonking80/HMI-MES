@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "kind": "SNAPSHOT",
+  "sync_id": "sync-001",
+  "revision": "42",
+  "emitted_at": "2026-10-20T12:00:32Z",
+  "view": {
+    "line_id": "line-1",
+    "state": "RUNNING",
+    "execution_id": "run-A",
+    "control_restricted": false,
+    "samples": [
+      {
+        "sample_id": "sample-001",
+        "tag_id": "Line.GoodTotal",
+        "source_timestamp": "2026-10-20T12:00:00Z",
+        "server_timestamp": "2026-10-20T12:00:01Z",
+        "acquired_at": "2026-10-20T12:00:01Z",
+        "status_code": 0,
+        "reading": {
+          "data_type": "UInt64",
+          "value": "9007199254740993"
+        }
+      }
+    ]
+  }
+}

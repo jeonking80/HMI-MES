@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "batch_id": "batch-001",
+  "gateway_id": "gateway-1",
+  "content_sha256": "35daed1ca861ab7bd314de792852f5f9f1a8aec3c52588f2122507b392d99679",
+  "durability": "COMMITTED",
+  "committed_at": "2026-10-20T12:00:32Z",
+  "events": [
+    {
+      "event_id": "event-001",
+      "seq": "1",
+      "disposition": "QUARANTINED",
+      "reason_code": "EXECUTION_NOT_FOUND",
+      "reason": "Preserved durably; the original execution must be reconciled before application."
+    }
+  ],
+  "progress": {
+    "source_id": "simulator-1",
+    "stream_id": "stream-1",
+    "verified_through_seq": "0",
+    "latest_ingested_seq": "1",
+    "unresolved_gaps": []
+  },
+  "recorded_gaps": []
+}

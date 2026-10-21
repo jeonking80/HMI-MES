@@ -1,0 +1,9 @@
+{
+  "schema_version": "1.0",
+  "command_id": "cmd-001",
+  "status": "EXPIRED",
+  "updated_at": "2026-10-20T12:00:06Z",
+  "completed_at": "2026-10-20T12:00:06Z",
+  "reason_code": "DELIVERY_DEADLINE_EXCEEDED",
+  "reason": "The command expired before delivery; it must not be sent after reconnect."
+}

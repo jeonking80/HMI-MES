@@ -1,0 +1,7 @@
+{
+  "schema_version": "1.0",
+  "kind": "RESYNC_REQUIRED",
+  "sync_id": "sync-001",
+  "reason": "REVISION_GAP",
+  "emitted_at": "2026-10-20T12:00:34Z"
+}

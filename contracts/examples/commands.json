@@ -1,0 +1,96 @@
+[
+  {
+    "schema_version": "1.0",
+    "command_id": "cmd-load_job",
+    "target_id": "line-1",
+    "execution_id": "run-A",
+    "command": {
+      "kind": "LOAD_JOB",
+      "args": {
+        "work_order_id": "work-A",
+        "recipe_version": "recipe-1",
+        "target_quantity": 100,
+        "parameters": {
+          "temperature_c": 180.0,
+          "speed_m_per_min": 10.0
+        }
+      }
+    },
+    "requested_by": "operator-1",
+    "requested_at": "2026-10-20T12:00:00Z",
+    "expires_at": "2026-10-20T12:00:05Z",
+    "expected_control_version": "42"
+  },
+  {
+    "schema_version": "1.0",
+    "command_id": "cmd-start",
+    "target_id": "line-1",
+    "execution_id": "run-A",
+    "command": {
+      "kind": "START"
+    },
+    "requested_by": "operator-1",
+    "requested_at": "2026-10-20T12:00:00Z",
+    "expires_at": "2026-10-20T12:00:05Z",
+    "expected_control_version": "42"
+  },
+  {
+    "schema_version": "1.0",
+    "command_id": "cmd-pause",
+    "target_id": "line-1",
+    "execution_id": "run-A",
+    "command": {
+      "kind": "PAUSE"
+    },
+    "requested_by": "operator-1",
+    "requested_at": "2026-10-20T12:00:00Z",
+    "expires_at": "2026-10-20T12:00:05Z",
+    "expected_control_version": "42"
+  },
+  {
+    "schema_version": "1.0",
+    "command_id": "cmd-end_run",
+    "target_id": "line-1",
+    "execution_id": "run-A",
+    "command": {
+      "kind": "END_RUN"
+    },
+    "requested_by": "operator-1",
+    "requested_at": "2026-10-20T12:00:00Z",
+    "expires_at": "2026-10-20T12:00:05Z",
+    "expected_control_version": "42"
+  },
+  {
+    "schema_version": "1.0",
+    "command_id": "cmd-set_parameters",
+    "target_id": "line-1",
+    "execution_id": null,
+    "command": {
+      "kind": "SET_PARAMETERS",
+      "args": {
+        "recipe_version": "recipe-2",
+        "parameters": {
+          "temperature_c": 180.0,
+          "speed_m_per_min": 10.0
+        }
+      }
+    },
+    "requested_by": "operator-1",
+    "requested_at": "2026-10-20T12:00:00Z",
+    "expires_at": "2026-10-20T12:00:05Z",
+    "expected_control_version": "42"
+  },
+  {
+    "schema_version": "1.0",
+    "command_id": "cmd-reset_fault",
+    "target_id": "line-1",
+    "execution_id": null,
+    "command": {
+      "kind": "RESET_FAULT"
+    },
+    "requested_by": "operator-1",
+    "requested_at": "2026-10-20T12:00:00Z",
+    "expires_at": "2026-10-20T12:00:05Z",
+    "expected_control_version": "42"
+  }
+]

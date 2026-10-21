@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "event_id": "event-001",
+  "source_id": "simulator-1",
+  "stream_id": "stream-1",
+  "seq": "1",
+  "equipment_id": "outfeed-1",
+  "execution_id": "run-A",
+  "occurred_at": "2026-10-20T12:00:30Z",
+  "kind": "PRODUCTION_GOOD",
+  "payload": {
+    "quantity": "1",
+    "counter_epoch": "epoch-1"
+  }
+}

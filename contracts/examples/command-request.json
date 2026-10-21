@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "command_id": "cmd-001",
+  "target_id": "line-1",
+  "execution_id": "run-A",
+  "command": {
+    "kind": "START",
+    "args": {}
+  },
+  "requested_by": "operator-1",
+  "requested_at": "2026-10-20T12:00:00Z",
+  "expires_at": "2026-10-20T12:00:05Z",
+  "expected_control_version": "42"
+}

@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0",
+  "batch_id": "batch-002",
+  "gateway_id": "gateway-1",
+  "content_sha256": "4e900f832e7ed5281364327081e303d84216af5b4aed103719df9047e03b6385",
+  "durability": "COMMITTED",
+  "committed_at": "2026-10-20T12:00:35Z",
+  "events": [],
+  "progress": {
+    "source_id": "simulator-1",
+    "stream_id": "stream-1",
+    "verified_through_seq": "1",
+    "latest_ingested_seq": "9",
+    "unresolved_gaps": [
+      {
+        "from_seq": "2",
+        "through_seq": "9",
+        "irrecoverable": true,
+        "detected_at": "2026-10-20T12:00:34Z",
+        "reason_code": "RETENTION_EXPIRED",
+        "reason": "Source history no longer contains the missing sequence interval.",
+        "affected_execution_ids": [
+          "run-A"
+        ]
+      }
+    ]
+  },
+  "recorded_gaps": [
+    {
+      "from_seq": "2",
+      "through_seq": "9",
+      "irrecoverable": true,
+      "detected_at": "2026-10-20T12:00:34Z",
+      "reason_code": "RETENTION_EXPIRED",
+      "reason": "Source history no longer contains the missing sequence interval.",
+      "affected_execution_ids": [
+        "run-A"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "source_id": "simulator-1",
+  "stream_id": "stream-1",
+  "after_seq": "0",
+  "code": "RETENTION_GAP",
+  "retained_from_seq": "10",
+  "retained_through_seq": "20",
+  "missing_from_seq": "1",
+  "missing_through_seq": "9",
+  "reason": "Events 1 through 9 are outside the source retention window and cannot be replayed."
+}

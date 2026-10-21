@@ -1,0 +1,8 @@
+{
+  "schema_version": "1.0",
+  "command_id": "cmd-001",
+  "disposition": "REJECTED",
+  "received_at": "2026-10-20T12:00:01Z",
+  "reason_code": "CONTROL_VERSION_MISMATCH",
+  "reason": "Expected control version 42, current version is 43."
+}

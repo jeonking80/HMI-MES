@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "source_id": "simulator-1",
+  "stream_id": "stream-1",
+  "execution_id": "run-A",
+  "state": "ENDED",
+  "as_of": "2026-10-20T12:01:00Z",
+  "counter_epoch": "epoch-1",
+  "recipe_version": "recipe-1",
+  "parameters": {
+    "temperature_c": 180.0,
+    "speed_m_per_min": 10.0
+  },
+  "input_quantity": "1",
+  "good_quantity": "1",
+  "reject_quantity": "0",
+  "scrap_quantity": "0",
+  "wip_quantity": 0,
+  "last_event_seq": "1",
+  "final": true,
+  "ended_at": "2026-10-20T12:01:00Z"
+}

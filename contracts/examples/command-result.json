@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "command_id": "cmd-001",
+  "status": "SUCCEEDED",
+  "updated_at": "2026-10-20T12:00:02Z",
+  "delivered_at": "2026-10-20T12:00:01Z",
+  "completed_at": "2026-10-20T12:00:02Z",
+  "reason_code": null,
+  "reason": null,
+  "applied_control_version": "43",
+  "evidence": {
+    "state": "RUNNING",
+    "execution_id": "run-A",
+    "recipe_version": null,
+    "last_event_seq": null
+  }
+}

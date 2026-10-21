@@ -1,0 +1,882 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "BooleanValue": {
+      "additionalProperties": false,
+      "properties": {
+        "data_type": {
+          "const": "Boolean",
+          "title": "Data Type",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "data_type",
+        "value"
+      ],
+      "title": "BooleanValue",
+      "type": "object"
+    },
+    "DoubleValue": {
+      "additionalProperties": false,
+      "properties": {
+        "data_type": {
+          "const": "Double",
+          "title": "Data Type",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "data_type",
+        "value"
+      ],
+      "title": "DoubleValue",
+      "type": "object"
+    },
+    "GatewayCommunication": {
+      "additionalProperties": false,
+      "description": "Gateway monotonic ages at capture, independent of source/wall timestamps.",
+      "properties": {
+        "state": {
+          "enum": [
+            "UNKNOWN",
+            "GOOD",
+            "DELAYED",
+            "ALARM"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "connected": {
+          "title": "Connected",
+          "type": "boolean"
+        },
+        "read_age_seconds": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Read Age Seconds"
+        },
+        "heartbeat_ages_seconds": {
+          "$ref": "#/$defs/HeartbeatAges"
+        }
+      },
+      "required": [
+        "state",
+        "connected",
+        "read_age_seconds",
+        "heartbeat_ages_seconds"
+      ],
+      "title": "GatewayCommunication",
+      "type": "object"
+    },
+    "HeartbeatAges": {
+      "additionalProperties": false,
+      "properties": {
+        "Line.Heartbeat": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Line.Heartbeat"
+        },
+        "Infeed.LinkHeartbeat": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Infeed.Linkheartbeat"
+        },
+        "Sealer.LinkHeartbeat": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Sealer.Linkheartbeat"
+        },
+        "Outfeed.LinkHeartbeat": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Outfeed.Linkheartbeat"
+        }
+      },
+      "required": [
+        "Line.Heartbeat",
+        "Infeed.LinkHeartbeat",
+        "Sealer.LinkHeartbeat",
+        "Outfeed.LinkHeartbeat"
+      ],
+      "title": "HeartbeatAges",
+      "type": "object"
+    },
+    "Int32Value": {
+      "additionalProperties": false,
+      "properties": {
+        "data_type": {
+          "const": "Int32",
+          "title": "Data Type",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "maximum": 2147483647,
+              "minimum": -2147483648,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "data_type",
+        "value"
+      ],
+      "title": "Int32Value",
+      "type": "object"
+    },
+    "LineState": {
+      "enum": [
+        "STOPPED",
+        "READY",
+        "RUNNING",
+        "PAUSED",
+        "STOPPING",
+        "FAULT",
+        "ESTOP",
+        "RECOVERY_REQUIRED"
+      ],
+      "title": "LineState",
+      "type": "string"
+    },
+    "LineView": {
+      "additionalProperties": false,
+      "properties": {
+        "line_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Line Id",
+          "type": "string"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LineState"
+            },
+            {
+              "const": "UNKNOWN",
+              "type": "string"
+            }
+          ],
+          "title": "State"
+        },
+        "execution_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "not": {
+                "pattern": "\\s"
+              },
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Execution Id"
+        },
+        "control_restricted": {
+          "title": "Control Restricted",
+          "type": "boolean"
+        },
+        "samples": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/TagSample"
+          },
+          "maxItems": 48,
+          "title": "Samples",
+          "type": "array"
+        }
+      },
+      "required": [
+        "line_id",
+        "state",
+        "execution_id",
+        "control_restricted"
+      ],
+      "title": "LineView",
+      "type": "object"
+    },
+    "SampleEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "tag_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Tag Id",
+          "type": "string"
+        },
+        "batch_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Batch Id",
+          "type": "string"
+        },
+        "capture_generation": {
+          "description": "UInt64 canonical decimal string; use BigInt in JavaScript.",
+          "pattern": "^(?:0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|1844674407370955[0-0][0-9]{3}|18446744073709551[0-5][0-9]{2}|184467440737095516[0-0][0-9]{1}|1844674407370955161[0-4][0-9]{0}|18446744073709551615)$(?![\\s\\S])",
+          "title": "Capture Generation",
+          "type": "string"
+        },
+        "capture_seq": {
+          "description": "UInt64 canonical decimal string; use BigInt in JavaScript.",
+          "pattern": "^(?:0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|1844674407370955[0-0][0-9]{3}|18446744073709551[0-5][0-9]{2}|184467440737095516[0-0][0-9]{1}|1844674407370955161[0-4][0-9]{0}|18446744073709551615)$(?![\\s\\S])",
+          "title": "Capture Seq",
+          "type": "string"
+        },
+        "captured_at": {
+          "format": "date-time",
+          "title": "Captured At",
+          "type": "string"
+        },
+        "stored_at": {
+          "format": "date-time",
+          "title": "Stored At",
+          "type": "string"
+        },
+        "fresh": {
+          "title": "Fresh",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "tag_id",
+        "batch_id",
+        "capture_generation",
+        "capture_seq",
+        "captured_at",
+        "stored_at",
+        "fresh"
+      ],
+      "title": "SampleEvidence",
+      "type": "object"
+    },
+    "ScreenDataFrame": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/ScreenScope"
+        },
+        "screen": {
+          "discriminator": {
+            "mapping": {
+              "SNAPSHOT": "#/$defs/ScreenSnapshot",
+              "UPDATE": "#/$defs/ScreenUpdate"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ScreenSnapshot"
+            },
+            {
+              "$ref": "#/$defs/ScreenUpdate"
+            }
+          ],
+          "title": "Screen"
+        },
+        "health": {
+          "$ref": "#/$defs/SnapshotHealth"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/SampleEvidence"
+          },
+          "maxItems": 48,
+          "title": "Evidence",
+          "type": "array"
+        },
+        "missing_tag_ids": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "not": {
+              "pattern": "\\s"
+            },
+            "type": "string"
+          },
+          "maxItems": 48,
+          "title": "Missing Tag Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema_version",
+        "scope",
+        "screen",
+        "health",
+        "evidence",
+        "missing_tag_ids"
+      ],
+      "title": "ScreenDataFrame",
+      "type": "object"
+    },
+    "ScreenResetFrame": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/ScreenScope"
+        },
+        "screen": {
+          "$ref": "#/$defs/ScreenResyncRequired"
+        }
+      },
+      "required": [
+        "schema_version",
+        "scope",
+        "screen"
+      ],
+      "title": "ScreenResetFrame",
+      "type": "object"
+    },
+    "ScreenResyncRequired": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "kind": {
+          "const": "RESYNC_REQUIRED",
+          "title": "Kind",
+          "type": "string"
+        },
+        "sync_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Sync Id",
+          "type": "string"
+        },
+        "reason": {
+          "enum": [
+            "REVISION_GAP",
+            "RECONNECT",
+            "BACKPRESSURE",
+            "SERVER_RESTART"
+          ],
+          "title": "Reason",
+          "type": "string"
+        },
+        "emitted_at": {
+          "format": "date-time",
+          "title": "Emitted At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "sync_id",
+        "reason",
+        "emitted_at"
+      ],
+      "title": "ScreenResyncRequired",
+      "type": "object"
+    },
+    "ScreenScope": {
+      "additionalProperties": false,
+      "properties": {
+        "line_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Line Id",
+          "type": "string"
+        },
+        "source_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Source Id",
+          "type": "string"
+        },
+        "stream_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Stream Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "line_id",
+        "source_id",
+        "stream_id"
+      ],
+      "title": "ScreenScope",
+      "type": "object"
+    },
+    "ScreenSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "kind": {
+          "const": "SNAPSHOT",
+          "title": "Kind",
+          "type": "string"
+        },
+        "sync_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Sync Id",
+          "type": "string"
+        },
+        "revision": {
+          "description": "UInt64 canonical decimal string; use BigInt in JavaScript.",
+          "pattern": "^(?:0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|1844674407370955[0-0][0-9]{3}|18446744073709551[0-5][0-9]{2}|184467440737095516[0-0][0-9]{1}|1844674407370955161[0-4][0-9]{0}|18446744073709551615)$(?![\\s\\S])",
+          "title": "Revision",
+          "type": "string"
+        },
+        "emitted_at": {
+          "format": "date-time",
+          "title": "Emitted At",
+          "type": "string"
+        },
+        "view": {
+          "$ref": "#/$defs/LineView"
+        }
+      },
+      "required": [
+        "kind",
+        "sync_id",
+        "revision",
+        "emitted_at",
+        "view"
+      ],
+      "title": "ScreenSnapshot",
+      "type": "object"
+    },
+    "ScreenUpdate": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "kind": {
+          "const": "UPDATE",
+          "title": "Kind",
+          "type": "string"
+        },
+        "sync_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Sync Id",
+          "type": "string"
+        },
+        "base_revision": {
+          "description": "UInt64 canonical decimal string; use BigInt in JavaScript.",
+          "pattern": "^(?:0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|1844674407370955[0-0][0-9]{3}|18446744073709551[0-5][0-9]{2}|184467440737095516[0-0][0-9]{1}|1844674407370955161[0-4][0-9]{0}|18446744073709551615)$(?![\\s\\S])",
+          "title": "Base Revision",
+          "type": "string"
+        },
+        "revision": {
+          "description": "UInt64 canonical decimal string; use BigInt in JavaScript.",
+          "pattern": "^(?:[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|1844674407370955[0-0][0-9]{3}|18446744073709551[0-5][0-9]{2}|184467440737095516[0-0][0-9]{1}|1844674407370955161[0-4][0-9]{0}|18446744073709551615)$(?![\\s\\S])",
+          "title": "Revision",
+          "type": "string"
+        },
+        "emitted_at": {
+          "format": "date-time",
+          "title": "Emitted At",
+          "type": "string"
+        },
+        "view": {
+          "$ref": "#/$defs/LineView"
+        }
+      },
+      "required": [
+        "kind",
+        "sync_id",
+        "base_revision",
+        "revision",
+        "emitted_at",
+        "view"
+      ],
+      "title": "ScreenUpdate",
+      "type": "object"
+    },
+    "SnapshotHealth": {
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "enum": [
+            "NEVER_OBSERVED",
+            "STALE",
+            "DEGRADED",
+            "CAPTURE_FRESH"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "heartbeat": {
+          "default": "UNKNOWN",
+          "enum": [
+            "UNKNOWN",
+            "GOOD",
+            "DELAYED",
+            "ALARM"
+          ],
+          "title": "Heartbeat",
+          "type": "string"
+        },
+        "communication": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GatewayCommunication"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "communication_captured_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Communication Captured At"
+        },
+        "communication_stored_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Communication Stored At"
+        },
+        "source_conflicted": {
+          "title": "Source Conflicted",
+          "type": "boolean"
+        },
+        "reconciliation_required": {
+          "title": "Reconciliation Required",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "state",
+        "source_conflicted",
+        "reconciliation_required"
+      ],
+      "title": "SnapshotHealth",
+      "type": "object"
+    },
+    "StringValue": {
+      "additionalProperties": false,
+      "properties": {
+        "data_type": {
+          "const": "String",
+          "title": "Data Type",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "data_type",
+        "value"
+      ],
+      "title": "StringValue",
+      "type": "object"
+    },
+    "TagSample": {
+      "additionalProperties": false,
+      "properties": {
+        "sample_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Sample Id",
+          "type": "string"
+        },
+        "tag_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Tag Id",
+          "type": "string"
+        },
+        "source_timestamp": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Timestamp"
+        },
+        "server_timestamp": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Server Timestamp"
+        },
+        "acquired_at": {
+          "format": "date-time",
+          "title": "Acquired At",
+          "type": "string"
+        },
+        "status_code": {
+          "maximum": 4294967295,
+          "minimum": 0,
+          "title": "Status Code",
+          "type": "integer"
+        },
+        "reading": {
+          "discriminator": {
+            "mapping": {
+              "Boolean": "#/$defs/BooleanValue",
+              "Double": "#/$defs/DoubleValue",
+              "Int32": "#/$defs/Int32Value",
+              "String": "#/$defs/StringValue",
+              "UInt32": "#/$defs/UInt32Value",
+              "UInt64": "#/$defs/UInt64Value"
+            },
+            "propertyName": "data_type"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/BooleanValue"
+            },
+            {
+              "$ref": "#/$defs/Int32Value"
+            },
+            {
+              "$ref": "#/$defs/UInt32Value"
+            },
+            {
+              "$ref": "#/$defs/UInt64Value"
+            },
+            {
+              "$ref": "#/$defs/DoubleValue"
+            },
+            {
+              "$ref": "#/$defs/StringValue"
+            }
+          ],
+          "title": "Reading"
+        }
+      },
+      "required": [
+        "sample_id",
+        "tag_id",
+        "source_timestamp",
+        "server_timestamp",
+        "acquired_at",
+        "status_code",
+        "reading"
+      ],
+      "title": "TagSample",
+      "type": "object"
+    },
+    "UInt32Value": {
+      "additionalProperties": false,
+      "properties": {
+        "data_type": {
+          "const": "UInt32",
+          "title": "Data Type",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "maximum": 4294967295,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "data_type",
+        "value"
+      ],
+      "title": "UInt32Value",
+      "type": "object"
+    },
+    "UInt64Value": {
+      "additionalProperties": false,
+      "properties": {
+        "data_type": {
+          "const": "UInt64",
+          "title": "Data Type",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "description": "UInt64 canonical decimal string; use BigInt in JavaScript.",
+              "pattern": "^(?:0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|1844674407370955[0-0][0-9]{3}|18446744073709551[0-5][0-9]{2}|184467440737095516[0-0][0-9]{1}|1844674407370955161[0-4][0-9]{0}|18446744073709551615)$(?![\\s\\S])",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "data_type",
+        "value"
+      ],
+      "title": "UInt64Value",
+      "type": "object"
+    }
+  },
+  "anyOf": [
+    {
+      "$ref": "#/$defs/ScreenDataFrame"
+    },
+    {
+      "$ref": "#/$defs/ScreenResetFrame"
+    }
+  ]
+}

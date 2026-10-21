@@ -1,0 +1,6 @@
+{
+  "schema_version": "1.0",
+  "code": "COMMAND_NOT_FOUND",
+  "command_id": "unknown-command",
+  "reason": "No durable record exists for this command ID."
+}

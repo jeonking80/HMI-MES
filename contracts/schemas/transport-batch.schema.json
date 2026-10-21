@@ -1,0 +1,1243 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "BatchBody": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "1.0"
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "communication"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "enum": [
+                  "1.1",
+                  "1.2"
+                ]
+              },
+              "samples": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "schema_version",
+              "samples"
+            ]
+          },
+          "then": {
+            "properties": {
+              "communication": {
+                "not": {
+                  "type": "null"
+                }
+              }
+            },
+            "required": [
+              "communication"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "enum": [
+                  "1.0",
+                  "1.1"
+                ]
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "capture_time"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "1.2"
+              },
+              "samples": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "schema_version",
+              "samples"
+            ]
+          },
+          "then": {
+            "properties": {
+              "capture_time": {
+                "not": {
+                  "type": "null"
+                }
+              }
+            },
+            "required": [
+              "capture_time"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "schema_version": {
+          "default": "1.0",
+          "enum": [
+            "1.0",
+            "1.1",
+            "1.2"
+          ],
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "batch_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Batch Id",
+          "type": "string"
+        },
+        "gateway_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Gateway Id",
+          "type": "string"
+        },
+        "source_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Source Id",
+          "type": "string"
+        },
+        "stream_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Stream Id",
+          "type": "string"
+        },
+        "capture_generation": {
+          "description": "UInt64 canonical decimal string; use BigInt in JavaScript.",
+          "pattern": "^(?:0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|1844674407370955[0-0][0-9]{3}|18446744073709551[0-5][0-9]{2}|184467440737095516[0-0][0-9]{1}|1844674407370955161[0-4][0-9]{0}|18446744073709551615)$(?![\\s\\S])",
+          "title": "Capture Generation",
+          "type": "string"
+        },
+        "capture_seq": {
+          "description": "UInt64 canonical decimal string; use BigInt in JavaScript.",
+          "pattern": "^(?:[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|1844674407370955[0-0][0-9]{3}|18446744073709551[0-5][0-9]{2}|184467440737095516[0-0][0-9]{1}|1844674407370955161[0-4][0-9]{0}|18446744073709551615)$(?![\\s\\S])",
+          "title": "Capture Seq",
+          "type": "string"
+        },
+        "captured_at": {
+          "format": "date-time",
+          "title": "Captured At",
+          "type": "string"
+        },
+        "samples": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/TagSample"
+          },
+          "maxItems": 48,
+          "title": "Samples",
+          "type": "array"
+        },
+        "events": {
+          "default": [],
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "FAULT_CHANGED": "#/$defs/FaultEvent",
+                "PRODUCTION_GOOD": "#/$defs/ProductionEvent",
+                "PRODUCTION_REJECT": "#/$defs/ProductionEvent",
+                "STATE_CHANGED": "#/$defs/StateEvent",
+                "WIP_SCRAP": "#/$defs/ScrapEvent"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/ProductionEvent"
+              },
+              {
+                "$ref": "#/$defs/ScrapEvent"
+              },
+              {
+                "$ref": "#/$defs/StateEvent"
+              },
+              {
+                "$ref": "#/$defs/FaultEvent"
+              }
+            ]
+          },
+          "maxItems": 1000,
+          "title": "Events",
+          "type": "array"
+        },
+        "gaps": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/StreamGap"
+          },
+          "maxItems": 100,
+          "title": "Gaps",
+          "type": "array"
+        },
+        "communication": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GatewayCommunication"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "capture_time": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CaptureTime"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "batch_id",
+        "gateway_id",
+        "source_id",
+        "stream_id",
+        "capture_generation",
+        "capture_seq",
+        "captured_at"
+      ],
+      "title": "BatchBody",
+      "type": "object"
+    },
+    "BooleanValue": {
+      "additionalProperties": false,
+      "properties": {
+        "data_type": {
+          "const": "Boolean",
+          "title": "Data Type",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "data_type",
+        "value"
+      ],
+      "title": "BooleanValue",
+      "type": "object"
+    },
+    "CaptureTime": {
+      "additionalProperties": false,
+      "description": "Raw capture clock coordinates; these do not assert UTC synchronization.",
+      "properties": {
+        "clock_epoch": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Clock Epoch",
+          "type": "string"
+        },
+        "monotonic_seconds": {
+          "minimum": 0,
+          "title": "Monotonic Seconds",
+          "type": "number"
+        },
+        "utc_read_span_seconds": {
+          "minimum": 0,
+          "title": "Utc Read Span Seconds",
+          "type": "number"
+        }
+      },
+      "required": [
+        "clock_epoch",
+        "monotonic_seconds",
+        "utc_read_span_seconds"
+      ],
+      "title": "CaptureTime",
+      "type": "object"
+    },
+    "DoubleValue": {
+      "additionalProperties": false,
+      "properties": {
+        "data_type": {
+          "const": "Double",
+          "title": "Data Type",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "data_type",
+        "value"
+      ],
+      "title": "DoubleValue",
+      "type": "object"
+    },
+    "FaultEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "event_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Event Id",
+          "type": "string"
+        },
+        "source_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Source Id",
+          "type": "string"
+        },
+        "stream_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Stream Id",
+          "type": "string"
+        },
+        "seq": {
+          "description": "UInt64 canonical decimal string; use BigInt in JavaScript.",
+          "pattern": "^(?:[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|1844674407370955[0-0][0-9]{3}|18446744073709551[0-5][0-9]{2}|184467440737095516[0-0][0-9]{1}|1844674407370955161[0-4][0-9]{0}|18446744073709551615)$(?![\\s\\S])",
+          "title": "Seq",
+          "type": "string"
+        },
+        "equipment_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Equipment Id",
+          "type": "string"
+        },
+        "execution_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "not": {
+                "pattern": "\\s"
+              },
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Execution Id"
+        },
+        "occurred_at": {
+          "format": "date-time",
+          "title": "Occurred At",
+          "type": "string"
+        },
+        "kind": {
+          "const": "FAULT_CHANGED",
+          "title": "Kind",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/FaultPayload"
+        }
+      },
+      "required": [
+        "event_id",
+        "source_id",
+        "stream_id",
+        "seq",
+        "equipment_id",
+        "execution_id",
+        "occurred_at",
+        "kind",
+        "payload"
+      ],
+      "title": "FaultEvent",
+      "type": "object"
+    },
+    "FaultPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "fault_code": {
+          "exclusiveMinimum": 0,
+          "maximum": 4294967295,
+          "title": "Fault Code",
+          "type": "integer"
+        },
+        "active": {
+          "title": "Active",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "fault_code",
+        "active"
+      ],
+      "title": "FaultPayload",
+      "type": "object"
+    },
+    "GatewayCommunication": {
+      "additionalProperties": false,
+      "description": "Gateway monotonic ages at capture, independent of source/wall timestamps.",
+      "properties": {
+        "state": {
+          "enum": [
+            "UNKNOWN",
+            "GOOD",
+            "DELAYED",
+            "ALARM"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "connected": {
+          "title": "Connected",
+          "type": "boolean"
+        },
+        "read_age_seconds": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Read Age Seconds"
+        },
+        "heartbeat_ages_seconds": {
+          "$ref": "#/$defs/HeartbeatAges"
+        }
+      },
+      "required": [
+        "state",
+        "connected",
+        "read_age_seconds",
+        "heartbeat_ages_seconds"
+      ],
+      "title": "GatewayCommunication",
+      "type": "object"
+    },
+    "HeartbeatAges": {
+      "additionalProperties": false,
+      "properties": {
+        "Line.Heartbeat": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Line.Heartbeat"
+        },
+        "Infeed.LinkHeartbeat": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Infeed.Linkheartbeat"
+        },
+        "Sealer.LinkHeartbeat": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Sealer.Linkheartbeat"
+        },
+        "Outfeed.LinkHeartbeat": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Outfeed.Linkheartbeat"
+        }
+      },
+      "required": [
+        "Line.Heartbeat",
+        "Infeed.LinkHeartbeat",
+        "Sealer.LinkHeartbeat",
+        "Outfeed.LinkHeartbeat"
+      ],
+      "title": "HeartbeatAges",
+      "type": "object"
+    },
+    "Int32Value": {
+      "additionalProperties": false,
+      "properties": {
+        "data_type": {
+          "const": "Int32",
+          "title": "Data Type",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "maximum": 2147483647,
+              "minimum": -2147483648,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "data_type",
+        "value"
+      ],
+      "title": "Int32Value",
+      "type": "object"
+    },
+    "LineState": {
+      "enum": [
+        "STOPPED",
+        "READY",
+        "RUNNING",
+        "PAUSED",
+        "STOPPING",
+        "FAULT",
+        "ESTOP",
+        "RECOVERY_REQUIRED"
+      ],
+      "title": "LineState",
+      "type": "string"
+    },
+    "ProductionEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "event_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Event Id",
+          "type": "string"
+        },
+        "source_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Source Id",
+          "type": "string"
+        },
+        "stream_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Stream Id",
+          "type": "string"
+        },
+        "seq": {
+          "description": "UInt64 canonical decimal string; use BigInt in JavaScript.",
+          "pattern": "^(?:[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|1844674407370955[0-0][0-9]{3}|18446744073709551[0-5][0-9]{2}|184467440737095516[0-0][0-9]{1}|1844674407370955161[0-4][0-9]{0}|18446744073709551615)$(?![\\s\\S])",
+          "title": "Seq",
+          "type": "string"
+        },
+        "equipment_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Equipment Id",
+          "type": "string"
+        },
+        "execution_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "occurred_at": {
+          "format": "date-time",
+          "title": "Occurred At",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "PRODUCTION_GOOD",
+            "PRODUCTION_REJECT"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/ProductionPayload"
+        }
+      },
+      "required": [
+        "event_id",
+        "source_id",
+        "stream_id",
+        "seq",
+        "equipment_id",
+        "execution_id",
+        "occurred_at",
+        "kind",
+        "payload"
+      ],
+      "title": "ProductionEvent",
+      "type": "object"
+    },
+    "ProductionPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "quantity": {
+          "description": "UInt64 canonical decimal string; use BigInt in JavaScript.",
+          "pattern": "^(?:[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|1844674407370955[0-0][0-9]{3}|18446744073709551[0-5][0-9]{2}|184467440737095516[0-0][0-9]{1}|1844674407370955161[0-4][0-9]{0}|18446744073709551615)$(?![\\s\\S])",
+          "title": "Quantity",
+          "type": "string"
+        },
+        "counter_epoch": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Counter Epoch",
+          "type": "string"
+        }
+      },
+      "required": [
+        "quantity",
+        "counter_epoch"
+      ],
+      "title": "ProductionPayload",
+      "type": "object"
+    },
+    "ScrapEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "event_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Event Id",
+          "type": "string"
+        },
+        "source_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Source Id",
+          "type": "string"
+        },
+        "stream_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Stream Id",
+          "type": "string"
+        },
+        "seq": {
+          "description": "UInt64 canonical decimal string; use BigInt in JavaScript.",
+          "pattern": "^(?:[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|1844674407370955[0-0][0-9]{3}|18446744073709551[0-5][0-9]{2}|184467440737095516[0-0][0-9]{1}|1844674407370955161[0-4][0-9]{0}|18446744073709551615)$(?![\\s\\S])",
+          "title": "Seq",
+          "type": "string"
+        },
+        "equipment_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Equipment Id",
+          "type": "string"
+        },
+        "execution_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "occurred_at": {
+          "format": "date-time",
+          "title": "Occurred At",
+          "type": "string"
+        },
+        "kind": {
+          "const": "WIP_SCRAP",
+          "title": "Kind",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/ScrapPayload"
+        }
+      },
+      "required": [
+        "event_id",
+        "source_id",
+        "stream_id",
+        "seq",
+        "equipment_id",
+        "execution_id",
+        "occurred_at",
+        "kind",
+        "payload"
+      ],
+      "title": "ScrapEvent",
+      "type": "object"
+    },
+    "ScrapPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "quantity": {
+          "description": "UInt64 canonical decimal string; use BigInt in JavaScript.",
+          "pattern": "^(?:[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|1844674407370955[0-0][0-9]{3}|18446744073709551[0-5][0-9]{2}|184467440737095516[0-0][0-9]{1}|1844674407370955161[0-4][0-9]{0}|18446744073709551615)$(?![\\s\\S])",
+          "title": "Quantity",
+          "type": "string"
+        },
+        "counter_epoch": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Counter Epoch",
+          "type": "string"
+        },
+        "reason_code": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Reason Code",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "quantity",
+        "counter_epoch",
+        "reason_code",
+        "reason"
+      ],
+      "title": "ScrapPayload",
+      "type": "object"
+    },
+    "StateEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "event_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Event Id",
+          "type": "string"
+        },
+        "source_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Source Id",
+          "type": "string"
+        },
+        "stream_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Stream Id",
+          "type": "string"
+        },
+        "seq": {
+          "description": "UInt64 canonical decimal string; use BigInt in JavaScript.",
+          "pattern": "^(?:[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|1844674407370955[0-0][0-9]{3}|18446744073709551[0-5][0-9]{2}|184467440737095516[0-0][0-9]{1}|1844674407370955161[0-4][0-9]{0}|18446744073709551615)$(?![\\s\\S])",
+          "title": "Seq",
+          "type": "string"
+        },
+        "equipment_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Equipment Id",
+          "type": "string"
+        },
+        "execution_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "not": {
+                "pattern": "\\s"
+              },
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Execution Id"
+        },
+        "occurred_at": {
+          "format": "date-time",
+          "title": "Occurred At",
+          "type": "string"
+        },
+        "kind": {
+          "const": "STATE_CHANGED",
+          "title": "Kind",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/StatePayload"
+        }
+      },
+      "required": [
+        "event_id",
+        "source_id",
+        "stream_id",
+        "seq",
+        "equipment_id",
+        "execution_id",
+        "occurred_at",
+        "kind",
+        "payload"
+      ],
+      "title": "StateEvent",
+      "type": "object"
+    },
+    "StatePayload": {
+      "additionalProperties": false,
+      "properties": {
+        "previous_state": {
+          "$ref": "#/$defs/LineState"
+        },
+        "state": {
+          "$ref": "#/$defs/LineState"
+        },
+        "control_version": {
+          "description": "UInt64 canonical decimal string; use BigInt in JavaScript.",
+          "pattern": "^(?:0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|1844674407370955[0-0][0-9]{3}|18446744073709551[0-5][0-9]{2}|184467440737095516[0-0][0-9]{1}|1844674407370955161[0-4][0-9]{0}|18446744073709551615)$(?![\\s\\S])",
+          "title": "Control Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "previous_state",
+        "state",
+        "control_version"
+      ],
+      "title": "StatePayload",
+      "type": "object"
+    },
+    "StreamGap": {
+      "additionalProperties": false,
+      "properties": {
+        "from_seq": {
+          "description": "UInt64 canonical decimal string; use BigInt in JavaScript.",
+          "pattern": "^(?:[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|1844674407370955[0-0][0-9]{3}|18446744073709551[0-5][0-9]{2}|184467440737095516[0-0][0-9]{1}|1844674407370955161[0-4][0-9]{0}|18446744073709551615)$(?![\\s\\S])",
+          "title": "From Seq",
+          "type": "string"
+        },
+        "through_seq": {
+          "description": "UInt64 canonical decimal string; use BigInt in JavaScript.",
+          "pattern": "^(?:[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|1844674407370955[0-0][0-9]{3}|18446744073709551[0-5][0-9]{2}|184467440737095516[0-0][0-9]{1}|1844674407370955161[0-4][0-9]{0}|18446744073709551615)$(?![\\s\\S])",
+          "title": "Through Seq",
+          "type": "string"
+        },
+        "irrecoverable": {
+          "title": "Irrecoverable",
+          "type": "boolean"
+        },
+        "detected_at": {
+          "format": "date-time",
+          "title": "Detected At",
+          "type": "string"
+        },
+        "reason_code": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Reason Code",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Reason",
+          "type": "string"
+        },
+        "affected_execution_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "not": {
+              "pattern": "\\s"
+            },
+            "type": "string"
+          },
+          "maxItems": 1000,
+          "title": "Affected Execution Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "from_seq",
+        "through_seq",
+        "irrecoverable",
+        "detected_at",
+        "reason_code",
+        "reason"
+      ],
+      "title": "StreamGap",
+      "type": "object"
+    },
+    "StringValue": {
+      "additionalProperties": false,
+      "properties": {
+        "data_type": {
+          "const": "String",
+          "title": "Data Type",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "data_type",
+        "value"
+      ],
+      "title": "StringValue",
+      "type": "object"
+    },
+    "TagSample": {
+      "additionalProperties": false,
+      "properties": {
+        "sample_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Sample Id",
+          "type": "string"
+        },
+        "tag_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Tag Id",
+          "type": "string"
+        },
+        "source_timestamp": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Timestamp"
+        },
+        "server_timestamp": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Server Timestamp"
+        },
+        "acquired_at": {
+          "format": "date-time",
+          "title": "Acquired At",
+          "type": "string"
+        },
+        "status_code": {
+          "maximum": 4294967295,
+          "minimum": 0,
+          "title": "Status Code",
+          "type": "integer"
+        },
+        "reading": {
+          "discriminator": {
+            "mapping": {
+              "Boolean": "#/$defs/BooleanValue",
+              "Double": "#/$defs/DoubleValue",
+              "Int32": "#/$defs/Int32Value",
+              "String": "#/$defs/StringValue",
+              "UInt32": "#/$defs/UInt32Value",
+              "UInt64": "#/$defs/UInt64Value"
+            },
+            "propertyName": "data_type"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/BooleanValue"
+            },
+            {
+              "$ref": "#/$defs/Int32Value"
+            },
+            {
+              "$ref": "#/$defs/UInt32Value"
+            },
+            {
+              "$ref": "#/$defs/UInt64Value"
+            },
+            {
+              "$ref": "#/$defs/DoubleValue"
+            },
+            {
+              "$ref": "#/$defs/StringValue"
+            }
+          ],
+          "title": "Reading"
+        }
+      },
+      "required": [
+        "sample_id",
+        "tag_id",
+        "source_timestamp",
+        "server_timestamp",
+        "acquired_at",
+        "status_code",
+        "reading"
+      ],
+      "title": "TagSample",
+      "type": "object"
+    },
+    "UInt32Value": {
+      "additionalProperties": false,
+      "properties": {
+        "data_type": {
+          "const": "UInt32",
+          "title": "Data Type",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "maximum": 4294967295,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "data_type",
+        "value"
+      ],
+      "title": "UInt32Value",
+      "type": "object"
+    },
+    "UInt64Value": {
+      "additionalProperties": false,
+      "properties": {
+        "data_type": {
+          "const": "UInt64",
+          "title": "Data Type",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "description": "UInt64 canonical decimal string; use BigInt in JavaScript.",
+              "pattern": "^(?:0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|1844674407370955[0-0][0-9]{3}|18446744073709551[0-5][0-9]{2}|184467440737095516[0-0][0-9]{1}|1844674407370955161[0-4][0-9]{0}|18446744073709551615)$(?![\\s\\S])",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "data_type",
+        "value"
+      ],
+      "title": "UInt64Value",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "body": {
+      "$ref": "#/$defs/BatchBody"
+    },
+    "content_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Content Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "body",
+    "content_sha256"
+  ],
+  "title": "GatewayBatch",
+  "type": "object"
+}

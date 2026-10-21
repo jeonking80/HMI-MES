@@ -1,0 +1,32 @@
+.alarm-center { margin-top: 1.5rem; padding: 1.5rem; background: #fff; border: 1px solid #dce4ee; border-radius: 1rem; }
+.alarm-scope, .alarm-id { overflow-wrap: anywhere; color: #526177; font-size: .85rem; }
+.alarm-filters { display: flex; flex-wrap: wrap; align-items: end; gap: .8rem; margin: 1rem 0; }
+.alarm-filters label { display: grid; gap: .4rem; font-size: .85rem; }
+.alarm-filters select, .alarm-filters input, .alarm-recovery input { min-height: 2.7rem; border: 1px solid #becbda; border-radius: .5rem; padding: .6rem; background: #fff; }
+.alarm-list { list-style: none; padding: 0; display: grid; gap: .6rem; }
+.alarm-select { width: 100%; display: flex; gap: .6rem 1rem; align-items: center; flex-wrap: wrap; text-align: left; background: #f7f9fc; border: 1px solid #dce4ee; border-radius: .65rem; padding: 1rem; cursor: pointer; color: #203149; }
+.alarm-select[aria-pressed=true] { border-color: #2466af; outline: 2px solid #d2e5f9; }
+.alarm-select small { flex-basis: 100%; overflow-wrap: anywhere; color: #526177; }
+.alarm-status { border-radius: 1rem; padding: .25rem .6rem; font-weight: 700; font-size: .8rem; background: #e8edf4; }
+.alarm-status-ACTIVE_UNACKNOWLEDGED { background: #fde8e7; color: #9c2723; }
+.alarm-status-ACTIVE_ACKNOWLEDGED { background: #fff0d9; color: #81500a; }
+.alarm-status-RETURNED_UNACKNOWLEDGED { background: #e8edfc; color: #354b91; }
+.alarm-pages { display: flex; flex-wrap: wrap; gap: .6rem; margin: .8rem 0; }
+.alarm-detail, .alarm-ledger { border-top: 1px solid #dce4ee; margin-top: 1.3rem; padding-top: 1.2rem; }
+.alarm-facts { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: .8rem; }
+.alarm-facts div { min-width: 0; }
+.alarm-facts dt { color: #526177; font-size: .8rem; }
+.alarm-facts dd { margin: .3rem 0 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.alarm-history { display: grid; gap: .8rem; padding-left: 1.4rem; }
+.alarm-history li { border-bottom: 1px solid #e5eaf1; padding: .5rem 0 1rem; }
+.alarm-history span, .alarm-history small { display: block; margin: .3rem 0; }
+.alarm-history p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.alarm-note, .alarm-recovery { display: grid; gap: .6rem; margin: 1rem 0; }
+.alarm-note textarea { min-height: 6rem; width: 100%; border: 1px solid #becbda; border-radius: .5rem; padding: .75rem; resize: vertical; font: inherit; }
+.alarm-ledger .button, .alarm-note .button { margin: .25rem .5rem .25rem 0; }
+@media (max-width: 700px) { .alarm-center { padding: 1rem; } .alarm-filters, .alarm-filters label { width: 100%; } }
+
+.alarm-asset-choice { display: flex; align-items: center; gap: .75rem; margin: 1rem 0; font-weight: 700; }
+.alarm-asset-choice select { min-height: 2.7rem; padding: .6rem; border: 1px solid #becbda; border-radius: .5rem; background: #fff; color: #203149; }
+.alarm-fault-code { padding: .7rem; background: #fff0d9; border-radius: .5rem; font-weight: 700; }
+@media (max-width: 700px) { .alarm-asset-choice { align-items: stretch; flex-direction: column; } }

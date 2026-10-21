@@ -1,0 +1,6 @@
+{
+  "schema_version": "1.0",
+  "code": "RUN_NOT_FOUND",
+  "execution_id": "unknown-run",
+  "reason": "No durable record exists for this execution ID."
+}

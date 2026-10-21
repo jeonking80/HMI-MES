@@ -1,0 +1,769 @@
+{
+  "schema_version": "1.0.0",
+  "namespace_uri": "urn:hmi-mes:packaging-line:tags:v1",
+  "enums": {
+    "EquipmentState": {
+      "0": "STOPPED",
+      "1": "READY",
+      "2": "RUNNING",
+      "3": "PAUSED",
+      "4": "STOPPING",
+      "5": "FAULT",
+      "6": "ESTOP",
+      "7": "RECOVERY_REQUIRED"
+    },
+    "ControlMode": {
+      "0": "LOCAL",
+      "1": "REMOTE"
+    },
+    "OperationMode": {
+      "0": "MANUAL",
+      "1": "AUTO"
+    },
+    "CheckResult": {
+      "0": "UNDECIDED",
+      "1": "GOOD",
+      "2": "REJECT"
+    }
+  },
+  "quality": {
+    "data_value_fields": [
+      "value",
+      "status_code",
+      "source_timestamp",
+      "server_timestamp"
+    ],
+    "observation_fields": [
+      "collected_at",
+      "stored_at"
+    ],
+    "calculation_usable_statuses": [
+      "Good"
+    ],
+    "stale_after_ms": 3000,
+    "communication_alarm_after_ms": 5000,
+    "unchanged_source_timestamp_is_stale": false
+  },
+  "tags": [
+    {
+      "group": "Line",
+      "name": "State",
+      "logical_name": "Line.State",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Line.State"
+      },
+      "data_type": "Int32",
+      "unit": null,
+      "enum": "EquipmentState",
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Line",
+      "name": "ControlMode",
+      "logical_name": "Line.ControlMode",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Line.ControlMode"
+      },
+      "data_type": "Int32",
+      "unit": null,
+      "enum": "ControlMode",
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Line",
+      "name": "OperationMode",
+      "logical_name": "Line.OperationMode",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Line.OperationMode"
+      },
+      "data_type": "Int32",
+      "unit": null,
+      "enum": "OperationMode",
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Line",
+      "name": "EStop",
+      "logical_name": "Line.EStop",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Line.EStop"
+      },
+      "data_type": "Boolean",
+      "unit": null,
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Line",
+      "name": "GuardClosed",
+      "logical_name": "Line.GuardClosed",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Line.GuardClosed"
+      },
+      "data_type": "Boolean",
+      "unit": null,
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Line",
+      "name": "Permissive",
+      "logical_name": "Line.Permissive",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Line.Permissive"
+      },
+      "data_type": "Boolean",
+      "unit": null,
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Line",
+      "name": "FaultCode",
+      "logical_name": "Line.FaultCode",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Line.FaultCode"
+      },
+      "data_type": "UInt32",
+      "unit": null,
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Line",
+      "name": "ActiveExecutionId",
+      "logical_name": "Line.ActiveExecutionId",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Line.ActiveExecutionId"
+      },
+      "data_type": "String",
+      "unit": null,
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Line",
+      "name": "RecipeVersion",
+      "logical_name": "Line.RecipeVersion",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Line.RecipeVersion"
+      },
+      "data_type": "String",
+      "unit": null,
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Line",
+      "name": "CounterEpoch",
+      "logical_name": "Line.CounterEpoch",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Line.CounterEpoch"
+      },
+      "data_type": "String",
+      "unit": null,
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Line",
+      "name": "TargetQuantity",
+      "logical_name": "Line.TargetQuantity",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Line.TargetQuantity"
+      },
+      "data_type": "UInt32",
+      "unit": "개",
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Line",
+      "name": "WipCount",
+      "logical_name": "Line.WipCount",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Line.WipCount"
+      },
+      "data_type": "UInt32",
+      "unit": "개",
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Line",
+      "name": "GoodTotal",
+      "logical_name": "Line.GoodTotal",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Line.GoodTotal"
+      },
+      "data_type": "UInt64",
+      "unit": "개",
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Line",
+      "name": "RejectTotal",
+      "logical_name": "Line.RejectTotal",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Line.RejectTotal"
+      },
+      "data_type": "UInt64",
+      "unit": "개",
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Line",
+      "name": "ScrapTotal",
+      "logical_name": "Line.ScrapTotal",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Line.ScrapTotal"
+      },
+      "data_type": "UInt64",
+      "unit": "개",
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Line",
+      "name": "Heartbeat",
+      "logical_name": "Line.Heartbeat",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Line.Heartbeat"
+      },
+      "data_type": "UInt64",
+      "unit": null,
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Line",
+      "name": "ControlVersion",
+      "logical_name": "Line.ControlVersion",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Line.ControlVersion"
+      },
+      "data_type": "UInt64",
+      "unit": null,
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Line",
+      "name": "EventSeq",
+      "logical_name": "Line.EventSeq",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Line.EventSeq"
+      },
+      "data_type": "UInt64",
+      "unit": null,
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Infeed",
+      "name": "State",
+      "logical_name": "Infeed.State",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Infeed.State"
+      },
+      "data_type": "Int32",
+      "unit": null,
+      "enum": "EquipmentState",
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Infeed",
+      "name": "RunFeedback",
+      "logical_name": "Infeed.RunFeedback",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Infeed.RunFeedback"
+      },
+      "data_type": "Boolean",
+      "unit": null,
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Infeed",
+      "name": "FaultCode",
+      "logical_name": "Infeed.FaultCode",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Infeed.FaultCode"
+      },
+      "data_type": "UInt32",
+      "unit": null,
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Infeed",
+      "name": "MotorCurrent",
+      "logical_name": "Infeed.MotorCurrent",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Infeed.MotorCurrent"
+      },
+      "data_type": "Double",
+      "unit": "A",
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": true
+    },
+    {
+      "group": "Infeed",
+      "name": "ActualSpeed",
+      "logical_name": "Infeed.ActualSpeed",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Infeed.ActualSpeed"
+      },
+      "data_type": "Double",
+      "unit": "m/min",
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": true
+    },
+    {
+      "group": "Infeed",
+      "name": "EntrySensor",
+      "logical_name": "Infeed.EntrySensor",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Infeed.EntrySensor"
+      },
+      "data_type": "Boolean",
+      "unit": null,
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Infeed",
+      "name": "BufferCount",
+      "logical_name": "Infeed.BufferCount",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Infeed.BufferCount"
+      },
+      "data_type": "UInt32",
+      "unit": "개",
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Infeed",
+      "name": "LinkHeartbeat",
+      "logical_name": "Infeed.LinkHeartbeat",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Infeed.LinkHeartbeat"
+      },
+      "data_type": "UInt64",
+      "unit": null,
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Sealer",
+      "name": "State",
+      "logical_name": "Sealer.State",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Sealer.State"
+      },
+      "data_type": "Int32",
+      "unit": null,
+      "enum": "EquipmentState",
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Sealer",
+      "name": "RunFeedback",
+      "logical_name": "Sealer.RunFeedback",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Sealer.RunFeedback"
+      },
+      "data_type": "Boolean",
+      "unit": null,
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Sealer",
+      "name": "FaultCode",
+      "logical_name": "Sealer.FaultCode",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Sealer.FaultCode"
+      },
+      "data_type": "UInt32",
+      "unit": null,
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Sealer",
+      "name": "MotorCurrent",
+      "logical_name": "Sealer.MotorCurrent",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Sealer.MotorCurrent"
+      },
+      "data_type": "Double",
+      "unit": "A",
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": true
+    },
+    {
+      "group": "Sealer",
+      "name": "ActualSpeed",
+      "logical_name": "Sealer.ActualSpeed",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Sealer.ActualSpeed"
+      },
+      "data_type": "Double",
+      "unit": "m/min",
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": true
+    },
+    {
+      "group": "Sealer",
+      "name": "TemperaturePV",
+      "logical_name": "Sealer.TemperaturePV",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Sealer.TemperaturePV"
+      },
+      "data_type": "Double",
+      "unit": "℃",
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": true
+    },
+    {
+      "group": "Sealer",
+      "name": "TemperatureSP",
+      "logical_name": "Sealer.TemperatureSP",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Sealer.TemperatureSP"
+      },
+      "data_type": "Double",
+      "unit": "℃",
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": true
+    },
+    {
+      "group": "Sealer",
+      "name": "AirPressure",
+      "logical_name": "Sealer.AirPressure",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Sealer.AirPressure"
+      },
+      "data_type": "Double",
+      "unit": "bar",
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": true
+    },
+    {
+      "group": "Sealer",
+      "name": "HeaterOn",
+      "logical_name": "Sealer.HeaterOn",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Sealer.HeaterOn"
+      },
+      "data_type": "Boolean",
+      "unit": null,
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Sealer",
+      "name": "GuardClosed",
+      "logical_name": "Sealer.GuardClosed",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Sealer.GuardClosed"
+      },
+      "data_type": "Boolean",
+      "unit": null,
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Sealer",
+      "name": "Ready",
+      "logical_name": "Sealer.Ready",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Sealer.Ready"
+      },
+      "data_type": "Boolean",
+      "unit": null,
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Sealer",
+      "name": "LinkHeartbeat",
+      "logical_name": "Sealer.LinkHeartbeat",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Sealer.LinkHeartbeat"
+      },
+      "data_type": "UInt64",
+      "unit": null,
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Outfeed",
+      "name": "State",
+      "logical_name": "Outfeed.State",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Outfeed.State"
+      },
+      "data_type": "Int32",
+      "unit": null,
+      "enum": "EquipmentState",
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Outfeed",
+      "name": "RunFeedback",
+      "logical_name": "Outfeed.RunFeedback",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Outfeed.RunFeedback"
+      },
+      "data_type": "Boolean",
+      "unit": null,
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Outfeed",
+      "name": "FaultCode",
+      "logical_name": "Outfeed.FaultCode",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Outfeed.FaultCode"
+      },
+      "data_type": "UInt32",
+      "unit": null,
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Outfeed",
+      "name": "MotorCurrent",
+      "logical_name": "Outfeed.MotorCurrent",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Outfeed.MotorCurrent"
+      },
+      "data_type": "Double",
+      "unit": "A",
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": true
+    },
+    {
+      "group": "Outfeed",
+      "name": "ActualSpeed",
+      "logical_name": "Outfeed.ActualSpeed",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Outfeed.ActualSpeed"
+      },
+      "data_type": "Double",
+      "unit": "m/min",
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": true
+    },
+    {
+      "group": "Outfeed",
+      "name": "ExitSensor",
+      "logical_name": "Outfeed.ExitSensor",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Outfeed.ExitSensor"
+      },
+      "data_type": "Boolean",
+      "unit": null,
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Outfeed",
+      "name": "CheckResult",
+      "logical_name": "Outfeed.CheckResult",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Outfeed.CheckResult"
+      },
+      "data_type": "Int32",
+      "unit": null,
+      "enum": "CheckResult",
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Outfeed",
+      "name": "GoodCounter",
+      "logical_name": "Outfeed.GoodCounter",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Outfeed.GoodCounter"
+      },
+      "data_type": "UInt64",
+      "unit": "개",
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Outfeed",
+      "name": "RejectCounter",
+      "logical_name": "Outfeed.RejectCounter",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Outfeed.RejectCounter"
+      },
+      "data_type": "UInt64",
+      "unit": "개",
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    },
+    {
+      "group": "Outfeed",
+      "name": "LinkHeartbeat",
+      "logical_name": "Outfeed.LinkHeartbeat",
+      "node_id": {
+        "identifier_type": "String",
+        "identifier": "Outfeed.LinkHeartbeat"
+      },
+      "data_type": "UInt64",
+      "unit": null,
+      "enum": null,
+      "access": "read_only",
+      "polling_interval_ms": 1000,
+      "analog_history": false
+    }
+  ]
+}

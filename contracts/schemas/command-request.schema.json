@@ -1,0 +1,319 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "EmptyArguments": {
+      "additionalProperties": false,
+      "properties": {},
+      "title": "EmptyArguments",
+      "type": "object"
+    },
+    "EndRun": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "END_RUN",
+          "title": "Kind",
+          "type": "string"
+        },
+        "args": {
+          "$ref": "#/$defs/EmptyArguments"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "EndRun",
+      "type": "object"
+    },
+    "LoadJob": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "LOAD_JOB",
+          "title": "Kind",
+          "type": "string"
+        },
+        "args": {
+          "$ref": "#/$defs/LoadJobArguments"
+        }
+      },
+      "required": [
+        "kind",
+        "args"
+      ],
+      "title": "LoadJob",
+      "type": "object"
+    },
+    "LoadJobArguments": {
+      "additionalProperties": false,
+      "properties": {
+        "work_order_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Work Order Id",
+          "type": "string"
+        },
+        "recipe_version": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Recipe Version",
+          "type": "string"
+        },
+        "target_quantity": {
+          "exclusiveMinimum": 0,
+          "maximum": 4294967295,
+          "title": "Target Quantity",
+          "type": "integer"
+        },
+        "parameters": {
+          "$ref": "#/$defs/Parameters"
+        }
+      },
+      "required": [
+        "work_order_id",
+        "recipe_version",
+        "target_quantity",
+        "parameters"
+      ],
+      "title": "LoadJobArguments",
+      "type": "object"
+    },
+    "Parameters": {
+      "additionalProperties": false,
+      "properties": {
+        "temperature_c": {
+          "minimum": 0,
+          "title": "Temperature C",
+          "type": "number"
+        },
+        "speed_m_per_min": {
+          "exclusiveMinimum": 0,
+          "title": "Speed M Per Min",
+          "type": "number"
+        }
+      },
+      "required": [
+        "temperature_c",
+        "speed_m_per_min"
+      ],
+      "title": "Parameters",
+      "type": "object"
+    },
+    "Pause": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "PAUSE",
+          "title": "Kind",
+          "type": "string"
+        },
+        "args": {
+          "$ref": "#/$defs/EmptyArguments"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "Pause",
+      "type": "object"
+    },
+    "ResetFault": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "RESET_FAULT",
+          "title": "Kind",
+          "type": "string"
+        },
+        "args": {
+          "$ref": "#/$defs/EmptyArguments"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "ResetFault",
+      "type": "object"
+    },
+    "SetParameters": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "SET_PARAMETERS",
+          "title": "Kind",
+          "type": "string"
+        },
+        "args": {
+          "$ref": "#/$defs/SetParametersArguments"
+        }
+      },
+      "required": [
+        "kind",
+        "args"
+      ],
+      "title": "SetParameters",
+      "type": "object"
+    },
+    "SetParametersArguments": {
+      "additionalProperties": false,
+      "properties": {
+        "recipe_version": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Recipe Version",
+          "type": "string"
+        },
+        "parameters": {
+          "$ref": "#/$defs/Parameters"
+        }
+      },
+      "required": [
+        "recipe_version",
+        "parameters"
+      ],
+      "title": "SetParametersArguments",
+      "type": "object"
+    },
+    "Start": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "START",
+          "title": "Kind",
+          "type": "string"
+        },
+        "args": {
+          "$ref": "#/$defs/EmptyArguments"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "Start",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "command_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "not": {
+        "pattern": "\\s"
+      },
+      "title": "Command Id",
+      "type": "string"
+    },
+    "target_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "not": {
+        "pattern": "\\s"
+      },
+      "title": "Target Id",
+      "type": "string"
+    },
+    "execution_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Execution Id"
+    },
+    "command": {
+      "discriminator": {
+        "mapping": {
+          "END_RUN": "#/$defs/EndRun",
+          "LOAD_JOB": "#/$defs/LoadJob",
+          "PAUSE": "#/$defs/Pause",
+          "RESET_FAULT": "#/$defs/ResetFault",
+          "SET_PARAMETERS": "#/$defs/SetParameters",
+          "START": "#/$defs/Start"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/LoadJob"
+        },
+        {
+          "$ref": "#/$defs/Start"
+        },
+        {
+          "$ref": "#/$defs/Pause"
+        },
+        {
+          "$ref": "#/$defs/EndRun"
+        },
+        {
+          "$ref": "#/$defs/SetParameters"
+        },
+        {
+          "$ref": "#/$defs/ResetFault"
+        }
+      ],
+      "title": "Command"
+    },
+    "requested_by": {
+      "maxLength": 128,
+      "minLength": 1,
+      "not": {
+        "pattern": "\\s"
+      },
+      "title": "Requested By",
+      "type": "string"
+    },
+    "requested_at": {
+      "format": "date-time",
+      "title": "Requested At",
+      "type": "string"
+    },
+    "expires_at": {
+      "format": "date-time",
+      "title": "Expires At",
+      "type": "string"
+    },
+    "expected_control_version": {
+      "description": "UInt64 canonical decimal string; use BigInt in JavaScript.",
+      "pattern": "^(?:0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|1844674407370955[0-0][0-9]{3}|18446744073709551[0-5][0-9]{2}|184467440737095516[0-0][0-9]{1}|1844674407370955161[0-4][0-9]{0}|18446744073709551615)$(?![\\s\\S])",
+      "title": "Expected Control Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "command_id",
+    "target_id",
+    "execution_id",
+    "command",
+    "requested_by",
+    "requested_at",
+    "expires_at",
+    "expected_control_version"
+  ],
+  "title": "CommandRequest",
+  "type": "object"
+}

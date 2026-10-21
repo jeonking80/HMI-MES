@@ -1,0 +1,265 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "EventReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "event_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Event Id",
+          "type": "string"
+        },
+        "seq": {
+          "description": "UInt64 canonical decimal string; use BigInt in JavaScript.",
+          "pattern": "^(?:[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|1844674407370955[0-0][0-9]{3}|18446744073709551[0-5][0-9]{2}|184467440737095516[0-0][0-9]{1}|1844674407370955161[0-4][0-9]{0}|18446744073709551615)$(?![\\s\\S])",
+          "title": "Seq",
+          "type": "string"
+        },
+        "disposition": {
+          "enum": [
+            "APPLIED",
+            "QUARANTINED"
+          ],
+          "title": "Disposition",
+          "type": "string"
+        },
+        "reason_code": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "not": {
+                "pattern": "\\s"
+              },
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason Code"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        }
+      },
+      "required": [
+        "event_id",
+        "seq",
+        "disposition"
+      ],
+      "title": "EventReceipt",
+      "type": "object"
+    },
+    "StreamGap": {
+      "additionalProperties": false,
+      "properties": {
+        "from_seq": {
+          "description": "UInt64 canonical decimal string; use BigInt in JavaScript.",
+          "pattern": "^(?:[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|1844674407370955[0-0][0-9]{3}|18446744073709551[0-5][0-9]{2}|184467440737095516[0-0][0-9]{1}|1844674407370955161[0-4][0-9]{0}|18446744073709551615)$(?![\\s\\S])",
+          "title": "From Seq",
+          "type": "string"
+        },
+        "through_seq": {
+          "description": "UInt64 canonical decimal string; use BigInt in JavaScript.",
+          "pattern": "^(?:[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|1844674407370955[0-0][0-9]{3}|18446744073709551[0-5][0-9]{2}|184467440737095516[0-0][0-9]{1}|1844674407370955161[0-4][0-9]{0}|18446744073709551615)$(?![\\s\\S])",
+          "title": "Through Seq",
+          "type": "string"
+        },
+        "irrecoverable": {
+          "title": "Irrecoverable",
+          "type": "boolean"
+        },
+        "detected_at": {
+          "format": "date-time",
+          "title": "Detected At",
+          "type": "string"
+        },
+        "reason_code": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Reason Code",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Reason",
+          "type": "string"
+        },
+        "affected_execution_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "not": {
+              "pattern": "\\s"
+            },
+            "type": "string"
+          },
+          "maxItems": 1000,
+          "title": "Affected Execution Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "from_seq",
+        "through_seq",
+        "irrecoverable",
+        "detected_at",
+        "reason_code",
+        "reason"
+      ],
+      "title": "StreamGap",
+      "type": "object"
+    },
+    "StreamProgress": {
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Source Id",
+          "type": "string"
+        },
+        "stream_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Stream Id",
+          "type": "string"
+        },
+        "verified_through_seq": {
+          "description": "UInt64 canonical decimal string; use BigInt in JavaScript.",
+          "pattern": "^(?:0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|1844674407370955[0-0][0-9]{3}|18446744073709551[0-5][0-9]{2}|184467440737095516[0-0][0-9]{1}|1844674407370955161[0-4][0-9]{0}|18446744073709551615)$(?![\\s\\S])",
+          "title": "Verified Through Seq",
+          "type": "string"
+        },
+        "latest_ingested_seq": {
+          "description": "UInt64 canonical decimal string; use BigInt in JavaScript.",
+          "pattern": "^(?:0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|1844674407370955[0-0][0-9]{3}|18446744073709551[0-5][0-9]{2}|184467440737095516[0-0][0-9]{1}|1844674407370955161[0-4][0-9]{0}|18446744073709551615)$(?![\\s\\S])",
+          "title": "Latest Ingested Seq",
+          "type": "string"
+        },
+        "unresolved_gaps": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/StreamGap"
+          },
+          "maxItems": 100,
+          "title": "Unresolved Gaps",
+          "type": "array"
+        }
+      },
+      "required": [
+        "source_id",
+        "stream_id",
+        "verified_through_seq",
+        "latest_ingested_seq"
+      ],
+      "title": "StreamProgress",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "batch_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "not": {
+        "pattern": "\\s"
+      },
+      "title": "Batch Id",
+      "type": "string"
+    },
+    "gateway_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "not": {
+        "pattern": "\\s"
+      },
+      "title": "Gateway Id",
+      "type": "string"
+    },
+    "content_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Content Sha256",
+      "type": "string"
+    },
+    "durability": {
+      "const": "COMMITTED",
+      "title": "Durability",
+      "type": "string"
+    },
+    "committed_at": {
+      "format": "date-time",
+      "title": "Committed At",
+      "type": "string"
+    },
+    "events": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/EventReceipt"
+      },
+      "maxItems": 1000,
+      "title": "Events",
+      "type": "array"
+    },
+    "recorded_gaps": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/StreamGap"
+      },
+      "maxItems": 100,
+      "title": "Recorded Gaps",
+      "type": "array"
+    },
+    "progress": {
+      "$ref": "#/$defs/StreamProgress"
+    }
+  },
+  "required": [
+    "batch_id",
+    "gateway_id",
+    "content_sha256",
+    "durability",
+    "committed_at",
+    "progress"
+  ],
+  "title": "DurableAck",
+  "type": "object"
+}

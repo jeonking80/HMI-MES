@@ -1,0 +1,61 @@
+{
+  "body": {
+    "schema_version": "1.2",
+    "batch_id": "batch-001",
+    "gateway_id": "gateway-1",
+    "source_id": "simulator-1",
+    "stream_id": "stream-1",
+    "capture_generation": "1",
+    "capture_seq": "1",
+    "captured_at": "2026-10-20T12:00:31Z",
+    "samples": [
+      {
+        "sample_id": "sample-001",
+        "tag_id": "Line.GoodTotal",
+        "source_timestamp": "2026-10-20T12:00:00Z",
+        "server_timestamp": "2026-10-20T12:00:01Z",
+        "acquired_at": "2026-10-20T12:00:31Z",
+        "status_code": 0,
+        "reading": {
+          "data_type": "UInt64",
+          "value": "9007199254740993"
+        }
+      }
+    ],
+    "events": [
+      {
+        "schema_version": "1.0",
+        "event_id": "event-001",
+        "source_id": "simulator-1",
+        "stream_id": "stream-1",
+        "seq": "1",
+        "equipment_id": "outfeed-1",
+        "execution_id": "run-A",
+        "occurred_at": "2026-10-20T12:00:30Z",
+        "kind": "PRODUCTION_GOOD",
+        "payload": {
+          "quantity": "1",
+          "counter_epoch": "epoch-1"
+        }
+      }
+    ],
+    "gaps": [],
+    "communication": {
+      "state": "GOOD",
+      "connected": true,
+      "read_age_seconds": 0.0,
+      "heartbeat_ages_seconds": {
+        "Line.Heartbeat": 0.0,
+        "Infeed.LinkHeartbeat": 0.0,
+        "Sealer.LinkHeartbeat": 0.0,
+        "Outfeed.LinkHeartbeat": 0.0
+      }
+    },
+    "capture_time": {
+      "clock_epoch": "collector-session-1",
+      "monotonic_seconds": 10.0,
+      "utc_read_span_seconds": 0.001
+    }
+  },
+  "content_sha256": "75013621efd2fa8a56e3d5070d231c98b6d542079e34a97250ab43e39a3de75a"
+}

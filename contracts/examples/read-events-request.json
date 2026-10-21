@@ -1,0 +1,7 @@
+{
+  "schema_version": "1.0",
+  "source_id": "simulator-1",
+  "stream_id": "stream-1",
+  "after_seq": "0",
+  "limit": 100
+}
