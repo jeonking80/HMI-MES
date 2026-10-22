@@ -36,6 +36,8 @@ M0 개발 기반·계약·설계의 검증을 통과했다. M1 설비 앱은 PLC
 
 
 - [Neon·Vercel 배포 절차](deploy/neon-vercel.md)
+- [가상 설비 연결·영속 실행 배포](deploy/plant-hosting.md)
+- [작업자 사용 순서](docs/OPERATOR_GUIDE.md)
 
 아래 기능 목록과 검증 수치는 전체 목표 범위입니다. 개별 구현·시험 통과가 전체 수락 완료를 뜻하지 않습니다.
 
