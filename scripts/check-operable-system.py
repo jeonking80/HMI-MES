@@ -493,6 +493,11 @@ async def exercise(directory, executable, web_dir, screenshot, evidence, capture
                         10,
                         "PLC did not confirm PAUSED",
                     )
+                    # The END_RUN confirmation pins the control version shown on screen, so wait
+                    # until the screen reflects the PAUSE result before opening it.
+                    await expect(page.locator("#line-state")).to_have_text(
+                        "일시 정지", timeout=10_000
+                    )
                     checkpoint("confirmed END_RUN; wait for original execution final settlement")
                     await command_ui("END_RUN")
                     scope = {

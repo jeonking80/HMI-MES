@@ -43,6 +43,12 @@ export default function App() {
 
   useEffect(() => { document.title = 'HMI-MES · 운영 시스템' }, [])
   useEffect(() => { heading.current?.focus() }, [screen, workspaceTab])
+  // Success notices are transient; errors stay until the next action.
+  useEffect(() => {
+    if (!notice) return
+    const timer = window.setTimeout(() => setNotice(''), 6000)
+    return () => window.clearTimeout(timer)
+  }, [notice])
   useEffect(() => {
     if (!session) return
     const timer = window.setTimeout(() => {

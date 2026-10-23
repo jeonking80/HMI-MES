@@ -1,47 +1,78 @@
 # HMI · MES 설비 운영 시스템
 
-가상 설비와 OPC UA 통신으로 연결하여 **설비 감시·제어, 알람, 이력 조회, 작업지시와 생산실적 관리**를 구현하는 프로젝트입니다.
+가상 포장라인 설비를 **실제 암호화 OPC UA**로 연결해 설비 감시·제어, 알람, 작업지시, 생산실적 정산까지 이어지는 스마트팩토리 운영 시스템입니다. 현장 설비는 독립 실행되는 **설비 시뮬레이터 앱(가상 PLC 포함)**으로 구현했고, 운영 시스템은 그 데이터를 수집해 웹 HMI·MES 화면으로 제공합니다.
 
-현장 하드웨어는 독립적으로 실행되는 **설비 시뮬레이터 앱**으로 구현합니다. 본 시스템은 이 앱에서 설비 데이터를 수집하고 운전 명령을 전달하며, 실제 실행 결과를 확인합니다.
+KULS가 공개한 [HMI 시스템 구성예시](https://www.kuls.co.kr/ict/kict/ict_smartfactory_hmi.php)(현장설비 → Master PLC → OPC 서버 → HMI·MES 서버 → 모니터링)를 기준으로 각 계층의 역할을 직접 구현했습니다.
 
-KULS가 공개한 HMI 시스템 구성예시를 참고하여 현장설비, 통신 구간, Master PLC, OPC 서버, HMI·MES 서버, 모니터링 화면의 역할을 반영했습니다.
+![라인 모니터링 화면 — 실제 OPC UA 수집값으로 운전 중](docs/assets/screenshots/line-monitoring-running.png)
 
-공개 운영 화면: <https://hmi-mes.vercel.app>. 기존 `demo` 계정과 직접 변경한 비밀번호로 로그인한다. [작업자 사용 순서](docs/OPERATOR_GUIDE.md)에 따라 공정 설정·작업 등록 → 배포·실행 연결 → 예열·시작 → 정상 종료·실적 대조를 진행한다. 현재 설비·게이트웨이는 이 클라우드에서 실행하며, 환경 중단 시 설비도 멈출 수 있다. 웹·API는 Vercel Hobby, 운영 DB는 Neon Free를 사용하고 추가 유료 서비스는 만들지 않았다.
+<sub>로컬 전체 경로 검증(`scripts/check-operable-system.py`) 중 실제 설비 앱이 생산하는 상태를 캡처했습니다. 모의 값이 아닙니다.</sub>
 
-## 현재 개발 상태
+## 핵심 설계 포인트
 
-M0 개발 기반·계약·설계의 검증을 통과했다. M1 설비 앱은 PLC·영속 명령 원장·인증된 현장 콘솔·실제 암호화 OPC UA·보호 조건을 적용한 사건 보관을 구현했다. M2는 실제 OPC UA→별도 게이트웨이 버퍼→HTTP→PostgreSQL의 수집·명령·최종 정산·다음 작업 연결을 검증했다. 앱 A의 인증·WebSocket 조회·운전 명령·작업지시 배포/실행 연결·원래 결과 복구와 아날로그 알람 확인/메모를 개별 검증했다. 다음 작업 전환 화면, PLC 고장 알람, 미연결 작업 취소와 설비별 필드 관측·지연 입력을 개별 검증했다. 트렌드·보고서·나머지 알람과 전체 수락·성능·장시간·백업/복원 검증은 남아 있다. **전체 프로젝트는 완료되지 않았다.** 구현 단위별 검증과 남은 항목은 [개발 진행 상태](docs/DEVELOPMENT_STATUS.md)에 기록한다.
+| 현장 문제 | 이 프로젝트의 해결 |
+|---|---|
+| 버튼을 눌렀다고 설비가 실제로 움직였는지 알 수 없다 | 명령 **접수**와 **실행 결과**를 분리하고 원래 명령 ID로 결과를 추적합니다. 응답이 끊기면 같은 ID로 조회만 하고, 새 ID로 자동 재실행하지 않습니다. 실행 허용 여부는 가상 PLC가 최종 판정합니다. |
+| 통신이 끊긴 동안의 값이 0이나 정상으로 보인다 | 측정값마다 원천·수집·저장 시각과 품질을 보관하고, 불명은 불명으로 표시합니다. 화면도 "불명"을 정상과 다른 색으로 구분합니다. |
+| 재전송·재시작 때 실적이 두 번 잡힌다 | 생산 사건에 고유 ID와 원래 실행 ID를 붙여 중복 제거·실적·처리 커서를 한 트랜잭션에 저장합니다. 게이트웨이는 DB 커밋 ACK를 받은 뒤에만 버퍼를 비웁니다. |
+| 작업 전환 때 이전 작업 수량이 다음 작업에 섞인다 | 종료 시 재공 정리와 설비 최종 요약 대조(정산)를 마친 뒤에만 다음 작업을 연결합니다. |
+| 조회 권한 사용자도 제어할 수 있다 | 첫 제어 경로부터 세션·역할·CSRF·Origin 검사와 OPC UA 인증서 검증을 적용했습니다. |
 
-- [시스템 기획서](docs/HMI_MES_시스템_기획서_v1_0.md)
-- [개발계획서](docs/HMI_MES_개발계획서_v1_0.md)
-- [태그 계약](contracts/tags/README.md)
-- [명령·사건 프로토콜](contracts/PROTOCOL.md)
-- [수집 배치·ACK·화면 동기화 계약](contracts/TRANSPORT.md)
-- [상태 전이 계약](contracts/STATE_MACHINES.md)
-- [DB·인증 설계](docs/architecture/DATA_AUTH.md)
-- [게이트웨이·수집 API 실행](docs/architecture/M2_RUN.md)
-- [앱 A 계정 생성·인증 서버](docs/architecture/API_RUN.md)
-- [작업지시 등록·배포·실행 연결](docs/architecture/WORK_ORDERS.md)
-- [미연결 작업지시 취소 API](docs/architecture/WORK_ORDER_CANCEL.md)
-- [실행·저장 정산 근거 조회](docs/architecture/EXECUTION_READ.md)
-- [별도 설비 앱 실행](docs/architecture/SIMULATOR_RUN.md)
-- [설비 현장 콘솔 화면·브라우저 검증](docs/architecture/SIMULATOR_CONSOLE_UI.md)
-- [콘솔 HTTP·권한 경계](docs/architecture/SIMULATOR_CONSOLE.md)
-- [시뮬레이터 인증](docs/architecture/SIMULATOR_AUTH.md)
-- [PLC 운전 조건](docs/architecture/PLC.md)
-- [명령 원장](docs/architecture/COMMAND_STORE.md)
-- [설비 제어기](docs/architecture/SIMULATOR_CONTROLLER.md)
-- [시뮬레이터 저장 계층](docs/architecture/SIMULATOR_STORAGE.md)
-- [실제 시뮬레이터 OPC UA](docs/architecture/SIMULATOR_OPCUA.md)
-- [게이트웨이 OPC UA 클라이언트](docs/architecture/GATEWAY_OPCUA.md)
-- [작업 규칙](AGENTS.md)
+## 화면
 
+| 라인 모니터링 | 작업지시 · 공정 설정 |
+|---|---|
+| 공정도, 48개 태그와 품질, 운전 요청·원래 ID 추적, 실링기 아날로그 알람 | 공정 설정 버전·작업지시 등록, 배포, 라인 실행 연결, 미연결 작업 취소 |
 
-- [Neon·Vercel 배포 절차](deploy/neon-vercel.md)
-- [가상 설비 연결·영속 실행 배포](deploy/plant-hosting.md)
-- [작업자 사용 순서](docs/OPERATOR_GUIDE.md)
+대시보드·트렌드·실적 보고서·SPC 관리도 화면은 서버 API 통합을 진행 중입니다([작업지시서](docs/work-orders/CODEX_KULS_보강_v1.md)). 아래는 계약 형식의 **고정 데이터로 렌더링한 미리보기**이며 실제 API 결합 검증 전입니다.
 
-아래 기능 목록과 검증 수치는 전체 목표 범위입니다. 개별 구현·시험 통과가 전체 수락 완료를 뜻하지 않습니다.
+| 생산 대시보드 (미리보기) | 설비 트렌드 (미리보기) |
+|---|---|
+| ![대시보드 미리보기](docs/assets/screenshots/preview-dashboard.png) | ![트렌드 미리보기](docs/assets/screenshots/preview-trends.png) |
+| **실적 · 보고서 (미리보기)** | **SPC 관리도 (미리보기)** |
+| ![보고서 미리보기](docs/assets/screenshots/preview-reports.png) | ![SPC 미리보기](docs/assets/screenshots/preview-spc.png) |
+
+## 구현 현황
+
+| 단계 | 상태 |
+|---|---|
+| M0 계약·기반 (48개 태그, 명령·사건·전송 계약, DB·인증 설계) | 해당 범위 검증 통과 |
+| M1 설비 앱 (공정 모델, 가상 PLC, 명령 원장, SQLite 원자 저장, 인증 콘솔, OPC UA 서버) | 주요 경로 검증 통과, 전체 중단·복원 증적 남음 |
+| M2 연동 (OPC UA → 게이트웨이 버퍼 → HTTP → PostgreSQL, 명령 전달, 최종 정산) | 실제 네트워크 경로 검증 통과, 장시간·복구 성능 측정 남음 |
+| M3 HMI (인증, 실시간 화면, 운전 제어, 알람 확인·메모) | 구현·브라우저 검증, 트렌드·통신 알람 남음 |
+| M4 MES (작업지시 등록·배포·실행 연결·취소, 실행 정산 조회) | 구현·브라우저 검증, 보고서·정지 사유 진행 중 |
+| M5 운영 (수락 시험 T01~T12, 성능, 8시간 운전, 백업·복원) | 미착수 |
+
+**전체 프로젝트는 아직 완료되지 않았습니다.** 작은 작업 단위의 통과를 전체 완료로 표시하지 않으며, 세부 근거는 [개발 진행 상태](docs/DEVELOPMENT_STATUS.md)와 [수락 시험 대응표](docs/ACCEPTANCE_EVIDENCE.md)에 있습니다.
+
+## 로컬 검증
+
+CI 대신 저장소에 포함된 로컬 검사로 검증합니다. Docker(PostgreSQL)와 Chromium이 필요합니다.
+
+```sh
+./scripts/bootstrap-python.sh && ./scripts/bootstrap-web.sh && ./scripts/bootstrap-postgres.sh
+./scripts/check-local.sh                                   # 린트·형식·Python 시험·웹 시험·타입 검사·빌드
+VITE_SCREEN_TRANSPORT=polling npm --prefix apps/web run build
+.venv/bin/python scripts/check-operable-system.py          # 브라우저 → API → PostgreSQL → 게이트웨이 → OPC UA → 정산
+```
+
+| 검사 | 최근 결과 |
+|---|---|
+| `check-local.sh` 전체 | Python 1,913개·웹 시험·정적 검사·빌드 통과 (기록: [개발 진행 상태](docs/DEVELOPMENT_STATUS.md)) |
+| `check-operable-system.py` | 2026-10-23 PASS — 실제 설비 앱 생산·일시정지·종료 후 최종 수량 SETTLED 일치 |
+| `check-app-a-browser.py` | 2026-10-23 PASS — 로그인·권한·응답 유실 복구·작업지시·알람·취소 브라우저 시나리오 |
+
+## 개발 방식
+
+기획서·개발계획서·계약 문서로 기준을 먼저 고정하고, 구현은 AI 코딩 에이전트에 작은 작업 단위로 배정했습니다. 각 작업은 정해진 로컬 검사를 통과해야 다음 단계로 넘어가며, 미실행·실패는 통과로 기록하지 않습니다. 작업 규칙은 [AGENTS.md](AGENTS.md), 진행 기록은 [개발 진행 상태](docs/DEVELOPMENT_STATUS.md)에 있습니다.
+
+## 문서
+
+- 기준: [시스템 기획서](docs/HMI_MES_시스템_기획서_v1_0.md) · [개발계획서](docs/HMI_MES_개발계획서_v1_0.md) · [작업자 사용 순서](docs/OPERATOR_GUIDE.md)
+- 계약: [태그](contracts/tags/README.md) · [명령·사건 프로토콜](contracts/PROTOCOL.md) · [수집·ACK·화면 동기화](contracts/TRANSPORT.md) · [상태 전이](contracts/STATE_MACHINES.md)
+- 설계: [DB·인증](docs/architecture/DATA_AUTH.md) · [PLC 운전 조건](docs/architecture/PLC.md) · [명령 원장](docs/architecture/COMMAND_STORE.md) · [시뮬레이터 OPC UA](docs/architecture/SIMULATOR_OPCUA.md) · [게이트웨이 OPC UA](docs/architecture/GATEWAY_OPCUA.md) · [정산](docs/architecture/SETTLEMENT.md)
+- 실행: [게이트웨이·수집 API](docs/architecture/M2_RUN.md) · [앱 A 인증 서버](docs/architecture/API_RUN.md) · [설비 앱](docs/architecture/SIMULATOR_RUN.md) · [작업지시](docs/architecture/WORK_ORDERS.md) · [알람](docs/architecture/ALARM_RUN.md)
+- 배포: [Neon·Vercel](deploy/neon-vercel.md) · [가상 설비 연결](deploy/plant-hosting.md) — 공개 화면 <https://hmi-mes.vercel.app> 의 설비·게이트웨이는 임시 클라우드 환경에서 실행하므로 상시 연결을 보장하지 않습니다.
 
 ## 1. 프로젝트 목표
 
@@ -184,31 +215,31 @@ OPC UA 채택과 포장라인 공정은 본 프로젝트의 설계 선택입니�
 - 작업 종료 시 투입 중단, 재공 정리, 최종 사건 수신과 수량 대조를 마친 뒤 다음 작업을 연결합니다.
 - 앱 재시작 후에도 생산 사건과 명령 처리 기록을 유지하여 중복 반영을 방지합니다.
 
-## 8. 기술 구성안
+## 8. 기술 구성
 
-| 영역 | 제안 기술 |
+| 영역 | 기술 |
 | --- | --- |
-| 웹 화면 | React, TypeScript |
-| 운영 API | Python, FastAPI |
-| OPC UA 서버·클라이언트 | Python, asyncua |
-| 운영 데이터 저장 | PostgreSQL |
+| 웹 화면 | React 19, TypeScript, Vite, 직접 구현한 SVG 차트 |
+| 운영 API | Python 3.12, FastAPI, SQLAlchemy, Alembic |
+| OPC UA 서버·클라이언트 | asyncua (Basic256Sha256 서명·암호화, 인증서 검증) |
+| 운영 데이터 저장 | PostgreSQL 17 (배포: Neon) |
 | 설비 앱 상태·게이트웨이 버퍼 | 각 모듈의 별도 SQLite |
-| 화면 데이터 전달 | HTTP API, WebSocket |
-| 로컬 실행·검증 | Docker Compose, 로컬 시험 스크립트 |
+| 화면 데이터 전달 | HTTP API, WebSocket (Vercel 배포는 HTTP 폴링) |
+| 검증 | pytest, Node test, Playwright(Chromium), 일회용 PostgreSQL 컨테이너 |
 
-의존성 버전은 lockfile에 고정했습니다. 로컬 기본 화면 연결은 WebSocket이며 Vercel 배포에서는 HTTP 폴링을 사용합니다. 웹·API는 Vercel, 운영 DB는 Neon에 배치하고 설비 앱과 OPC 게이트웨이는 별도 장기 실행 프로세스로 유지합니다.
+의존성 버전은 lockfile에 고정했습니다. 웹·API는 Vercel, 운영 DB는 Neon에 배치하고 설비 앱과 OPC 게이트웨이는 별도 장기 실행 프로세스로 유지합니다. `docker compose` 한 명령 실행은 준비 중입니다.
 
 ## 9. 개발 순서
 
 - [x] 시스템 범위와 기획서 작성
-- [ ] 1단계 — 태그, 설비 상태, 명령과 생산 사건 계약 정의
-- [ ] 2단계 — 설비 시뮬레이터와 가상 PLC·OPC UA 서버 구현
-- [ ] 3단계 — I/O 게이트웨이의 수집·저장·명령 전달 연결
-- [ ] 4단계 — HMI, 설비 상세, 알람과 트렌드 구현
-- [ ] 5단계 — 작업지시, 생산실적, 정지 사유와 보고서 구현
+- [x] 1단계 — 태그, 설비 상태, 명령과 생산 사건 계약 정의
+- [x] 2단계 — 설비 시뮬레이터와 가상 PLC·OPC UA 서버 구현 (전체 중단·복원 증적 남음)
+- [x] 3단계 — I/O 게이트웨이의 수집·저장·명령 전달 연결 (장시간·복구 성능 측정 남음)
+- [ ] 4단계 — HMI, 설비 상세, 알람과 트렌드 구현 (트렌드·통신 알람 진행 중)
+- [ ] 5단계 — 작업지시, 생산실적, 정지 사유와 보고서 구현 (보고서·정지 사유 진행 중)
 - [ ] 6단계 — 장애 복구, 권한, 백업 복원과 통합 검증
 
-각 단계의 결과를 확인한 뒤 다음 단계로 진행합니다. 구현 상태와 실제 검증 결과는 개발 진행에 맞춰 이 문서에 갱신합니다.
+체크한 단계도 남은 항목이 있으면 괄호에 적었습니다. 단계별 실제 검증 결과는 [개발 진행 상태](docs/DEVELOPMENT_STATUS.md)에 기록합니다.
 
 ## 10. 초기 검증 목표
 
