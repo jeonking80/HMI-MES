@@ -1,0 +1,11 @@
+{
+  "scope": "BuildKit proxy hostname DNS only, no source/CA/runtime changes",
+  "exit_code": 1,
+  "seconds": 0.988378592999652,
+  "actual_run_markers": [
+    "PROXY_DNS_FAIL_EAI_AGAIN"
+  ],
+  "marker_excludes_echoed_Dockerfile_source": true,
+  "output_bytes": 1629,
+  "output_sha256": "adc542bdba67ecfe5b7809f7f8f905d7958eecbc3d3046fbc65491773245ce2b"
+}

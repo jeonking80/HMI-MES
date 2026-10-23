@@ -1,0 +1,5 @@
+{
+  "failed_stage": "simulator commissioning",
+  "error_type": "ConnectError",
+  "reason": "operation failed"
+}

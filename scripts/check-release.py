@@ -172,6 +172,64 @@ def environment():
     return value
 
 
+def safe_compose_failure(stdout):
+    """Keep only known helper identifiers and fixed reasons, never arbitrary tool output."""
+    try:
+        value = json.loads(stdout)
+    except (ValueError, UnicodeDecodeError):
+        return None
+    if not isinstance(value, dict) or set(value) != {"failed_stage", "error_type", "reason"}:
+        return None
+    phases = {
+        "setup",
+        "operator bootstrap",
+        "simulator commissioning",
+        "operator authentication",
+        "simulator authentication",
+        "analytics config",
+        "recipe registration",
+        "order registration",
+        "order release",
+        "order binding",
+        "load result and preheat",
+        "start and production",
+        "pause",
+        "end and settlement",
+        "timeline",
+        "trend",
+    }
+    types = {
+        "ConnectError",
+        "ConnectTimeout",
+        "ReadError",
+        "ReadTimeout",
+        "WriteError",
+        "WriteTimeout",
+        "PoolTimeout",
+        "RemoteProtocolError",
+        "LocalProtocolError",
+        "HTTPStatusError",
+        "RuntimeError",
+        "CalledProcessError",
+        "TimeoutExpired",
+        "ValueError",
+        "KeyError",
+        "TypeError",
+        "OSError",
+    }
+    if not isinstance(value["failed_stage"], str) or value["failed_stage"] not in phases:
+        return None
+    if not isinstance(value["error_type"], str) or value["error_type"] not in types:
+        return None
+    reasons = {"operation failed", "Simulator console did not become ready"}
+    reason = value["reason"]
+    return {
+        "failed_stage": value["failed_stage"],
+        "error_type": value["error_type"],
+        "reason": reason if isinstance(reason, str) and reason in reasons else "operation failed",
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", default="HEAD", help="Committed Git revision")
@@ -224,7 +282,7 @@ def main():
     code = 1
     current_phase = "clean_checkout"
 
-    def execute(phase, command, *, cwd=None, timeout=600, input_text=None):
+    def execute(phase, command, *, cwd=None, timeout=600, input_text=None, compose_helper=False):
         nonlocal current_phase
         current_phase = phase
         started = now()
@@ -249,6 +307,10 @@ def main():
             }
             if b"no space left on device" in combined.lower():
                 entry["known_failure"] = "ENOSPC"
+            if result.returncode and compose_helper:
+                detail = safe_compose_failure(result.stdout)
+                if detail:
+                    entry["safe_helper_failure"] = detail
             record["commands"].append(entry)
             if result.returncode:
                 raise RuntimeError("Command failed in " + phase)
@@ -397,6 +459,7 @@ def main():
                 cwd=clone,
                 timeout=300,
                 input_text=(clone / "scripts/compose_acceptance.py").read_text(),
+                compose_helper=True,
             )
         )
         if (
