@@ -20,11 +20,12 @@
 
 | 담당 | 수정 가능 | 수정 금지 |
 |---|---|---|
-| Codex | `apps/api/**`, `apps/gateway/**`, `apps/simulator/**`, `contracts/**`, `tests/**`, `scripts/*.py`·`scripts/*.sh`(아래 Claude 소유 제외), `deploy/**`, `compose.yaml`, `docs/architecture/**`, `docs/ACCEPTANCE_EVIDENCE.md`, `docs/work-orders/reports/**` | `apps/web/**`, `README.md`, `docs/ui/**`, `docs/work-orders/*.md`(이 문서), `AGENTS.md` |
-| Claude | `apps/web/**`, `README.md`, `docs/ui/**`, `docs/assets/screenshots/**`, `scripts/capture_portfolio_media.py`, `docs/work-orders/*.md` | 위 Codex 소유 경로 |
+| Codex | `apps/api/**`, `apps/gateway/**`, `apps/simulator/**`, `contracts/**`, `tests/**`, `scripts/*.py`·`scripts/*.sh`(아래 Claude 소유 제외), `deploy/**`, `compose.yaml`, `docs/architecture/**`, `docs/ACCEPTANCE_EVIDENCE.md`, `docs/work-orders/reports/**` | `apps/web/**`, `README.md`, `docs/ui/**`, `docs/work-orders/*.md`(이 문서), 아래 Claude 소유 스크립트, `AGENTS.md` |
+| Claude | `apps/web/**`, `README.md`, `docs/ui/**`, `docs/assets/screenshots/**`, `docs/work-orders/*.md`, 앱 A 화면을 조작하는 브라우저 검사 스크립트(`scripts/check-app-a-browser.py`, `scripts/*_browser_checks.py`, `scripts/browser_identity_urls.py`, `scripts/check-operable-system.py`), `scripts/capture_portfolio_media.py` | 위 Codex 소유 경로 |
 | 공동 | `docs/DEVELOPMENT_STATUS.md` | 각자 자기 절(`### Codex 백엔드 보강`, `### Claude UI/UX 보강`)에만 **추가**한다. 남의 절은 고치지 않는다. |
 
 - `AGENTS.md`는 사용자 승인 없이 누구도 바꾸지 않는다.
+- 화면 구조가 바뀌면 브라우저 검사의 선택자도 함께 바뀌므로 해당 스크립트는 Claude가 관리한다. Codex가 서버 동작을 바꿔 이 스크립트의 기대값이 달라지면, 스크립트를 직접 고치지 말고 보고서에 "브라우저 검사 영향"으로 적는다.
 - Codex는 `codex/kuls-backend`에서 작업하고 **작업 하나(CX-xx)당 커밋 하나 이상**으로 나눠 푸시한다. rebase·force-push로 공유 이력을 바꾸지 않는다.
 - 통합은 Claude가 기준 브랜치로 merge commit을 만들어 수행한다. 충돌이 나면 Claude가 해결하고 Codex에 알린다.
 - CI는 만들지 않는다. 모든 검증은 로컬 명령으로 하고 실행 결과를 보고서에 남긴다.
