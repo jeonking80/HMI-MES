@@ -399,6 +399,9 @@ M1의 주요 독립 운전·권한·실제 생산 경로는 확인했지만, 원
 
 - 2026-10-23 3차 지시서 착수: 최신 main `4490a4c`(`430fbf6` 포함)에서 `codex/kuls-backend-v3`를 만들었다. OPS-02 SQL 재생성·cmp 통과와 high 정적 검토를 수행했다. 공개 ready:true이나 이 환경에 관리 자격 증명이 없어 공개 변경은 지시서 §6대로 [운영 인계](work-orders/reports/OPS-02.md)한다. medium 담당을 수락·백업·실제 단절/장시간·7일 성능으로 나눴으며 검증 중이다. 전체 수락 및 비기능 미실행 항목을 완료로 표시하지 않는다.
 
+- 3차 P0 구현 `d11800f`: T01/T03/T07/T08/T10/T11 core6개, 실제 Chromium 경계9개, T09/T12 전체복원2개를 분할 검증했다. 복원은 DB owner marker를 공통 enqueue/claim 경계에서 강제하고 설정·세션·새 키·원본/수량/명령/열린 알람/커서를 별도 DB에서 대조했다. 관련 명령·권한·작업지시까지153개144.34초 통과, 독립high 최종검토 통과. 한 커밋의17개 전체묶음은 CX-22에서 아직 실행 전이다.
+- CX-21 사전조건은 실제 quota4core/32GiB RAM을 확인했지만 SSD를 입증할 수 없어 실행 전 차단(JSON/JUnit skip, 실제8시간0). root overlay·vda ROTA1, 미마운트 pmem0, /tmp tmpfs를 SSD라고 대체하지 않았다. CX-19 첫61초 시도는 읽기 keepalive ECONNRESET로 실패했고 기준을 바꾸지 않은 새 실제30분 시험을 처음부터 진행한다. 최초 실패를 누적시간·통과로 포함하지 않는다.
+
 ### Claude UI/UX 보강
 
 - 착수 전 확인: `scripts/check-operable-system.py` 로컬 실행 PASS(브라우저→API→PostgreSQL→게이트웨이→암호화 OPC UA→최종 SETTLED 대조). 현재 화면은 세로 약 7,000px의 단일 페이지이며 트렌드·보고서·대시보드 화면이 없다.

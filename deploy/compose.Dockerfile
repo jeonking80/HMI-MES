@@ -7,6 +7,7 @@ RUN --mount=type=secret,id=proxy_ca \
     export npm_config_https_proxy="${HTTPS_PROXY:-}" npm_config_proxy="${HTTP_PROXY:-}"; \
     npm ci --ignore-scripts --no-audit --no-fund
 COPY apps/web/ ./
+ENV VITE_SCREEN_TRANSPORT=polling
 RUN npm run build
 FROM plant
 COPY --from=web /web/dist /app/web
