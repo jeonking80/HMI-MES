@@ -1,6 +1,6 @@
 # 배포된 화면에 가상 설비 연결
 
-Vercel의 웹·API와 Neon DB는 유지한다. 별도 설비 앱과 게이트웨이는 두 프로세스로 실행하며 암호화 OPC UA로 통신한다. 게이트웨이는 HTTPS로 Vercel 수집 API에 전송하고 PostgreSQL이나 설비 SQLite를 직접 열지 않는다.
+Vercel Hobby의 웹·API와 Neon Free DB는 유지한다. 별도 설비 앱과 게이트웨이는 이미 제공된 클라우드 환경 또는 사용자 PC에서 실행하며 추가 유료 서비스를 만들지 않는다. 두 프로세스는 암호화 OPC UA로 통신한다. 게이트웨이는 HTTPS로 Vercel 수집 API에 전송하고 PostgreSQL이나 설비 SQLite를 직접 열지 않는다.
 
 ## 현재 검증 경계
 
@@ -56,14 +56,24 @@ Vercel의 웹·API와 Neon DB는 유지한다. 별도 설비 앱과 게이트웨
   --commands-reconciled --operator-confirmed
 ```
 
-## 상시 호스팅 배포안
+## 사용자 PC에서 추가 유료 서비스 없이 실행
 
-저장소 루트 `render.yaml`은 Render의 **유료 Starter 웹 서비스와 1GB 영속 디스크**를 사용하는 검토용 배포 구성이다. 아직 서비스나 유료 리소스를 생성하지 않았다. 생성 전 Render 계정 소유자가 현재 요금·디스크 요금·결제 조건을 확인해야 한다. Render 계정 접근 권한은 이 작업 환경에 없다.
+Linux 또는 Windows의 WSL에서 저장소를 준비한다. `plant_runtime.py`는 POSIX 파일 잠금(`fcntl`)을 사용하므로 Windows 기본 Python에서는 실행하지 않는다. Python 3.12와 `uv`가 필요하며, 현재 프로젝트는 Python 3.13 이상을 지원하지 않는다. 기존 Vercel·Neon을 사용하므로 Docker나 새 PostgreSQL은 필요 없다.
 
-계정 소유자가 [Render Blueprint 가져오기](https://render.com/deploy?repo=https://github.com/jeonking80/HMI-MES)를 열고 저장소·구성을 검토한다. `HMI_GATEWAY_TOKEN`에는 위 `token.secret` 원문을 비밀값으로 입력한다. 토큰은 보호 디스크 파일로 저장되며 자식 프로세스의 환경에서 제거된다. 다른 토큰으로 자동 덮어쓰지 않는다.
+저장소 루트에서 고정된 의존성을 설치한다.
 
-이미지는 `deploy/plant-service.Dockerfile`로 빌드한다. 웹에 노출되는 것은 `/health/live`의 프로세스 생존 여부뿐이며, 설비 콘솔과 OPC 포트는 컨테이너 loopback에 둔다. 초기 디스크 구성이 성공한 뒤 `HMI_PLANT_ALLOW_INITIALIZE=false`로 변경하여 저장소 유실 때 새로 초기화하는 것을 금지한다. 디스크와 원본 큐·사건을 유지하고 한 소유 프로세스만 실행한다. 같은 source를 이 클라우드와 Render에서 동시에 실행하지 않는다. 기동 전 기존 소유 프로세스를 종료하고 저장소·미전송 큐·원본 사건을 보존하여 이전해야 한다.
+```sh
+uv sync --python 3.12 --frozen --no-dev --no-install-project
+```
 
-기동 후 운영자는 Render Shell에서 동일한 `commission` 명령을 `/var/data/runtime`과 `/app/.venv/bin/python` 경로로 실행한다. 이 보조 명령은 실행·재공·출력이 없는 최초 준비에 한정한다. 기존 작업이 남은 재기동에서는 자동 복구하거나 초기화하지 않으며 기존 설비 콘솔의 명령·위치·수량 대조 절차가 필요하다. 이 배포안의 콘솔은 loopback이므로 관리자는 서버 내부에서 인증된 콘솔 API를 사용해야 한다. 공개 앱 B 콘솔 배포까지 구현된 것으로 간주하지 않는다. 앱 A에서 값이 갱신되는 것을 확인한 후 [작업자 사용 순서](../docs/OPERATOR_GUIDE.md)를 따른다.
+아직 어느 환경에서도 해당 source를 초기화하지 않은 새 저장소에만 아래 초기화를 한 번 실행한다. 기존 클라우드 실행을 PC로 옮긴다면 새로 초기화하지 않는다. 먼저 기존 소유 프로세스를 종료하고 저장소 전체와 미전송 큐·원본 사건·인증서를 보존하여 이전한 뒤 `prepare`만 실행한다. 같은 source의 복사본을 다른 PC나 클라우드에서 동시에 기동하지 않는다.
 
-동봉된 개발 OPC 인증서는 30일 유효하다. 장기 운영에는 중단·백업·양측 인증서 교체·검증을 포함하는 별도 인증서 관리가 필요하다. 이 배포안만으로 전체 기획의 운영·장시간 수락이 완료되는 것은 아니다.
+```sh
+.venv/bin/python deploy/plant_runtime.py --directory .local/commissioning/runtime prepare --initialize
+```
+
+위 연결 파일 생성·수동 적용의 SQL과 Vercel 설정 두 가지를 완료하고, 같은 `token.secret`을 PC의 `.local/commissioning/connection/token.secret`에 보호 파일로 전달한다. 파일은 현재 실행 사용자 소유의 일반 파일이고 권한은 `0600`이어야 한다. 토큰 원문을 명령줄이나 채팅에 넣지 않는다. 기존 보호 파일을 덮어쓰지 않는다.
+
+이후 위의 `serve` 명령으로 실행한다. 로컬 설비 콘솔은 `http://127.0.0.1:8011`이며 계정은 `commissioning.operator`다. 최초 비밀번호는 런타임 디렉터리의 `console-initial-password` 보호 파일에 있다. 최초 준비의 실제 확인과 `commission`은 위 절차를 따르며, 기존 작업이 남은 재기동은 [설비 앱 실행 절차](../docs/architecture/SIMULATOR_RUN.md)의 명령·위치·수량 대조 절차를 따른다. 앱 A에서 값이 갱신되는 것을 확인한 후 [작업자 사용 순서](../docs/OPERATOR_GUIDE.md)를 따른다.
+
+사용자 PC는 실행 중이고 인터넷에 연결되어 있어야 한다. 절전·종료 또는 클라우드 환경 중단 시 설비·게이트웨이 프로세스도 멈추므로 이 경로는 24시간 상시 실행을 보장하지 않는다. 생성된 개발 OPC 인증서는 30일 유효하다. 장기 운영에는 중단·백업·양측 인증서 교체·검증을 포함하는 별도 인증서 관리가 필요하다. 이 실행 절차만으로 전체 기획의 운영·장시간 수락이 완료되는 것은 아니다.

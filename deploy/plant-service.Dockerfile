@@ -5,7 +5,7 @@ COPY --from=uv /uv /usr/local/bin/uv
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
 # The optional certificate mount is for managed-cloud build verification only.
-# Render builds use their normal CA store; no session certificate enters a layer.
+# Other build hosts use their normal CA store; no session CA enters a layer.
 RUN --mount=type=secret,id=proxy_ca \
     if [ -f /run/secrets/proxy_ca ]; then export SSL_CERT_FILE=/run/secrets/proxy_ca; fi; \
     uv sync --frozen --no-dev --no-install-project
