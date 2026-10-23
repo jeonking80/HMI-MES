@@ -182,6 +182,7 @@ def capture_trends(
     cutoff = floor_minute(now - timedelta(days=retention.raw_days))
     scope = dict(line_id=source["line_id"], source_id=body.source_id, stream_id=body.stream_id)
     modern = clock_evidence_available(connection)
+    epoch = body.capture_time.clock_epoch if body.capture_time else "unproved-clock"
     if modern:
         clock_decision = clock_decision or record_capture_clock(
             connection, body, source=source, now=now, policy=clock_policy
@@ -195,11 +196,10 @@ def capture_trends(
             for sample in body.samples
         )
         clock_valid = (
-            capture_clock_valid(connection, body, body.capture_time.clock_epoch)
+            capture_clock_valid(connection, body, epoch)
             if body.capture_time is not None or has_retained_analog
             else False
         )
-    epoch = body.capture_time.clock_epoch if body.capture_time else "unproved-clock"
     time_known = (
         clock_valid
         if modern
