@@ -395,3 +395,15 @@ M1의 주요 독립 운전·권한·실제 생산 경로는 확인했지만, 원
   - 7일 원시 범위 이전에 끝난 실행의 SPC 요청이 500이던 문제 → `INSUFFICIENT_DATA`와 `baseline_limitation: EXECUTION_OUTSIDE_RAW_RETENTION` 반환, 화면 안내 추가
   - 보고 기간을 바꾸면 이전 선택 실행 상세가 남던 문제 → 선택 해제
   - 검증: 관련 통합 시험(`test_reports`·`test_spc_http`·`test_dashboard`·`test_vercel_app`·`test_trend_history`) 69개 통과, Ruff 통과, 웹 typecheck·lint·화면 시험 89개 통과. 전체 `./scripts/check-local.sh`와 브라우저 결합 검사(`check-operable-system.py --analytics-dir`)는 이번 수정 후 **아직 실행하지 않았다.**
+- UX-09·UX-10(2026-10-23, 해당 범위 검증 통과):
+  - 메뉴 제공 여부를 배포가 알리는 `/auth/config`로 정한다. `analytics` 필드가 없으면(CX-10 전) 빌드 플래그를 쓰고, 공개 빌드(`vercel.json`)에 `VITE_ANALYTICS_PAGES=enabled`를 추가했다(공개 DB가 0017이 되어 분석 API가 동작).
+  - 운영 도우미(챗봇) 화면을 추가했다. 서버가 `assistant: true`일 때만 메뉴가 열린다. 화면 구성:
+    - 대화, 추천 질문, 조회 근거(호출한 조회 API·조회 시각·실패), 모델명
+    - 조회 전용·AI 오류 가능성 안내
+    - 취소, 실패 시 질문 복원, 한도(429)·시간 초과 안내
+    - 페이지를 이동해도 대화 유지
+  - 검증:
+    - 웹 typecheck·lint·화면 시험 91개 통과(챗봇 응답 파서·대화 길이 제한 시험 2개 추가)
+    - 가짜 API 브라우저 검사(1440px·390px): 화면 넘침 없음, CSRF 헤더·범위 전송, 실패 시 질문 복원, 페이지 이동 후 대화 유지, 콘솔 오류 없음
+    - 기존 `check-app-a-browser.py` PASS
+  - 실제 NVIDIA 모델과의 화면 결합은 공개 배포에 `HMI_ASSISTANT_API_KEY`를 설정한 뒤 확인한다(미실행).

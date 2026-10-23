@@ -10,13 +10,14 @@ import { fileURLToPath, URL } from 'node:url'
 
 const output = mkdtempSync(join(tmpdir(), 'hmi-analytics-api-'))
 try {
-  execFileSync(process.execPath, [fileURLToPath(new URL('../node_modules/typescript/bin/tsc', import.meta.url)), fileURLToPath(new URL('../src/analytics/api.ts', import.meta.url)), fileURLToPath(new URL('../src/analytics/format.ts', import.meta.url)), '--outDir', output, '--module', 'commonjs', '--target', 'ES2022', '--lib', 'ES2022,DOM', '--strict', '--skipLibCheck'], { stdio: 'inherit' })
+  execFileSync(process.execPath, [fileURLToPath(new URL('../node_modules/typescript/bin/tsc', import.meta.url)), fileURLToPath(new URL('../src/analytics/api.ts', import.meta.url)), fileURLToPath(new URL('../src/analytics/format.ts', import.meta.url)), fileURLToPath(new URL('../src/analytics/assistant.ts', import.meta.url)), '--outDir', output, '--module', 'commonjs', '--target', 'ES2022', '--lib', 'ES2022,DOM', '--strict', '--skipLibCheck'], { stdio: 'inherit' })
   writeFileSync(join(output, 'package.json'), '{"type":"commonjs"}')
 } catch (error) { rmSync(output, { recursive: true, force: true }); throw error }
 after(() => rmSync(output, { recursive: true, force: true }))
 const require = createRequire(import.meta.url)
 const api = require(join(output, 'api.js'))
 const format = require(join(output, 'format.js'))
+const assistant = require(join(output, 'assistant.js'))
 const fixture = name => JSON.parse(readFileSync(new URL(`./fixtures/analytics/${name}.json`, import.meta.url), 'utf8'))
 
 test('contract fixtures parse without changing values', () => {
@@ -166,4 +167,26 @@ test('trend request ends on the boundary the server buckets by', () => {
   assert.equal(new Date(end).toISOString(), '2026-10-23T03:04:00.000Z')
   const start = end - week
   assert.equal((end - Math.floor(start / 60e3) * 60e3) / 60e3, 10080)
+})
+
+test('assistant answers keep their evidence and reject malformed responses', () => {
+  const value = {
+    answer: '오늘 양품 3개입니다(잠정).', model: 'nvidia/nemotron-3-ultra-550b-a55b', generated_at: '2026-10-23T06:00:00Z',
+    evidence: [{ tool: 'get_dashboard', label: '대시보드 2026-10-23', status: 200, generated_at: '2026-10-23T06:00:00Z' }, { tool: 'get_spc', label: 'SPC', status: 404 }],
+  }
+  const parsed = assistant.parseChatAnswer(value)
+  assert.equal(parsed.answer, value.answer)
+  assert.deepEqual(parsed.evidence[1], { tool: 'get_spc', label: 'SPC', status: 404, generated_at: null })
+  for (const broken of [null, [], { ...value, answer: '  ' }, { ...value, evidence: 'x' }, { ...value, evidence: [{ tool: 'x' }] }, { ...value, model: 1 }]) {
+    assert.throws(() => assistant.parseChatAnswer(broken))
+  }
+})
+
+test('assistant conversations stay within the server bound and start with a question', () => {
+  const history = Array.from({ length: 30 }, (_, index) => ({ role: index % 2 ? 'assistant' : 'user', content: `turn ${index}` }))
+  const turns = assistant.conversationFor(history, '마지막 질문')
+  assert.ok(turns.length <= assistant.MAX_TURNS)
+  assert.equal(turns[0].role, 'user')
+  assert.deepEqual(turns.at(-1), { role: 'user', content: '마지막 질문' })
+  assert.equal(assistant.conversationFor([], 'x'.repeat(5000))[0].content.length, assistant.MAX_CHARS)
 })
