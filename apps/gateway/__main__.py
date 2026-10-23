@@ -16,7 +16,7 @@ from apps.gateway.commands import CommandTransport, CommandWorker
 from apps.gateway.http_client import IntakeClient, IntakeConfig
 from apps.gateway.opcua_client import GatewayOPCUAClient, GatewayOPCUAConfig
 from apps.gateway.settlement import RunSummaryTransport, RunSummaryWorker
-from apps.gateway.worker import GatewayPump
+from apps.gateway.worker import GatewayPump, buffer_full_error_code
 
 
 def _token_file(path: Path) -> str:
@@ -105,6 +105,13 @@ async def _run_workers(pump, command_worker, stop, *, settlement_worker=None) ->
         error = _error_class(value.get("error"))
         if error is not None:
             output["error"] = error
+        error_code = value.get("error_code")
+        if (
+            error == "BufferFull"
+            and isinstance(error_code, str)
+            and re.fullmatch(r"[A-Z][A-Z0-9_]{0,63}", error_code)
+        ):
+            output["error_code"] = error_code
         print(json.dumps(output), flush=True)
 
     tasks = [
@@ -212,6 +219,9 @@ def main(argv=None) -> int:
         name = _error_class(type(error).__name__)
         if name is not None:
             output["error"] = name
+        error_code = buffer_full_error_code(error)
+        if name == "BufferFull" and error_code is not None:
+            output["error_code"] = error_code
         print(
             json.dumps(output),
             file=sys.stderr,

@@ -284,6 +284,13 @@ def sanitized_line(line):
         error = value.get("error")
         if isinstance(error, str) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,127}", error):
             output["error"] = error
+        error_code = value.get("error_code")
+        if (
+            error == "BufferFull"
+            and isinstance(error_code, str)
+            and re.fullmatch(r"[A-Z][A-Z0-9_]{0,63}", error_code)
+        ):
+            output["error_code"] = error_code
         return json.dumps(output)
     return None
 

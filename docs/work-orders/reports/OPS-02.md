@@ -170,3 +170,36 @@ recovery_required=true는 확인된 상태지만 이것만으로 gateway 종료�
 추가된 감독 로그의 마지막 오류는 `{"operation":"gateway","state":"stopped","error":"BufferFull"}`다. 이번 종료 클래스는 SourceCursorError나 BufferCorruption이 아닌 **BufferFull**로 확인됐다. 메시지 본문은 의도적으로 저장하지 않았으므로 어떤 한도/내부 조건이 발동했는지는 확정하지 않는다. 초기 GatewayReadError와 최종 BufferFull 사이의 인과관계도 별도 추정하지 않는다.
 
 허용된 단일 시도 후 추가 재시도·복구·큐 삭제·커서 조작을 하지 않았다. 감독자 종료 후 두 자식 PID가 없어졌고 processes.json도 없음을 확인했다. 원래 영속 상태는 보존했다. 로그·실행 메타데이터는 Git 밖 보호 경로 `/tmp/hmi-ops02-public-demo-retry1`과 기존 supervisor.log에 있다. DB/권한/배포 설정을 변경하지 않았고 DB 결과·용량은 조회하지 않았다. GOOD·가동 시간·수량 대조·5분 실연은 통과로 표시하지 않으며 이 기록 후 중단한다.
+
+## 6차 지시서: 메타데이터 한도 조사 및 수정 준비 결과
+
+Claude 브랜치의 `CODEX_KULS_보강_v6.md`를 읽고 최신 origin/main을 fetch·병합 확인했다(Already up to date). 기존 미커밋 브라우저 시험 수정은 별도 보존 후 그대로 복구했으며 이번 작업에서 수정·실행하지 않았다.
+
+### 읽기 전용 사본 조사 1회
+
+원본 gateway.sqlite3를 읽기 전용으로 열어 SQLite backup API로 Git 밖 `/tmp/hmi-ops02-v6-diagnosis/gateway-snapshot.sqlite3` 사본을 만들고, 사본을 읽기 전용으로 한 번 열어 다음 값만 조회했다. 운영 원본에 정리·초기화·상태 변경을 하지 않았다.
+
+| 테이블 | 행 수 | sum(metadata_bytes) |
+|---|---:|---:|
+| batch_ledger | 4,267 | 4,335,235 |
+| source_progress | 1 | 652 |
+| missing_ranges | 453 | 5,664,074 |
+| loss_intervals | 0 | 0 |
+| 합계 | — | **9,999,961** |
+
+원장 상태는 ACKNOWLEDGED 3,813건, EVICTED 453건, QUEUED 1건이다. outbound_batches는 PENDING 1건이며 queued_at=`2026-10-23T02:03:35.145959+00:00`, accounted_bytes=15,074이다. 기본 메타데이터 한도 10,000,000바이트까지 **39바이트**만 남았다. 전송 acknowledge 경로는 ACK JSON을 원장에 더한 뒤 예산을 검사하므로 이 ACK의 저장 비용이 여유를 초과하는 `METADATA_FULL` 경로가 코드·저장 상태 비교로 확인됐다. 과거 로그에 사유 접두어가 실제 기록돼 있었다고 주장하지 않는다. 새 사유 코드의 운영 로그 검증은 미실행이다.
+
+### 최소 수정과 데이터 보존 검토
+
+- BufferFull의 콜론 앞 고정 대문자 식별자만 `error_code`로 worker 상태·최종 stderr·감독 로그에 전달한다. 다른 예외 본문·잘못된 코드·추가 메시지는 출력하지 않는다.
+- ACK 원장 행을 지우면 영구 batch ID 충돌 검사와 원래 ACK 중복 응답 근거가 사라진다는 독립 high 검토 결과에 따라 **행 삭제 대신 확정 ACK JSON의 무손실 압축**으로 저장 표현을 줄였다. 원장 ID·내용/봉투 해시·capture 연속성·원래 ACK 전체 바이트를 보존한다.
+- 메타데이터 압력 시 같은 ACK 트랜잭션 안에서만 압축한다. 서버 verified 범위 내의 확정 영수증만 대상으로 하며, 미확정·격리·gap 영수증과 missing_ranges/loss_intervals가 참조하는 대조 영수증은 건드리지 않는다. 한도는 늘리지 않았고 원장·유실 근거는 삭제하지 않는다. 새 ACK와 진행 커서·압축 결과는 함께 커밋 또는 롤백된다.
+- 버전 표식과 크기 제한을 둔 압축 복원 경로를 사용하고, 기존 TEXT ACK도 계속 읽는다. 변조된 압축·미완결 스트림·후행 데이터는 거절한다. 운영 SQLite에 새 표현을 적용한 것은 아니며 실제 절감량·5분 지속 가능성은 아직 검증하지 않았다.
+
+### 단일 검증 결과 및 중단
+
+신규 용량 회귀 시험은 1개이며 기존 진단 시험 2개를 사유 코드 검증으로 확장했다. 신규 회귀는 39바이트 여유 상황에서 확정분 압축 후 ACK 성공, 미확정·유실 근거 보존, 커밋 직전 오류의 원자적 롤백, 정확한 원래 영수증 복원·중복 ACK·변조 및 ID 재사용 거절·재개방을 검증한다.
+
+한 번의 pytest 실행으로 진단·신규 용량 회귀·기존 SQLite 버퍼 검사를 함께 실행했다: **37 passed in 1.49s**. Ruff check 한 번은 **실패**했다. `tests/unit/test_gateway_diagnostics.py:50` E501(102자), 같은 파일 69행 B023(반복문 stop 변수 캡처) 두 건이다. 연결된 format --check는 앞선 lint 실패로 실행되지 않았다. 구현 중 버퍼 담당자는 자신의 두 파일에 formatter를 한 번 적용했고, 앞선 uv 호출은 읽기 전용 홈 캐시로 실패했다. 검사 재실행이나 실패 후 수정을 하지 않았다.
+
+지시서의 실패 시 중단 규칙에 따라 여기서 멈췄다. 공개 실연은 별도 사용자 승인 이전이며 실행하지 않았다. 운영 큐 정리·복구·시작, DB/Vercel 변경, 8시간 시험은 모두 하지 않았다. 전체 수정 통과나 OPS-02 완료로 판정하지 않는다.
