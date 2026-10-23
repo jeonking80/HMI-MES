@@ -352,3 +352,4 @@ M1의 주요 독립 운전·권한·실제 생산 경로는 확인했지만, 원
 
 - 착수 전 확인: `scripts/check-operable-system.py` 로컬 실행 PASS(브라우저→API→PostgreSQL→게이트웨이→암호화 OPC UA→최종 SETTLED 대조). 현재 화면은 세로 약 7,000px의 단일 페이지이며 트렌드·보고서·대시보드 화면이 없다.
 - UX-01 앱 골격(해당 범위 검증 통과): 좌측 업무 메뉴(모니터링·생산 관리·품질), 페이지 머리말, 디자인 토큰(`apps/web/src/shell.css`), 1023px 이하 상단 가로 메뉴. 대시보드·트렌드·보고서·SPC는 서버 API(CX-01~05) 연동 전이라 "예정"으로 비활성 표시한다. 기존 화면 ID(`#workspace-operations`, `#workspace-drafts`, `#current-login`, `#logout` 등)를 유지했다. 검증: 웹 typecheck·lint·화면 시험 75개 통과, `scripts/check-app-a-browser.py` PASS(5분 7초, 변경 전 기준선도 PASS), `--focus-line-alarms` PASS, `scripts/check-operable-system.py` PASS, 360px 가로 넘침 없음.
+- UX-03 라인 모니터링 정리(해당 범위 검증 통과): 연결 상태 표시, 상태 카드 색상(정상·주의·이상·불명 구분, 불명은 정상과 다른 색), 실행 ID 축약·복사, 구역 바로가기, 넓은 화면의 공정도·태그 상세 | 운전 제어 2단 배치, 태그 행의 품질 배지, 동일한 명령 비활성 사유의 한 줄 표시(보조기술용 버튼별 설명은 유지). 검증: 웹 typecheck·lint·화면 시험 75개 통과, `check-app-a-browser.py` PASS(5분 8초), `--focus-line-alarms` PASS, `check-operable-system.py` PASS.

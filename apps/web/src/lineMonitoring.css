@@ -1,0 +1,64 @@
+/* Line monitoring page: status bar, summary tones, two-column process/control layout. */
+.status-bar { display:flex; flex-wrap:wrap; align-items:center; gap:.6rem; margin:1rem 0 .25rem; }
+.connection-pill { display:inline-flex; align-items:center; gap:.45rem; padding:.3rem .75rem; border-radius:999px; font-size:.78rem; font-weight:650; background:var(--status-unknown-bg); color:var(--status-unknown); }
+.connection-pill::before { content:''; width:8px; height:8px; border-radius:50%; background:currentColor; }
+.connection-pill[data-state='synced'] { background:var(--status-good-bg); color:var(--status-good); }
+.connection-pill[data-state='stopped'] { background:var(--status-bad-bg); color:var(--status-bad); }
+.status-bar .button { min-height:34px; padding:.3rem .8rem; font-size:.78rem; }
+
+.snapshot-summary { margin:1rem 0 .75rem; }
+.snapshot-summary > div { position:relative; border-left-width:4px; box-shadow:var(--shadow-card); }
+.snapshot-summary > div[data-tone='good'] { border-left-color:var(--status-good); }
+.snapshot-summary > div[data-tone='warn'] { border-left-color:var(--status-warn); }
+.snapshot-summary > div[data-tone='bad'] { border-left-color:var(--status-bad); }
+.snapshot-summary > div[data-tone='unknown'] { border-left-color:var(--status-unknown); }
+.snapshot-summary > div[data-tone='neutral'] { border-left-color:var(--blue-500); }
+.snapshot-summary > div[data-tone='good'] strong { color:var(--status-good); }
+.snapshot-summary > div[data-tone='warn'] strong { color:var(--status-warn); }
+.snapshot-summary > div[data-tone='bad'] strong { color:var(--status-bad); }
+.snapshot-summary > div[data-tone='unknown'] strong { color:var(--status-unknown); }
+.snapshot-summary strong { font-size:1.1rem; }
+
+.copy-id { display:inline-flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+.copy-id code { font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:.9rem; color:var(--text); }
+.copy-id-button { border:1px solid var(--border-strong); background:var(--surface-card); color:var(--text-muted); border-radius:5px; padding:.1rem .45rem; font-size:.7rem; font-weight:600; }
+.copy-id-button:hover { background:var(--surface-muted); }
+
+.control-note { font-size:.78rem; color:var(--text-muted); padding-left:.75rem; border-left:3px solid var(--status-warn); margin:.25rem 0 .5rem; }
+.snapshot-time { margin:.25rem 0 0; }
+
+.section-jump { display:flex; flex-wrap:wrap; gap:.4rem; margin:1.25rem 0 0; padding:.5rem 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+.section-jump a { font-size:.8rem; font-weight:600; color:var(--blue-600); text-decoration:none; padding:.3rem .7rem; border-radius:999px; }
+.section-jump a:hover { background:var(--blue-100); }
+
+.line-layout { display:grid; grid-template-columns:minmax(0,1fr); grid-template-areas:'process' 'side' 'tags'; gap:0 1.5rem; align-items:start; }
+.line-process { grid-area:process; min-width:0; }
+.line-side { grid-area:side; min-width:0; }
+.line-layout > .equipment-details { grid-area:tags; min-width:0; }
+.line-side > * { scroll-margin-top:1rem; }
+#process-heading, #command-heading, #alarm-center-heading, #equipment-heading { scroll-margin-top:1rem; }
+
+.equipment-details { margin-top:2rem; }
+.equipment-details-heading { margin-bottom:1rem; }
+.equipment-details-heading p { font-size:.8rem; color:var(--text-muted); margin-top:.25rem; }
+
+/* Wide screens: process diagram beside the control column. */
+@media (min-width:1360px) {
+  .line-layout { grid-template-columns:minmax(0,1.55fr) minmax(340px,1fr); grid-template-areas:'process side' 'tags side'; grid-template-rows:auto 1fr; }
+  .line-layout > .equipment-details { margin-top:.5rem; }
+  .line-side .command-panel { margin-top:1.5rem; }
+  .line-side .command-actions { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .line-side .command-facts { grid-template-columns:1fr; }
+  .line-side .mes-card { margin-top:1rem; }
+}
+
+/* Compact tag rows: value and quality badge on one line. */
+.equipment-card h3 { padding:.75rem 1rem; font-size:.95rem; }
+.equipment-card dl { padding:0 1rem; }
+.tag-row { padding:.45rem 0; gap:.75rem; align-items:center; font-size:.82rem; }
+.tag-row dd { display:flex; flex-wrap:wrap; justify-content:flex-end; align-items:center; gap:.2rem .5rem; }
+.tag-row .quality { display:inline-block; margin:0; padding:.05rem .4rem; border-radius:4px; font-size:.66rem; font-weight:650; }
+.usable .quality { background:var(--status-good-bg); color:var(--status-good); }
+.unusable .quality { background:var(--status-unknown-bg); color:var(--status-unknown); }
+.tag-row .last-observation { flex-basis:100%; text-align:right; margin:0; }
+.command-reason-shared { margin:-.5rem 0 1rem; }
