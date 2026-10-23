@@ -32,7 +32,10 @@ async def test_guest_http_validation_session_and_disabled(guest):
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app(auth)), base_url=ORIGIN
     ) as client:
-        assert (await client.get("/auth/config")).json() == {"guest_viewer": True}
+        assert (await client.get("/auth/config")).json() == {
+            "guest_viewer": True,
+            "analytics": True,
+        }
         assert (await client.post("/auth/guest", json={})).status_code == 403
         headers = {"Origin": ORIGIN}
         for body in ({"role": "operator"}, [], None):
@@ -68,7 +71,10 @@ async def test_guest_http_validation_session_and_disabled(guest):
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app(disabled, False)), base_url=ORIGIN
     ) as client:
-        assert (await client.get("/auth/config")).json() == {"guest_viewer": False}
+        assert (await client.get("/auth/config")).json() == {
+            "guest_viewer": False,
+            "analytics": True,
+        }
         assert (await client.post("/auth/guest", json={}, headers=headers)).status_code == 404
 
 
