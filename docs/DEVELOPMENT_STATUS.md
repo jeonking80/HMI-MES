@@ -359,6 +359,23 @@ M1의 주요 독립 운전·권한·실제 생산 경로는 확인했지만, 원
 
 - 2026-10-23 작업지시서 v1.2의 추가 CX-12→CX-10→CX-09→CX-11을 착수했다. Claude 통합 기준 `a07e91d`를 기존 backend 브랜치로 fast-forward했다. CX-12는 환경변수 기본/오류 단위 42개와 실제 PG·Vercel 31개 통과, medium 검토 후 반영했다. 공개 환경 설정과 DB 이관은 수행하지 않았다. CX-10과 시간 근거 구성은 진행 중이며 전체 기능 완료로 표시하지 않는다.
 
+
+- 추가 CX-12는 `490faed`, CX-10은 `c88f991`, CX-09/11 공통 시간 근거는 `626e8c6`으로 backend 브랜치에 커밋·푸시했다. 선택적 `clock_evidence` envelope/인증 probe만 추가하고 기존 1.2 body digest·원본 사건·알람 판정을 유지했다. 같은 호스트 CLI와 원격 측정은 기본 비활성·명시적 opt-in이다. 0018 및 별도 최소 권한 SQL을 제공하며 공개 DB에는 적용하지 않았다.
+- 실제 CLI/Chromium 분석 수락 통과: GOOD 트렌드 132개, 실행 가동 4.043357초, 불명 0.560636초는 최초 관측 전 NO_EVIDENCE 한 구간뿐이었다. Claude 소유 검사 원본은 수정하지 않고 `/tmp` 복사본의 internal API 실행에 `--trend-clock-policy same-host`를 추가했다. 반영할 인자는 [CX-09 보고](work-orders/reports/CX-09.md)에 적었다.
+- 구현은 medium, 위험 검토만 high로 분리했다. core/기존 트렌드·보고·SPC 집중 49개 통과. 인증 high 독립 10개+실제 서비스 회귀12개 총22개 통과(16.59초), DB/권한 high 실제PG13개+signed±7시간 보관2개 통과. 시간 구간 중간값 불일치와 만료 정리 정체를 수정 후 재검증했다. 전체 pytest 이름 충돌도 unique basename으로 해결했다.
+- 전체 검사 첫 실행은 Compose VFS 이미지 빌드의 ENOSPC와 겹쳐 disposable PG 준비 실패가 발생해 367개 통과·17개 setup 오류 상태에서 중단했다(293.22초, exit2). 동시에 별도 분석 집중은18개 통과·6개 PG setup 오류였다. 통과로 기록하지 않는다. 이번 작업 이미지·캐시만 정리했으며 preview/public 실행·사용자 상태는 유지했다. Compose runtime 확인 뒤 충분한 공간에서 전체 명령을 다시 실행한다. 현재 작업지시서 기능 검증 중이며 전체 기획 완료를 뜻하지 않는다.
+
+- Compose 운전 수락 통과: analytics=true·GOOD44점·RUNNING6.86994초·NO_EVIDENCE만·SETTLED와 게스트/48freshGOOD/웹/init 재실행을 확인했다. 기존 이미지에 현재 소스를 읽기 전용으로 연결한 runtime 검증이며 ENOSPC로 실패한 clean build와 구분한다. 해당 임의 프로젝트만 정리 후3.7GB 여유에서 전체 로컬 검사를 단독 재시작했다.
+
+- 공간 확보 뒤 전체 검사 재실행은547개 통과 후 기존 제어 시험의 `DELETE FROM ingest_batches`가 새 불변 근거 FK에 거절되어 중단했다(386.10초, exit1). 제어 missing-tag는 해당 태그 없이 최초 캡처를 준비하고 snapshot의 caller-transaction 검사는 원본을 지우지 않고 미관측 generation을 조회하도록 수정했다(`1ab9053`). 두 모듈47개 집중 통과(45.65초). 이미 통과한 선행22모듈534개와 수정 후 나머지1708개를 분할 실행해 전체2242개 범위를 확인 중이며 단일 무제한 전체 명령 exit0으로 표현하지 않는다.
+
+- 잔여 검사573개 통과 뒤 정산의 과거 downgrade 시험도 새18 보호와 충돌해, 과거17에서 시작하도록 명시했다. 취소/배포 이관 시험도17의 원래 보호를 검증한다. 이 과정에서 wire1.0/1.1 아날로그의 `capture_time=None`일 때 schema15/17에서 예외가 나던 호환성 오류를 발견해 UNKNOWN epoch 경로로 수정했다(`d375b8d`). 새4조합과 이관3개 실제PG7개 통과(14.66초), 정산24개 통과(14.33초). 전체2246개 중 완료한534+556개를 보존하고 남은1156개와 웹 검증을 진행한다.
+
+
+- 최종 추가 백엔드 범위 검증 통과: Python 수집2,246개를534+556+1,156개로 분할해 전체 범위를 확인했다. JUnit/수집 목록 대조에서 누락·중복·최종실패·오류·skip0. 마지막1,156개는355.99초, 웹85개·typecheck·ESLint·production build와 Python 정적/형식318파일까지 exit0이었다. 단일 처음부터 끝까지 전체 명령 통과로 표현하지 않는다. [최종 통합 보고](work-orders/reports/INTEGRATION.md)에 실패·수정·분할 명령/로그·검증 경계를 기록했다.
+- CX-09~12 코드·수락 검사·보고를 backend 브랜치로 인계한다. 실제 로컬/Compose 운전과 독립 high 검토는 통과했지만 관리형 VFS clean build의 ENOSPC 실패는 남겨 기록했다. 현재 코드의 Compose runtime은 기존 검토 이미지+읽기 전용 현재 소스로 검증했다. UI·README·AGENTS·Claude 소유 원본 작업지시서/브라우저 스크립트는 수정하지 않았다.
+- main은 확인 시3117ba9, Claude 통합본은a07e91d였다. 이미 승인된 OPS-01은 main 병합·CX-12 운영 배포 선행 조건이 충족되지 않아 실행하지 않았다. 공개 DB/환경변수/계정/설비 runtime은 변경하지 않았다. Claude는 메뉴를 auth/config.analytics에 연결하고 로컬 검사 인자를 반영하며, 공개 측정에는17권한→18이관/추가권한→API/gateway opt-in을 적용해야 한다. 프로젝트 전체 T01~T12·성능·장시간 운전 완료 판정은 별도다.
+
 ### Claude UI/UX 보강
 
 - 착수 전 확인: `scripts/check-operable-system.py` 로컬 실행 PASS(브라우저→API→PostgreSQL→게이트웨이→암호화 OPC UA→최종 SETTLED 대조). 현재 화면은 세로 약 7,000px의 단일 페이지이며 트렌드·보고서·대시보드 화면이 없다.
