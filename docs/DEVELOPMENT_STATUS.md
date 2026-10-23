@@ -349,6 +349,14 @@ M1의 주요 독립 운전·권한·실제 생산 경로는 확인했지만, 원
 - 미착수.
 - 2026-10-23 착수: 기준 브랜치 `claude/bold-feynman-rpbxfw`의 `31f07fd`와 작업지시서 v1을 확인하고 `codex/kuls-backend`에서 시작했다. CX-01·CX-02·CX-06을 medium으로 병렬 구현하며 선행 계약에 맞춰 CX-03·CX-04·CX-07도 파일 소유 범위를 나눴다. 주 에이전트는 CX-05와 공통 API 등록·통합 검증을 담당한다. DB·인증 변경은 구현 후 high로 독립 검토한다. UI·README·Claude 소유 브라우저 스크립트는 수정하지 않고, 공개 DB 이관·게스트 활성화·main 통합은 수행하지 않는다. CX-08은 유료 LLM 승인 없이 계속 보류한다. SPC·대시보드·게스트는 기존 기획에 추가된 포트폴리오 범위이며 원래 수락 조건을 대신하지 않는다. 현재 로컬 Docker 응답을 확인했으나 새 기능 검증 결과는 아직 없다.
 
+
+- CX-01~CX-07 백엔드 구현과 사용자 앱/Vercel 경로 등록을 `codex/kuls-backend`에 작업별 커밋으로 통합했다. 트렌드·실행/일일 보고·CSV·정지 사유·통계 SPC·대시보드·기본 비활성 게스트·로컬 Compose를 제공한다. [통합 보고](work-orders/reports/INTEGRATION.md)와 작업별 결과에 커밋·계약 추가 필드·검증·제한을 기록한다. 화면·README·원본 작업지시서·Claude 소유 브라우저 스크립트는 수정하지 않았다.
+- CX-01/03 독립 high DB 검토의 시간 역행·digital-only/monotonic 연속성·기존 이력 최초 이관·캐시 왕복 근거 유실과 CX-02의 실행 소유 변경을 보완했다. 최종 독립 PG13개 통과·비차단 cache downgrade 관찰1개 xfail. CX-06 독립 high 인증 검토79개 통과. 이후 명시적 Neon17 권한 파일 `70826f7`도 high 검토하고 임시 카탈로그 우회 수정·최소 권한·기존 ACL 보존을 실제 PG에서 검증했다. 운영 DB에는 적용하지 않았다.
+- `./scripts/check-local.sh`는 Python **2,093개 통과·1개 실패(1,169.87초)**로 exit1이었다. 실패는 coordinator rollback 시험의 head14 고정 기대였고 실제 head17을 보존했다. 시작 revision 보존으로 시험을 수정한 뒤 해당1개+새 runtime권한3개+독립high권한9개 집중 **13개 통과(18.27초)**. 전체 명령을 재실행해 통과한 것으로 표시하지 않는다. 웹은 별도로 **75개·타입·린트·기본/polling 빌드 통과**, 최종 Python 정적/형식 **292개 파일 통과**.
+- 변경된 수집 경로의 실제 CLI/Chromium 통합은 `check-operable-system.py`로 정상 종료했다. 원본 공정→암호화 OPC UA→gateway→PG/API→브라우저에서 등록·배포·LOAD·예열·START·생산·PAUSE·END_RUN·SETTLED를 확인했고 원본 최종 요약과 **양품4/불량2/폐기0·투입6/재공0·사건순번13**이 일치했다. 보호된 로컬 산출물 `.local/kuls-operable-system.json`, `.local/kuls-operable-system.png`. 공개 배포 운전 시험과 구분한다.
+- 커밋 `70826f7`만 별도 소스로 추출하여 기존 .local/가상환경/node_modules/dist 없이 실제 Compose build/up·게스트·48 fresh/GOOD·빌드 웹·반복 init을 통과했다. 임의 검사 프로젝트만 down-v 정리했고 기존 preview·공개 설비는 변경하지 않았다. UI의 게스트 버튼 UX-07 결합은 남아 있다.
+- SPC 원시 보관 뒤 최초 기준선을 남은20개로 이동시키는 문제를 `d9a18d9`에서 보완했다. 원본 capture prefix가 없으면 기준선·관리한계·공정능력을 null로 유지하며 실제40개 중 첫15개 삭제 회귀를 포함해 **19개 통과(12.06초)**. 이 조회 보강 뒤 전체·브라우저·Compose를 반복 실행했다고 주장하지 않는다. 공개 Neon head14·게스트 비활성·기존 고정 source 정책은 유지한다. 공개 이관·권한 적용·용량 프로필·서로 다른 호스트의 시간 증거·새 UI 결합과 전체 기획 수락은 후속이며 CX-08은 계속 보류한다.
+
 ### Claude UI/UX 보강
 
 - 착수 전 확인: `scripts/check-operable-system.py` 로컬 실행 PASS(브라우저→API→PostgreSQL→게이트웨이→암호화 OPC UA→최종 SETTLED 대조). 현재 화면은 세로 약 7,000px의 단일 페이지이며 트렌드·보고서·대시보드 화면이 없다.
