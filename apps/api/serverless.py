@@ -27,6 +27,7 @@ from apps.api.internal import (
     SourceBindingPolicy,
     create_internal_app,
 )
+from apps.api.trend_history import TrendRetention
 from apps.api.user_http import UserHTTPConfig, create_user_app
 
 
@@ -96,6 +97,9 @@ class VercelConfig:
     credentials: tuple[ServiceCredential, ...] = field(default=(), repr=False)
     source_binding_policy: SourceBindingPolicy | None = field(default=None, repr=False)
     guest_viewer: bool = False
+    # None keeps the baseline (7-day raw, 90-day minute). A public free-tier profile
+    # may shorten it; see docs/architecture/TREND_HISTORY.md.
+    trend_retention: TrendRetention | None = None
 
     def __post_init__(self):
         UserHTTPConfig(
@@ -133,6 +137,7 @@ class VercelConfig:
             raise ValueError("HMI_GUEST_VIEWER_ENABLED must be true or false")
         origin = os.environ["HMI_PUBLIC_ORIGIN"]
         database_dsn = os.environ["HMI_DATABASE_DSN"]
+        trend_retention = _trend_retention()
         policy = None
         if "HMI_GATEWAY_CREDENTIALS_JSON" not in os.environ:
             policy = _packaged_binding(origin)
@@ -151,7 +156,36 @@ class VercelConfig:
             guest_viewer=guest_setting == "true",
             credentials=credentials,
             source_binding_policy=policy,
+            trend_retention=trend_retention,
         )
+
+
+_WHOLE_NUMBER = re.compile(r"[1-9][0-9]{0,3}")
+
+
+def _trend_retention():
+    """Optional public-profile retention; absent means the baseline, invalid fails startup."""
+    raw = os.environ.get("HMI_TREND_RAW_HOURS")
+    minute = os.environ.get("HMI_TREND_MINUTE_DAYS")
+    if raw is None and minute is None:
+        return None
+    values = {}
+    for name, value, bound in (
+        ("HMI_TREND_RAW_HOURS", raw, 168),
+        ("HMI_TREND_MINUTE_DAYS", minute, 90),
+    ):
+        if value is None:
+            continue
+        if not _WHOLE_NUMBER.fullmatch(value) or int(value) > bound:
+            raise ValueError(f"{name} must be a whole number from 1 to {bound}")
+        values[name] = int(value)
+    defaults = TrendRetention()
+    return TrendRetention(
+        raw_days=values["HMI_TREND_RAW_HOURS"] / 24
+        if "HMI_TREND_RAW_HOURS" in values
+        else defaults.raw_days,
+        minute_days=values.get("HMI_TREND_MINUTE_DAYS", defaults.minute_days),
+    )
 
 
 def neon_engine(config: VercelConfig):
@@ -225,7 +259,7 @@ def create_vercel_app(config: VercelConfig, *, engine=None):
     )
     internal = (
         create_internal_app(
-            IngestionService(database),
+            IngestionService(database, trend_retention=config.trend_retention),
             credential_bindings=config.credentials,
             config=InternalConfig(allow_insecure_loopback=False),
             source_binding_policy=config.source_binding_policy,

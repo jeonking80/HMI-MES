@@ -450,3 +450,68 @@ async def test_kuls_contract_routes_are_mounted_in_serverless_factory(runtime):
         )
         assert response.status_code == 403
         assert response.headers["cache-control"] == "no-store"
+
+
+def _public_environment(monkeypatch, **trend):
+    monkeypatch.setenv("HMI_PUBLIC_ORIGIN", ORIGIN)
+    monkeypatch.setenv("HMI_DATABASE_DSN", DSN)
+    monkeypatch.setenv("HMI_GATEWAY_CREDENTIALS_JSON", "[]")
+    for name in ("HMI_TREND_RAW_HOURS", "HMI_TREND_MINUTE_DAYS"):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in trend.items():
+        monkeypatch.setenv(name, value)
+
+
+def test_trend_retention_defaults_to_the_baseline_when_unset(monkeypatch):
+    _public_environment(monkeypatch)
+    assert serverless.VercelConfig.from_environment().trend_retention is None
+
+
+@pytest.mark.parametrize(
+    ("trend", "raw_days", "minute_days"),
+    [
+        ({"HMI_TREND_RAW_HOURS": "6", "HMI_TREND_MINUTE_DAYS": "14"}, 0.25, 14),
+        ({"HMI_TREND_RAW_HOURS": "168"}, 7, 90),
+        ({"HMI_TREND_MINUTE_DAYS": "1"}, 7, 1),
+    ],
+)
+def test_trend_retention_from_environment(monkeypatch, trend, raw_days, minute_days):
+    _public_environment(monkeypatch, **trend)
+    retention = serverless.VercelConfig.from_environment().trend_retention
+    assert (retention.raw_days, retention.minute_days) == (raw_days, minute_days)
+
+
+@pytest.mark.parametrize(
+    "trend",
+    [
+        {"HMI_TREND_RAW_HOURS": "0"},
+        {"HMI_TREND_RAW_HOURS": "169"},
+        {"HMI_TREND_RAW_HOURS": "6.5"},
+        {"HMI_TREND_RAW_HOURS": " 6"},
+        {"HMI_TREND_RAW_HOURS": ""},
+        {"HMI_TREND_MINUTE_DAYS": "91"},
+        {"HMI_TREND_MINUTE_DAYS": "-1"},
+        {"HMI_TREND_MINUTE_DAYS": "014"},
+    ],
+)
+def test_trend_retention_rejects_out_of_range_values(monkeypatch, trend):
+    _public_environment(monkeypatch, **trend)
+    with pytest.raises(ValueError, match="HMI_TREND_"):
+        serverless.VercelConfig.from_environment()
+
+
+def test_trend_retention_reaches_serverless_ingestion(monkeypatch, runtime):
+    seen = []
+
+    class Recording(IngestionService):
+        def __init__(self, *args, **kwargs):
+            seen.append(kwargs.get("trend_retention"))
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr(serverless, "IngestionService", Recording)
+    retention = serverless.TrendRetention(raw_days=0.25, minute_days=14)
+    config = serverless.VercelConfig(
+        ORIGIN, DSN, runtime.config.credentials, trend_retention=retention
+    )
+    serverless.create_vercel_app(config, engine=runtime.engine)
+    assert seen == [retention]
