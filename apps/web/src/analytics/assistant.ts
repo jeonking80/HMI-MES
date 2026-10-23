@@ -54,7 +54,7 @@ export async function askAssistant(turns: ChatTurn[], scope: Scope | null, csrf:
       method: 'POST', credentials: 'same-origin', cache: 'no-store',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf, 'X-HMI-Request': '1' },
       body: JSON.stringify({ messages: turns, scope }),
-      signal: AbortSignal.any([signal, AbortSignal.timeout(45_000)]),
+      signal: AbortSignal.any([signal, AbortSignal.timeout(58_000)]),
     })
   } catch (cause) {
     if (signal.aborted) throw cause

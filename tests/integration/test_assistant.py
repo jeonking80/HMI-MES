@@ -274,3 +274,16 @@ async def test_one_transient_provider_failure_is_retried(service):
         client.cookies.set(SESSION_COOKIE, session.token)
         response = await post(client, session, body())
     assert response.status_code == 200 and len(seen) == 2
+
+
+def test_dashboard_summary_keeps_totals_and_only_active_hours():
+    from apps.api.assistant import _summarize_dashboard
+
+    hourly = [
+        {"hour_start": f"h{i}", "good": "0", "reject": "0", "running_seconds": 0} for i in range(23)
+    ]
+    hourly.append({"hour_start": "h23", "good": "5", "reject": "0", "running_seconds": 60})
+    summary = _summarize_dashboard({"production": {"good": "5"}, "hourly": hourly})
+    assert summary["production"] == {"good": "5"}
+    assert [h["hour_start"] for h in summary["hourly_with_activity"]] == ["h23"]
+    assert summary["hourly_without_activity"] == 23

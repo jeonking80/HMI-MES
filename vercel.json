@@ -6,7 +6,7 @@
   "outputDirectory": "apps/web/dist",
   "functions": {
     "api/index.py": {
-      "maxDuration": 30,
+      "maxDuration": 60,
       "excludeFiles": "{.local/**,.cache/**,.venv/**,tests/**,docs/**,deploy/**,apps/web/node_modules/**,apps/web/src/**,**/*.sqlite*,**/*.pem,**/*.der,**/*.log}"
     }
   },

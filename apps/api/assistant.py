@@ -52,8 +52,9 @@ class AssistantConfig:
     base_url: str = DEFAULT_BASE_URL
     max_rounds: int = 4
     timeout_seconds: float = 20.0
-    # Whole answer budget under the 30 s serverless limit; later rounds stop calling tools.
-    deadline_seconds: float = 26.0
+    # Whole answer budget under the 60 s serverless limit (vercel.json); later rounds stop
+    # calling tools.
+    deadline_seconds: float = 50.0
     # Per session and per process; protects the shared free-tier key from one viewer.
     session_limit: int = 10
     global_limit: int = 30
@@ -73,7 +74,7 @@ class AssistantConfig:
         if (
             not 1 <= self.max_rounds <= 6
             or not 1 <= self.timeout_seconds <= 25
-            or not self.timeout_seconds <= self.deadline_seconds <= 28
+            or not self.timeout_seconds <= self.deadline_seconds <= 55
         ):
             raise ValueError("assistant bounds are out of range")
 
@@ -218,6 +219,22 @@ def _summarize_trend(body):
     }
 
 
+def _summarize_dashboard(body):
+    # Empty hours add input tokens (and seconds) without information; keep their count.
+    hourly = body.get("hourly") or []
+    active = [
+        h
+        for h in hourly
+        if h.get("good") not in (None, "0")
+        or h.get("reject") not in (None, "0")
+        or h.get("running_seconds")
+    ]
+    return {k: v for k, v in body.items() if k != "hourly"} | {
+        "hourly_with_activity": active,
+        "hourly_without_activity": len(hourly) - len(active),
+    }
+
+
 def _summarize_reports(body):
     keep = (
         "execution_id",
@@ -303,7 +320,12 @@ class _Tools:
         if name == "get_dashboard":
             scope = await self._scope()
             day = _day(arguments.get("date"), self.now)
-            return f"대시보드 {day}", "/api/v1/dashboard", scope | {"date": day}, lambda b: b
+            return (
+                f"대시보드 {day}",
+                "/api/v1/dashboard",
+                scope | {"date": day},
+                _summarize_dashboard,
+            )
         if name == "get_line_snapshot":
             scope = await self._scope()
             return "라인 스냅샷", "/api/v1/snapshot", scope, _summarize_snapshot
