@@ -382,6 +382,21 @@ M1의 주요 독립 운전·권한·실제 생산 경로는 확인했지만, 원
 - CX-14 `d7c60b7`: Linux/WSL2 PC의 기존 영속 상태로 300/600초 시연하는 문서와 read-only DB 크기 명령을 추가했다. 실제 PG **2개 통과(5.12초)**. 원본 배치·알람·시각 근거 삭제나 유료 서비스는 추가하지 않았다. 공개 접속·시연 실행은 하지 않았다.
 - CX-15 수락 증거 감사를 [보고서](work-orders/reports/CX-15.md)에 작성했다. T01~T12 전체 수락과 실제8시간·48태그/1Hz·10명·지연p95·실제30분 적체/5분 복구·동일 backup_set_id 전체 복원은 아직 미실행/부분 검증이다. 과거2,246건은534+556+1,156개 증분 대조이며 실패한 원본 JUnit과 수정 후 성공 구간을 구분했다. 대형 시험을 이번 문서 작업의 일부로 시작하지 않았다. 프로젝트 전체 완료로 표시하지 않는다.
 
+
+- 사용자 추가 지시로 최신 `main` `c681b21`(PR #3~#5 포함)을 먼저 `fd92ea8`로 병합했다. 챗봇 날짜/KST·Nemotron thinking 비활성·일시 오류1회 재시도·대시보드 모델 입력 축소와 Vercel60초를 보존하고, CX-13의 단일 전체 마감은 이제50초다(초기25초 기록 대체). 알람 도구·게스트 한도·로그 보호와 결합한 단위/실제PG·ASGI43개가21.42초에 통과했다. UI/UX·Vercel은 upstream 변경을 그대로 받았고 Codex가 별도로 편집하지 않았다.
+- 새 CX-16 착수: 로컬 일회용 PostgreSQL의약3,800배치 규모에서 SQL EXPLAIN ANALYZE와 대시보드/일일 보고 전후 응답을 비교한다. 1Hz 표본3,800건은약63분20초이며 전체24시간·공개Neon p95로 확대하지 않는다. 결과값·시간 불명·권한 계약은 보존한다.
+- 필수 전체 로컬 검사는 병합 전 정적338파일 통과 후292통과/27오류(195.39초)에서 새 지시로 중단(exit2)했다. 오류는 `psycopg.errors.DiskFull ... No space left on device`이며 당시 VFS Docker PG·Compose 동시 실행이었다. 실패로그/JUnit을 보존하고 최신 main 및 CX-16 결합 뒤 단독으로 재검증한다. 이전 CLI/Compose·high21개 성공은 해당 소스의 집중 증거이며 새main 전체 수락 통과로 바꾸지 않는다.
+
+
+- CX-10 `8b062f7`: 앱별5초 schema/grant 캐시로 매 요청 DB probe를 없앴고 기존guest_viewer/assistant 필드를 보존했다. 실제PG/단위23개11.25초 통과. 경로/등록 표식 누락은 캐시와 무관하게 즉시false이고 업무 권한은 기존 경로에서 계속 검사한다.
+- CX-09/11 `e940802`: 새 독립 high가 확인한5종(부분raw정리의GOOD재등장·시간불명통신장애수신경계·동시역행캐시·canonical무효화의보고/SPC좌표)을 수정하고 실제PG21개27.99초 독립검증을 통과했다. 원본·proof·사건시각은 유지한다. HTTP17→18 이관은 `b3def9f`, 신규/기존/권한20개18.27초 및 별도high5개6.36초 통과. 공개 적용은 [OPS-02 인계안](architecture/OPS-02_CLOCK_MIGRATION.md)으로 남기고 실행하지 않았다.
+- CX-16 `c8a24c1`·보고서 `50740a9`: 현재scope의clock_assessment 집계/legacy필요표본 projection과 대시보드의완전최신캡처 opt-in을 적용했다. 3,800배치/182,400표본 로컬warm 서비스 중앙값daily2.599→0.712초·dashboard4.156→0.672초, 인증ASGI단일HTTP2.584→0.701초·4.308→0.980초이며 응답JSON이같았다. 앞선daily1.050초변동과 합성/legacy혼합표본·24시간/p95/공개환경미검증을 [CX-16](work-orders/reports/CX-16.md)에 기록했다. 기존44개통과 후신규fixture2실패를고쳐7개별도통과; 전체동시51개로표현하지않는다.
+
+
+- 최신 main + CX-16 최종 검사: 실행 코드 `c8a24c1`에서 `./scripts/check-local.sh`가 단일 실행으로 exit0. Python **2,354 passed**(1,390.91초), JUnit은 추가156subtest 포함2,510항목 실패/오류/skip0, 웹 **91 passed**·타입·린트·빌드·Python 정적339파일 통과. 전체1,414.493초. 앞선 DiskFull 중단 기록과 구분하고 최종 로그/JUnit은 [통합 보고](work-orders/reports/INTEGRATION.md)에 남겼다.
+- 최신 코드 실제 CLI/Chromium도 GOOD132점·RUNNING3.927885초·NO_EVIDENCE만·SETTLED 양품5/불량2/폐기0으로 통과했다. 이어 현재 소스RO+검토 이미지의 Compose runtime은 GOOD35점·RUNNING6.98818초·SETTLED·게스트·48freshGOOD·웹·반복init을78.556초에 통과했다. 새 이미지 clean build 성공으로 표현하지 않으며 기존 preview/보호된 runtime은 건드리지 않았다.
+- 이번 백엔드 v2와 추가 CX-16의 변경·검증을 작업 브랜치로 인계한다. UI/UX와 main 통합은 Claude 범위다. 공개18 이관은 OPS-02 별도 운영 작업이며, T01~T12 묶인 전체 수락·실제8시간/10명/p95·30분 실제 적체/5분 복구·전체 backup_set_id 복원은 여전히 부분 검증/미실행이다. 미실행을 통과로 표시하거나 프로젝트 전체 완료로 단정하지 않는다.
+
 ### Claude UI/UX 보강
 
 - 착수 전 확인: `scripts/check-operable-system.py` 로컬 실행 PASS(브라우저→API→PostgreSQL→게이트웨이→암호화 OPC UA→최종 SETTLED 대조). 현재 화면은 세로 약 7,000px의 단일 페이지이며 트렌드·보고서·대시보드 화면이 없다.

@@ -111,13 +111,32 @@ UI·README·AGENTS·원본 작업지시서·Claude 소유 브라우저 스크립
 
 HTTP migration 재생/기존 이관/권한20개18.27초·독립 high5개6.36초 통과. 공개 Neon 전송은 하지 않았다. 실제 CLI 수락은 GOOD141점·RUNNING4.461093초·UNKNOWN1.033524초(NO_EVIDENCE만)·SETTLED 양품5/불량2/폐기0으로 설비 원본과 일치했다. 현재 소스·실제 Chromium·API/PG·암호화 OPC UA 경로이며 기존 웹 소스와 원본 검사 스크립트는 수정하지 않았다. 상세는 [CX-09](CX-09.md)·[CX-11](CX-11.md)를 따른다.
 
-최종 전체 로컬 검사와 현재 소스 Compose runtime 검사는 진행 중이다. T01~T12와 대형 성능·8시간·전체 복원 시험의 미완료 범위는 [CX-15](CX-15.md)를 따른다.
+이 시점 후속 전체 검사와 Compose runtime 결과는 아래 최신 main 병합 절에 기록한다. T01~T12와 대형 성능·8시간·전체 복원 시험의 미완료 범위는 [CX-15](CX-15.md)를 따른다.
 
 ## 최신 main 선행 병합과 CX-16 추가
 
 사용자 지시에 따라 `main`의 PR #3~#5가 포함된 `c681b21`을 먼저 받아 `fd92ea8`로 병합했다. 충돌은 assistant와 해당 통합 시험 두 파일에서 해결했다. upstream UI·Vercel60초·원본 v2 지시서 CX-16은 그대로 받았으며 UI/UX 소스를 별도로 수정하지 않았다.
 
 - CX-13은 이제 단일 `deadline_seconds=50`(최대50), 함수60초 기준이다. 최초 인증을 포함한 외부 시한과 모델 반복의 잔여 예산에 같은 설정을 사용한다. 날짜/KST 프롬프트, Nemotron `enable_thinking=false`, 일시 오류1회 재시도, 대시보드 모델 입력 축소와 기존504를 보존했고 우리 활성 알람·게스트2회/300초·로그 보호를 결합했다. 최신 조합 단위/실제PG·ASGI **43 passed, 21.42초**. 실제 공급자는 호출하지 않았다.
-- 병합 전 전체 명령 `PYTEST_ADDOPTS=--junitxml=/tmp/hmi-v2-full.xml ./scripts/check-local.sh`는 정적338파일을 통과했으나 **292 passed, 27 errors, 195.39초**, 사용자 새 지시 후 중단(exit2)이었다. 실패 원문: `psycopg.errors.DiskFull: could not create file "base/16384/39227": No space left on device`. VFS Docker에서 전체 PG와 Compose를 겹쳐 실행한 자원 실패다. 전체 명령 성공으로 표시하지 않으며 `/tmp/hmi-v2-check-local.{log}`, `/tmp/hmi-v2-full.xml`, `/tmp/hmi-v2-check-local-result.json`에 보존했다. 이후 새 검증은 큰 Docker 작업과 직렬로 실행한다. 기존 preview·보호된 영속 상태·전역 Docker 자원은 삭제하지 않았다.
+- 병합 전 전체 명령 `PYTEST_ADDOPTS=--junitxml=/tmp/hmi-v2-full.xml ./scripts/check-local.sh`는 정적338파일을 통과했으나 **292 passed, 27 errors, 195.39초**, 사용자 새 지시 후 중단(exit2)이었다. 실패 원문: `psycopg.errors.DiskFull: could not create file "base/16384/39227": No space left on device`. 당시 VFS Docker에서 전체 PG와 Compose가 동시에 실행 중이었다. 오류 유형은 저장 공간 부족이며, 정리 후 여유 공간만으로 실패 순간의 사용량까지 확정하지 않는다. 전체 명령 성공으로 표시하지 않으며 `/tmp/hmi-v2-check-local.log`, `/tmp/hmi-v2-full.xml`, `/tmp/hmi-v2-check-local-result.json`에 보존했다. 이후 새 검증은 큰 Docker 작업과 직렬로 실행한다. 기존 preview·보호된 영속 상태·전역 Docker 자원은 삭제하지 않았다.
 - 기존 CLI/Compose v2 수락 증거는 최신 main 병합 **이전** 결과다. Compose는 GOOD41·RUNNING6.84785초·NO_EVIDENCE만·SETTLED 및 guest48freshGOOD/웹/반복init을 통과했으며 cached image+현재소스RO mount 방식이다. clean build ENOSPC 한계를 없앤 결과로 해석하지 않는다.
-- 새 CX-16은 로컬 일회용 DB의 약3,800배치 규모에서 SQL 계획·응답 전후값을 측정하고 결과를 유지하며 최적화한다. 1Hz3,800건은 약63분20초이므로 전체24시간 규모나 공개Neon p95 성능으로 확대하지 않는다. 구현·검증은 진행 중이다.
+- 새 CX-16은 로컬 일회용 DB의 약3,800배치 규모에서 SQL 계획·응답 전후값을 측정하고 결과를 유지하며 최적화한다. 1Hz3,800건은 약63분20초이므로 전체24시간 규모나 공개Neon p95 성능으로 확대하지 않는다. 구현은 `c8a24c1`, 상세 측정은 [CX-16](CX-16.md)에 기록했다. 단위/집중 검증은 끝났고 전체 검사는 진행 중이다.
+
+후속 실제 운전용 polling UI 빌드 보완: 처음 루트에서 `npm --prefix apps/web exec -- vite build --outDir /tmp/hmi-v2-main-web`를 실행해 `Could not resolve entry module "index.html"`로 실패했다. 작업 디렉터리를 `apps/web`으로 고치고 `VITE_SCREEN_TRANSPORT=polling VITE_ANALYTICS_PAGES=enabled ./node_modules/.bin/vite build --outDir /tmp/hmi-v2-main-web`를 실행해 **1.38초에 성공**했다. UI 소스는 수정하지 않았다. 이는 전체 check-local의 기본 production build와 구분한다.
+
+## 최신 main + CX-16 최종 전체 검사
+
+실행 코드 `c8a24c1`에서 `PYTEST_ADDOPTS=--junitxml=/tmp/hmi-v2-main-full.xml ./scripts/check-local.sh`를 **한 번의 끝까지 실행으로 통과(exit0)**했다. 시작2026-10-23 07:09:48 UTC, 전체1,414.493초(약23분34초)다. 이후 변경은 문서뿐이다.
+
+- Python **2,354 passed, 2 warnings, 1,390.91초**. JUnit은 추가156개 subtest를 포함한2,510개 testcase이며 실패/오류/skip0이다. 과거2,246건 분할 대조와 이번 전체2354건 단일 성공을 구분한다.
+- Python Ruff/format **339개 파일 통과**.
+- 웹 화면/계약 시험 **91 passed**, fail/cancel/skip/todo0(2,888.70ms), TypeScript·ESLint와 production build 통과(Vite1.29초). UI 소스는 upstream main을 사용했다.
+- 전체 로그 `/tmp/hmi-v2-main-check-local.log`, JUnit `/tmp/hmi-v2-main-full.xml`, 코드revision/시작/시간/exit 메타데이터 `/tmp/hmi-v2-main-check-local-result.json`.
+- 앞선292통과/27DiskFull오류 중단 로그는 그대로 보존했다. 이번 실행은 PG/Compose 동시 작업 없이 진행했다. 대형 성능·8시간·전체 backup set 복원·공개OPS-02는 이 명령의 통과 범위에 포함하지 않는다.
+
+후속 현재 코드의 짧은 실제 운전도 **순차 실행해 통과**했다.
+
+- CLI/Chromium: 최신 main polling 빌드와 현재 API/gateway/암호화 OPC UA에서 GOOD 132점·RUNNING 3.927885초·UNKNOWN 1.194454초(NO_EVIDENCE만)·SETTLED 양품5/불량2/폐기0. `/tmp/hmi-v2-main-cli.log`, `/tmp/hmi-v2-main-cli/analytics/`, 최종 `settled.{png,json}`. 원본 Claude 검사스크립트는 수정하지 않았고 same-host 옵션을 추가한 임시 복사본을 사용했다.
+- Compose: `--compose-file /tmp/hmi-v2-main-compose-cached.yaml --no-build`, 현재 소스·새 polling 웹 RO mount와 기존 검토 이미지. GOOD 35점·RUNNING 6.98818초·NO_EVIDENCE만·SETTLED·게스트·48 fresh/GOOD·웹·반복 init 통과. **78.556초, exit0**. `/tmp/hmi-v2-main-compose.log`·`/tmp/hmi-v2-main-compose-result.json`. 임의 프로젝트 `cx07-check-9fa7e7329bfe`만 정리했다. 과거 clean build ENOSPC 실패를 성공으로 바꾸지 않는다.
+
+공개 DB·환경변수·사용자 계정·보호된 runtime과 실제 LLM 공급자는 변경/호출하지 않았다. UI·README·AGENTS·Vercel·원본 작업지시서/브라우저스크립트는 `main c681b21` 대비 직접 변경이 없다. 전체 자동 검사 이후 바뀐 파일은 결과 문서뿐이다. 프로젝트 전체 수락·장시간·전체 복원 판정은 CX-15의 미완료 범위를 유지한다.
