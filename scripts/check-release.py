@@ -85,7 +85,7 @@ print(json.dumps(result))
 
 
 # Separate child wrapper preserves the Claude-owned original and all other CLI
-# invocations. Its sole extension declares the actual same-host clock assumption.
+# invocations. It reuses or declares the actual same-host clock assumption.
 INDEPENDENT_DRIVER_WRAPPER = r"""
 import hashlib,importlib.util,json,subprocess,sys
 from pathlib import Path
@@ -105,11 +105,31 @@ def guarded_popen(arguments,*args,**kwargs):
     ]:
         if kwargs.get("shell"):
             raise RuntimeError("Internal API clock extension refuses shell execution")
-        if "--trend-clock-policy" in arguments:
-            raise RuntimeError("Original driver already defines clock policy; review required")
-        arguments=[*arguments,"--trend-clock-policy","same-host"]
+        policies=[index for index,value in enumerate(arguments)
+                  if isinstance(value,str) and (value.startswith("--trend-clock-policy")
+                  or (value.startswith("--") and len(value)>2
+                      and "--trend-clock-policy".startswith(value.split("=",1)[0])))]
+        if len(policies)>1:
+            raise RuntimeError("Internal API clock policy is duplicated")
+        action="appended"
+        appended=["--trend-clock-policy","same-host"]
+        if policies:
+            index=policies[0]
+            option=arguments[index]
+            if option=="--trend-clock-policy":
+                value=arguments[index+1] if index+1<len(arguments) else None
+            elif option.startswith("--trend-clock-policy="):
+                value=option.split("=",1)[1]
+            else:
+                value=None
+            if value!="same-host":
+                raise RuntimeError("Internal API clock policy conflicts or is malformed")
+            action="reused"
+            appended=[]
+        else:
+            arguments=[*arguments,*appended]
         extensions.append({"module":"apps.api","subcommand":"serve",
-                           "appended":["--trend-clock-policy","same-host"]})
+                           "action":action,"policy":"same-host","appended":appended})
     return original_popen(arguments,*args,**kwargs)
 subprocess.Popen=guarded_popen
 sys.argv=[str(driver_path),*arguments]
@@ -463,7 +483,8 @@ def main():
             "extension": {
                 "module": "apps.api",
                 "subcommand": "serve",
-                "append": ["--trend-clock-policy", "same-host"],
+                "policy": "same-host",
+                "strategy": "reuse-existing-or-append-if-absent",
             },
         }
         extension_proof = output / "independent-driver-extension.json"
@@ -490,7 +511,8 @@ def main():
             or len(proof.get("extensions", [])) != 1
             or proof.get("exit_code") != 0
         ):
-            raise RuntimeError("Independent driver clock extension was not applied exactly once")
+            raise RuntimeError("Independent driver clock policy was not verified exactly once")
+        record["independent_driver"]["extension"] = proof["extensions"][0]
         mark("independent_cli", extension_proof=proof)
         env["HMI_ACCEPTANCE_ARTIFACTS"] = str(output / "cx17")
         execute(

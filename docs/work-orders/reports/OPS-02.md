@@ -54,3 +54,9 @@ cmp /tmp/hmi-v3-grants-0018.json deploy/neon-http/grants-0018.json
 | 전후 DB 용량 | 미측정 |
 
 로컬 준비물 검증과 정적 위험 검토만 통과했다. 공개 배포 완료나 프로젝트 완료 판정은 하지 않는다.
+
+## 재개 시점 재확인 — 2026-10-23 11:21 UTC
+
+사용자가 8시간 시험을 제외한 미완료 항목 전체 재개를 지시했다. 최신 main `51f2383`을 병합한 `a3da06141aa2a6e9da5e77398fc58c4fdd437500`에서 두 JSON을 다시 생성해 각각 `cmp` exit0을 확인했고 SHA-256은 위 표와 동일했다. 공개 `/api/ready`는 HTTP200 `{"ready":true}`였으나 배포 SHA·DB revision의 증거로 사용하지 않는다.
+
+현재 환경도 관리 도구·secret/runtime/identity binding이 없고, 위 다섯 named 환경변수의 설정 여부는 모두 false다. 공개 연결 문자열을 비밀 파일에서 탐색하거나 보호된 실습 DB 자격 증명을 대신 사용하지 않았다. 공개 backup/migration/runtime DML/Vercel 재배포·실연은 여전히 미실행이다. 작업지시서 OPS-02.6에 따라 검증된 준비물과 위 운영 실행 순서를 Claude에게 인계한다. 이는 공개 적용 통과 판정이 아니다.
