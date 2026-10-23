@@ -4,7 +4,7 @@ import type { PointQuality, Trend, TrendSeries } from './api'
 import { Legend, TimeSeriesChart } from './charts'
 import { SERIES_COLORS } from './scale'
 import type { ChartSeries } from './charts'
-import { alignedEnd, analogTags, clock, dateTime, MISSING, tagLabels } from './format'
+import { alignedEnd, analogTags, clock, dateTime, focusWindow, MISSING, tagLabels } from './format'
 import { useResource, useSources } from './hooks'
 import type { Source } from './hooks'
 import { Card, ChartOrTable, EmptyState, PageNotice, RefreshStatus, ScopePicker } from './ui'
@@ -45,6 +45,10 @@ function gapsFor(series: TrendSeries[], stepMs: number) {
   return gaps.map(gap => ({ from: gap.from, to: gap.to, label: gap.timeUnknown ? '시간 불명' : '데이터 없음' }))
 }
 
+function clipGaps(gaps: { from: number; to: number; label: string }[], view: { from: number; to: number }) {
+  return gaps.filter(gap => gap.to > view.from && gap.from < view.to).map(gap => ({ ...gap, from: Math.max(gap.from, view.from), to: Math.min(gap.to, view.to) }))
+}
+
 function coverage(series: TrendSeries) {
   const valid = series.points.reduce((sum, point) => sum + point.valid_count, 0)
   const expected = series.points.reduce((sum, point) => sum + point.expected_count, 0)
@@ -58,6 +62,8 @@ export default function TrendPage({ scope, onScope, onSessionInvalid }: { scope:
   const [tags, setTags] = useState<string[]>(['Sealer.TemperaturePV', 'Sealer.TemperatureSP', 'Sealer.AirPressure'])
   const [range, setRange] = useState<(typeof ranges)[number]['id']>('1h')
   const [anchor, setAnchor] = useState(() => Date.now())
+  // Zoom into the part that has values unless the user asks for the whole span.
+  const [fullSpan, setFullSpan] = useState(false)
   const span = ranges.find(item => item.id === range)!.ms
   // The server resolves spans over one hour to minute buckets and counts them from the floored
   // start, so a minute-resolution request must sit on minute boundaries or 7 days becomes 10081.
@@ -76,6 +82,12 @@ export default function TrendPage({ scope, onScope, onSessionInvalid }: { scope:
     return SERIES_COLORS[(index >= 0 ? index : tags.length + Math.max(0, fallback)) % SERIES_COLORS.length]
   }
   const stepMs = data?.resolution === 'second' ? 1000 : 60e3
+  const focus = useMemo(() => {
+    if (!data) return null
+    const valued = data.series.flatMap(item => item.points.filter(point => point.value !== null).map(point => Date.parse(point.t)))
+    return focusWindow(valued, Date.parse(data.from), Date.parse(data.to), stepMs)
+  }, [data, stepMs])
+  const view = data ? (focus && !fullSpan ? focus : { from: Date.parse(data.from), to: Date.parse(data.to) }) : null
   const byUnit = useMemo(() => {
     const result = new Map<string, TrendSeries[]>()
     for (const series of data?.series ?? []) result.set(series.unit, [...(result.get(series.unit) ?? []), series])
@@ -92,7 +104,7 @@ export default function TrendPage({ scope, onScope, onSessionInvalid }: { scope:
       <div className="filter-field">
         <span className="filter-label">기간</span>
         <div className="segmented" role="group" aria-label="조회 기간">
-          {ranges.map(item => <button key={item.id} type="button" aria-pressed={range === item.id} onClick={() => { setRange(item.id); setAnchor(Date.now()) }}>{item.label}</button>)}
+          {ranges.map(item => <button key={item.id} type="button" aria-pressed={range === item.id} onClick={() => { setRange(item.id); setAnchor(Date.now()); setFullSpan(false) }}>{item.label}</button>)}
         </div>
       </div>
       <RefreshStatus loading={trend.loading} updatedAt={trend.updatedAt} onRefresh={() => setAnchor(Date.now())} />
@@ -120,14 +132,20 @@ export default function TrendPage({ scope, onScope, onSessionInvalid }: { scope:
         값은 수집됐지만 설비와 서버의 시각이 일치한다는 근거(시간 정책)가 없어 어느 시점의 값인지 확정할 수 없습니다. 추정 시각에 배치하지 않고 &lsquo;시간 불명&rsquo;으로 표시합니다.
       </PageNotice>}
       <p className="data-footnote">{dateTime(data.from)} ~ {dateTime(data.to)} · {data.resolution === 'second' ? '1초 원시값' : '1분 집계(평균, 음영은 최소~최대)'} · 정책 {data.policy_version}</p>
+      {focus && <div className="focus-bar" role="status">
+        {fullSpan
+          ? <span>조회 기간 전체를 보고 있습니다. 값이 있는 구간이 짧아 차트에서 작게 보입니다.</span>
+          : <span><b>값이 있는 구간만 확대해 보고 있습니다</b> ({clock(new Date(focus.from).toISOString())} ~ {clock(new Date(focus.to).toISOString())}). 나머지 기간은 값이 없으며, 아래 유효 표본·누락 수는 조회 기간 전체 기준입니다.</span>}
+        <button type="button" className="button secondary compact" aria-pressed={fullSpan} onClick={() => setFullSpan(value => !value)}>{fullSpan ? '값이 있는 구간 확대' : '전체 기간 보기'}</button>
+      </div>}
       {byUnit.map(([unit, series]) => {
         const chartSeries: ChartSeries[] = series.map(item => ({
           id: item.tag_id, label: tagLabels[item.tag_id] ?? item.tag_id, color: colorOf(item.tag_id),
-          points: item.points.map(point => ({ t: Date.parse(point.t), value: point.value, min: point.min, max: point.max, note: point.quality === 'GOOD' ? undefined : `${qualityLabels[point.quality]} (${point.valid_count}/${point.expected_count})` })),
+          points: item.points.filter(point => !view || (Date.parse(point.t) >= view.from && Date.parse(point.t) < view.to)).map(point => ({ t: Date.parse(point.t), value: point.value, min: point.min, max: point.max, note: point.quality === 'GOOD' ? undefined : `${qualityLabels[point.quality]} (${point.valid_count}/${point.expected_count})` })),
         }))
         return <Card key={unit} title={series.map(item => tagLabels[item.tag_id] ?? item.tag_id).join(' · ')} kicker={`단위 ${unit}`}
           actions={series.length > 1 ? <Legend items={chartSeries.map(item => ({ label: item.label, color: item.color }))} /> : undefined}>
-          <ChartOrTable label={unit} chart={<TimeSeriesChart title={series.map(item => tagLabels[item.tag_id]).join(', ')} unit={unit} from={Date.parse(data.from)} to={Date.parse(data.to)} series={chartSeries} band={data.resolution === 'minute'} gaps={gapsFor(series, stepMs)} />}
+          <ChartOrTable label={unit} chart={<TimeSeriesChart title={series.map(item => tagLabels[item.tag_id]).join(', ')} unit={unit} from={view!.from} to={view!.to} series={chartSeries} band={data.resolution === 'minute'} gaps={clipGaps(gapsFor(series, stepMs), view!)} />}
             table={<table className="data-table">
               <thead><tr><th scope="col">시각</th>{series.map(item => <th key={item.tag_id} scope="col">{tagLabels[item.tag_id]} ({unit})</th>)}<th scope="col">품질</th></tr></thead>
               <tbody>{series[0].points.map((point, index) => <tr key={point.t}>

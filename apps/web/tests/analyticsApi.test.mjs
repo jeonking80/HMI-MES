@@ -190,3 +190,14 @@ test('assistant conversations stay within the server bound and start with a ques
   assert.deepEqual(turns.at(-1), { role: 'user', content: '마지막 질문' })
   assert.equal(assistant.conversationFor([], 'x'.repeat(5000))[0].content.length, assistant.MAX_CHARS)
 })
+
+test('trend zooms to the valued part only when it is a small share of the span', () => {
+  const from = Date.parse('2026-10-23T08:00:00Z'), to = from + 3600e3
+  const run = Array.from({ length: 60 }, (_, i) => to - 120e3 + i * 1000)
+  const zoom = format.focusWindow(run, from, to, 1000)
+  assert.ok(zoom && zoom.from >= from && zoom.to <= to && zoom.from <= run[0] && zoom.to >= run.at(-1) + 1000)
+  assert.ok(zoom.to - zoom.from < 600e3)
+  // Values filling most of the span, or none at all, keep the full span.
+  assert.equal(format.focusWindow(Array.from({ length: 40 }, (_, i) => from + i * 60e3), from, to, 60e3), null)
+  assert.equal(format.focusWindow([], from, to, 1000), null)
+})
