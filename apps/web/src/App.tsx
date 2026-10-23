@@ -12,10 +12,9 @@ import type { AlarmLedger } from './alarmApi'
 import CancellationPanel from './CancellationPanel'
 import { useCancellation } from './useCancellation'
 import { WorkOrderMutationGuard } from './workOrderMutationGuard'
-
-const roleLabels: Record<string, string> = {
-  viewer: '조회 사용자', operator: '작업자', production_manager: '생산 담당자', equipment_admin: '설비 관리자',
-}
+import Sidebar from './Sidebar'
+import { pageDefinition } from './navigation'
+import type { WorkspacePage } from './navigation'
 
 export default function App() {
   // A reload intentionally drops the CSRF token and requires login.
@@ -25,7 +24,7 @@ export default function App() {
   const [newPassword, setNewPassword] = useState('')
   const [confirmation, setConfirmation] = useState('')
   const [changingPassword, setChangingPassword] = useState(false)
-  const [workspaceTab, setWorkspaceTab] = useState<'operations' | 'drafts'>('operations')
+  const [workspaceTab, setWorkspaceTab] = useState<WorkspacePage>('operations')
   const [mesOpened, setMesOpened] = useState(false)
   const [busy, setBusy] = useState(false)
   const inFlight = useRef(false)
@@ -37,7 +36,7 @@ export default function App() {
   const screen = !session ? 'login' : showPasswordForm ? 'password' : 'workspace'
 
   useEffect(() => { document.title = 'HMI-MES · 운영 시스템' }, [])
-  useEffect(() => { heading.current?.focus() }, [screen])
+  useEffect(() => { heading.current?.focus() }, [screen, workspaceTab])
   useEffect(() => {
     if (!session) return
     const timer = window.setTimeout(() => {
@@ -124,6 +123,42 @@ export default function App() {
     void run('password')
   }
 
+  function navigate(page: WorkspacePage) {
+    if (page === 'drafts') setMesOpened(true)
+    setWorkspaceTab(page)
+  }
+
+  if (session && screen === 'workspace') {
+    const current = pageDefinition(workspaceTab)
+    return (
+      <div className="app-shell workspace-shell">
+        <a className="skip-link" href="#main-content">본문으로 이동</a>
+        <Sidebar
+          session={session}
+          page={workspaceTab}
+          busy={busy}
+          onNavigate={navigate}
+          onChangePassword={() => { setChangingPassword(true); setError(''); setNotice('') }}
+          onLogout={() => void run('logout')}
+        />
+        <main id="main-content" className="workspace">
+          <header className="page-header">
+            <p className="section-kicker">{current.kicker}</p>
+            <h1 ref={heading} tabIndex={-1}>{current.title}</h1>
+            <p className="intro">{current.description}</p>
+          </header>
+          {error && <div className="message error" role="alert">{error}</div>}
+          {notice && <div className="message success" role="status">{notice}</div>}
+          <div hidden={workspaceTab !== 'operations'}><SnapshotPanel session={session} onSessionInvalid={invalidateSession} workflow={workflow} selectedOrder={selectedOrder} tracked={tracked} setTracked={setTracked} alarmLedger={alarmLedger} setAlarmLedger={setAlarmLedger} /></div>
+          {mesOpened && <div hidden={workspaceTab !== 'drafts'}><MesDraftPanel session={session} onSessionInvalid={invalidateSession} workflow={workflow} cancellation={cancellation} onSelectOrder={order => { setSelectedOrder(order); setWorkspaceTab('operations') }} /></div>}
+          <WorkflowTracker workflow={workflow} login={session.login} onSessionInvalid={invalidateSession} />
+          <CancellationPanel cancellation={cancellation} login={session.login} />
+          <p id="session-reset" className="session-note">페이지를 새로고침하거나 다시 열면 재로그인이 필요합니다.</p>
+        </main>
+      </div>
+    )
+  }
+
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">본문으로 이동</a>
@@ -131,20 +166,20 @@ export default function App() {
         <div className="brand"><span className="brand-mark" aria-hidden="true">H</span><span>HMI<span className="brand-separator"> / </span>MES</span></div>
         <span className="app-label">앱 A · 포장라인 운영</span>
       </header>
-      <main id="main-content" className={screen === 'workspace' ? 'workspace' : 'auth-layout'}>
-        {screen !== 'workspace' && <aside className="welcome" aria-label="시스템 안내">
+      <main id="main-content" className="auth-layout">
+        <aside className="welcome" aria-label="시스템 안내">
           <p className="eyebrow">PACKAGING LINE OPERATIONS</p>
           <h2>현장을 확인하고,<br />생산을 이어갑니다.</h2>
           <p>포장라인의 설비 상태와 생산 업무를<br className="wide-break" /> 한 곳에서 확인하는 운영 시스템입니다.</p>
           <div className="line-art" aria-hidden="true"><span /><i /><span /><i /><span /></div>
           <div className="welcome-foot"><span>HMI · 설비 모니터링</span><span>MES · 생산 관리</span></div>
-        </aside>}
-        <div className={screen === 'workspace' ? 'workspace-content' : 'auth-card'}>
-          <div className="section-kicker">{screen === 'workspace' ? 'OPERATOR WORKSPACE' : 'ACCOUNT ACCESS'}</div>
+        </aside>
+        <div className="auth-card">
+          <div className="section-kicker">ACCOUNT ACCESS</div>
           <div className="page-heading">
             <div>
-              <h1 ref={heading} tabIndex={-1}>{!session ? '운영 시스템 로그인' : showPasswordForm ? '비밀번호 변경' : '운영 작업 공간'}</h1>
-              <p className="intro">{!session ? '발급받은 앱 A 계정으로 로그인해 주세요.' : showPasswordForm ? (passwordRequired ? '초기 비밀번호를 변경한 뒤 업무를 시작해 주세요.' : '새 비밀번호를 설정해 주세요.') : '인증된 계정과 현재 연결 범위를 확인하세요.'}</p>
+              <h1 ref={heading} tabIndex={-1}>{!session ? '운영 시스템 로그인' : '비밀번호 변경'}</h1>
+              <p className="intro">{!session ? '발급받은 앱 A 계정으로 로그인해 주세요.' : passwordRequired ? '초기 비밀번호를 변경한 뒤 업무를 시작해 주세요.' : '새 비밀번호를 설정해 주세요.'}</p>
             </div>
             {session && <button id="logout" type="button" className="button secondary" disabled={busy} onClick={() => void run('logout')}>{busy ? '처리 중…' : '로그아웃'}</button>}
           </div>
@@ -157,7 +192,7 @@ export default function App() {
             <input id="login-password" name="password" type="password" autoComplete="current-password" required value={password} disabled={busy} onChange={event => setPassword(event.target.value)} />
             <button id="login-submit" className="button primary full-width" type="submit" disabled={busy}>{busy ? '로그인 확인 중…' : '로그인'}</button>
             <p className="form-help">계정 발급이나 비밀번호 초기화는 설비 관리자에게 문의해 주세요.</p>
-          </form> : showPasswordForm ? <>
+          </form> : <>
             <div className="account-summary"><span>로그인 계정</span><strong>{session.login}</strong></div>
             <form id="password-form" onSubmit={submitPassword} aria-busy={busy}>
               <label htmlFor="new-password">새 비밀번호</label>
@@ -169,20 +204,6 @@ export default function App() {
               {!passwordRequired && <button className="button secondary full-width" type="button" disabled={busy} onClick={() => { setChangingPassword(false); setNewPassword(''); setConfirmation(''); setError('') }}>취소</button>}
               <p className="form-help">변경하면 다른 기기의 기존 로그인 세션도 해제됩니다.</p>
             </form>
-          </> : <>
-            <section className="identity-card" aria-labelledby="current-login">
-              <div className="identity-avatar" aria-hidden="true">{session.login.charAt(0).toUpperCase()}</div>
-              <div className="identity-detail"><h2 id="current-login">{session.login}</h2><p>서버가 확인한 계정 · 로그인 응답 기준</p><div id="current-roles" className="role-list">{session.roles.map(role => <span className="role" key={role}>{roleLabels[role] ?? role}</span>)}</div></div>
-              <button className="button secondary" type="button" disabled={busy} onClick={() => { setChangingPassword(true); setError(''); setNotice('') }}>비밀번호 변경</button>
-            </section>
-            <nav className="workspace-tabs" aria-label="업무 화면">
-              <button id="workspace-operations" className={workspaceTab === 'operations' ? 'is-active' : ''} type="button" aria-pressed={workspaceTab === 'operations'} onClick={() => setWorkspaceTab('operations')}>설비 운영</button>
-              <button id="workspace-drafts" className={workspaceTab === 'drafts' ? 'is-active' : ''} type="button" aria-pressed={workspaceTab === 'drafts'} onClick={() => { setMesOpened(true); setWorkspaceTab('drafts') }}>작업지시 · 공정 설정</button>
-            </nav>
-            <div hidden={workspaceTab !== 'operations'}><SnapshotPanel session={session} onSessionInvalid={invalidateSession} workflow={workflow} selectedOrder={selectedOrder} tracked={tracked} setTracked={setTracked} alarmLedger={alarmLedger} setAlarmLedger={setAlarmLedger} /></div>
-            {mesOpened && <div hidden={workspaceTab !== 'drafts'}><MesDraftPanel session={session} onSessionInvalid={invalidateSession} workflow={workflow} cancellation={cancellation} onSelectOrder={order => { setSelectedOrder(order); setWorkspaceTab('operations') }} /></div>}
-            <WorkflowTracker workflow={workflow} login={session.login} onSessionInvalid={invalidateSession} />
-            <CancellationPanel cancellation={cancellation} login={session.login} />
           </>}
           <p id="session-reset" className="session-note">페이지를 새로고침하거나 다시 열면 재로그인이 필요합니다.</p>
         </div>

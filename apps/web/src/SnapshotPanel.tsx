@@ -65,7 +65,7 @@ export default function SnapshotPanel({ session, onSessionInvalid, workflow, sel
   }, [attempt, onSessionInvalid])
   const source = sources && selected !== '' ? sources[Number(selected)] : undefined
   return <section className="monitor-section" aria-labelledby="monitor-heading">
-    <div className="monitor-heading"><div><p className="section-kicker">LINE MONITORING</p><h2 id="monitor-heading">설비 수집 상태</h2></div><span className="read-only-tag">실제 저장 관측</span></div>
+    <div className="monitor-heading"><div><p className="section-kicker">DATA SOURCE</p><h2 id="monitor-heading">설비 수집 상태</h2></div><span className="read-only-tag">실제 저장 관측</span></div>
     {sourceError ? <div className="message error" role="alert">{sourceError}<button type="button" className="button secondary" onClick={() => setAttempt(value => value + 1)}>다시 조회</button></div>
       : sources === null ? <p role="status">등록된 수집원을 확인하고 있습니다.</p>
         : sources.length === 0 ? <div id="no-sources" className="connection-card"><h2>등록된 수집원이 없습니다.</h2><p>설비 관리자가 라인과 수집원을 등록한 뒤 조회할 수 있습니다. 현재 설비 상태는 확인할 수 없습니다.</p><button type="button" className="button secondary" onClick={() => setAttempt(value => value + 1)}>수집원 다시 조회</button></div>
