@@ -28,7 +28,7 @@ def read_dashboard(db, *, line_id: str, source_id: str, stream_id: str, day: dat
     ):
         raise SnapshotNotFound("Dashboard line is not registered")
     scope = {"line_id": line_id, "source_id": source_id, "stream_id": stream_id}
-    snapshot = read_snapshot(db, **scope, now=now)
+    snapshot = read_snapshot(db, **scope, now=now, prefer_complete_capture=True)
     daily = read_daily_report(db, line_id, day, now=now, scope=scope)
     source = (
         db.execute(

@@ -11,7 +11,12 @@ from starlette.responses import JSONResponse
 
 from apps.api.execution_read import ExecutionLookup, ExecutionNotFound
 from apps.api.minute_aggregation import ANALOG_UNITS, RawObservation, aggregate_minutes
-from apps.api.reports import execution_state_bounds
+from apps.api.reports import (
+    _clock_reversal_cutoffs,
+    canonical_clock_available,
+    clock_binding_sql,
+    execution_state_bounds,
+)
 from apps.api.spc import SPCSlot, calculate_spc
 
 
@@ -44,20 +49,49 @@ def read_spc(connection, query: SPCQuery, *, now=None):
     # attributed only up to the confirmed STOPPING->STOPPED end, never through idle time.
     _, ended = execution_state_bounds(connection, query.execution_id)
     until = min(now, ended) if ended is not None else now
+
+    canonical = canonical_clock_available(connection)
+    raw_at = "COALESCE(r.canonical_utc,r.acquired_at)" if canonical else "r.acquired_at"
+    original_at = "(sample->>'acquired_at')::timestamptz"
+    original_join = ""
+    proof_join = ""
+    proof_fields = "NULL::jsonb AS clock_evidence,NULL::timestamptz AS canonical_utc"
+    if canonical:
+        original_join = (
+            "LEFT JOIN capture_clock_evidence original_clock ON "
+            "original_clock.gateway_id=original.gateway_id "
+            "AND original_clock.batch_id=original.batch_id"
+        )
+        original_at = (
+            "CASE WHEN "
+            + clock_binding_sql("original", "original_clock", "s.line_id")
+            + " AND original_clock.status='GOOD' AND "
+            + original_at
+            + "=(original.body->>'captured_at')::timestamptz "
+            "THEN original_clock.canonical_api_utc ELSE " + original_at + " END"
+        )
+        proof_join = (
+            "LEFT JOIN capture_clock_evidence clock ON "
+            "clock.gateway_id=b.gateway_id AND clock.batch_id=b.batch_id"
+        )
+        proof_fields = "to_jsonb(clock) AS clock_evidence,r.canonical_utc"
+
     # One statement snapshot supplies the execution identity, original batch attribution,
     # raw clock proof and capture-assigned historical rule (never channel current_version).
     rows = (
         connection.execute(
-            text("""
+            text(f"""
         WITH certified_execution AS MATERIALIZED (
           SELECT e.*,
-            (SELECT min((sample->>'acquired_at')::timestamptz)
-             FROM ingest_batches original
+            (SELECT min({original_at})
+             FROM ingest_batches original {original_join}
              CROSS JOIN LATERAL jsonb_array_elements(original.body->'samples') sample
              WHERE original.source_id=e.source_id AND original.stream_id=e.stream_id
                AND sample->>'tag_id'=:tag
-               AND (sample->>'acquired_at')::timestamptz>=e.registered_at
-               AND (sample->>'acquired_at')::timestamptz<:until
+
+               AND ({original_at})>=e.registered_at
+               AND ({original_at})<:until
+
                AND EXISTS (
                  SELECT 1 FROM jsonb_array_elements(original.body->'samples') identity
                  WHERE identity->>'tag_id'='Line.ActiveExecutionId'
@@ -65,7 +99,7 @@ def read_spc(connection, query: SPCQuery, *, now=None):
                    AND identity->'reading'->>'value'=e.execution_id
                    AND (identity->>'acquired_at')::timestamptz=
                        (sample->>'acquired_at')::timestamptz)
-               AND ((sample->>'acquired_at')::timestamptz<:cutoff OR NOT EXISTS (
+               AND (({original_at})<:cutoff OR NOT EXISTS (
                  SELECT 1 FROM analog_history_raw retained
                  WHERE retained.line_id=:line_id
                    AND retained.source_id=original.source_id
@@ -82,6 +116,7 @@ def read_spc(connection, query: SPCQuery, *, now=None):
             AND e.stream_id=:stream_id AND s.line_id=:line_id
         )
         SELECT e.parameters,e.registered_at,e.missing_prefix_at,r.observation,
+          {proof_fields},b.body AS original_body,b.content_sha256,
           (SELECT jsonb_agg(sample) FROM jsonb_array_elements(b.body->'samples') sample
            WHERE sample->>'tag_id'='Line.ActiveExecutionId') AS identities,
           (SELECT jsonb_agg(v.config) FROM alarm_capture_decisions d
@@ -94,13 +129,16 @@ def read_spc(connection, query: SPCQuery, *, now=None):
         JOIN source_streams s ON s.source_id=e.source_id AND s.stream_id=e.stream_id
         LEFT JOIN analog_history_raw r ON r.source_id=e.source_id AND r.stream_id=e.stream_id
           AND r.line_id=s.line_id AND r.tag_id=:tag
-          AND r.acquired_at>=greatest(e.registered_at,:cutoff) AND r.acquired_at<:until
-          AND (floor(extract(second FROM r.acquired_at)) IN (0,12,24,36,48)
-               OR r.acquired_at>=:recent)
+
+          AND {raw_at}>=greatest(e.registered_at,:cutoff) AND {raw_at}<:until
+          AND (floor(extract(second FROM {raw_at})) IN (0,12,24,36,48)
+               OR {raw_at}>=:recent)
+
         LEFT JOIN ingest_batches b ON b.gateway_id=r.gateway_id AND b.batch_id=r.batch_id
+        {proof_join}
         WHERE e.execution_id=:execution_id AND e.source_id=:source_id
           AND e.stream_id=:stream_id AND s.line_id=:line_id
-        ORDER BY r.acquired_at,r.capture_seq
+        ORDER BY {raw_at},r.capture_seq
     """),
             dict(
                 values,
@@ -122,17 +160,75 @@ def read_spc(connection, query: SPCQuery, *, now=None):
     # preserving selected latest captures and treating cross-epoch minutes as unknown.
     buckets = {}
     configs = []
+    clock_cutoffs = _clock_reversal_cutoffs(connection, query.line_id, values)
     for row in rows:
         if row["observation"] is None:
             continue
         obs = RawObservation.model_validate(row["observation"])
+        original_acquired = obs.sample.acquired_at
         identity = row["identities"] or []
         attributed = (
             len(identity) == 1
             and identity[0]["status_code"] >> 30 == 0
             and identity[0]["reading"]["value"] == query.execution_id
-            and datetime.fromisoformat(identity[0]["acquired_at"]) == obs.sample.acquired_at
+            and datetime.fromisoformat(identity[0]["acquired_at"]) == original_acquired
         )
+        if canonical and row["clock_evidence"] is not None:
+            from apps.api.capture_clock import effective_capture_clock
+
+            original = row["original_body"]
+            key = (
+                obs.scope.source_id,
+                obs.scope.stream_id,
+                obs.scope.gateway_id,
+                obs.scope.capture_generation,
+                obs.scope.clock_epoch,
+            )
+            decision = effective_capture_clock(
+                row["clock_evidence"],
+                body=original,
+                batch_sha256=row["content_sha256"],
+                reversal_seq=clock_cutoffs.get(key),
+            )
+            valid = (
+                decision.status == "GOOD"
+                and row["clock_evidence"]["line_id"] == query.line_id
+                and row["canonical_utc"] is not None
+                and row["canonical_utc"] == decision.canonical_api_utc
+                and original_acquired == datetime.fromisoformat(original["captured_at"])
+            )
+            coordinate = row["canonical_utc"] if valid else original_acquired
+            if not valid and decision.reason_code == "CLOCK_REVERSAL":
+                accepted = effective_capture_clock(
+                    row["clock_evidence"], body=original, batch_sha256=row["content_sha256"]
+                )
+                if (
+                    accepted.status == "GOOD"
+                    and row["clock_evidence"]["line_id"] == query.line_id
+                    and row["canonical_utc"] == accepted.canonical_api_utc
+                    and original_acquired == datetime.fromisoformat(original["captured_at"])
+                ):
+                    # Keep the invalidated latest capture in its accepted slot
+                    # as UNKNOWN so an older GOOD sample cannot reappear there.
+                    coordinate = row["canonical_utc"]
+            obs = obs.model_copy(
+                update={
+                    "sample": obs.sample.model_copy(update={"acquired_at": coordinate}),
+                    "time_quality": "GOOD" if valid else "UNKNOWN",
+                }
+            )
+        elif canonical and row["canonical_utc"] is not None:
+            # A naked derived coordinate without its immutable proof is not evidence.
+            obs = obs.model_copy(update={"time_quality": "UNKNOWN"})
+        key = (
+            obs.scope.source_id,
+            obs.scope.stream_id,
+            obs.scope.gateway_id,
+            obs.scope.capture_generation,
+            obs.scope.clock_epoch,
+        )
+        if obs.capture_seq >= clock_cutoffs.get(key, float("inf")):
+            obs = obs.model_copy(update={"time_quality": "UNKNOWN"})
         minute = obs.sample.acquired_at.replace(second=0, microsecond=0)
         buckets.setdefault(minute, []).append((obs, attributed))
         if attributed:

@@ -1,6 +1,7 @@
 """Read-only assistant: caller permissions, CSRF, bounded tools, no secret or prompt echo."""
 
 import json
+import logging
 
 import httpx
 import pytest
@@ -74,12 +75,14 @@ async def test_disabled_without_key(service):
         assert (await client.get("/auth/config")).json() == {
             "guest_viewer": False,
             "assistant": False,
+            "analytics": True,
         }
         response = await client.post("/api/v1/assistant/chat", json=body())
         assert response.status_code in {404, 405}
 
 
-async def test_viewer_answer_uses_caller_read_api_and_reports_evidence(service):
+async def test_viewer_answer_uses_caller_read_api_and_reports_evidence(service, caplog):
+    caplog.set_level(logging.DEBUG)
     capture(service, active="run-A", quantity=3)
     model = FakeModel(
         tool_call("get_dashboard", {"date": AT.date().isoformat()}),
@@ -109,12 +112,16 @@ async def test_viewer_answer_uses_caller_read_api_and_reports_evidence(service):
     assert names == {
         "get_dashboard",
         "get_line_snapshot",
+        "get_active_alarms",
         "get_trend_summary",
         "list_execution_reports",
         "get_daily_report",
         "get_spc",
     }
     assert KEY not in response.text
+    assert KEY not in caplog.text
+    assert "오늘 생산 어때?" not in caplog.text
+    assert "양품 3개, 잠정 집계입니다." not in caplog.text
 
 
 async def test_csrf_and_origin_are_required(service):
@@ -204,6 +211,90 @@ def test_config_rejects_malformed_key_and_insecure_endpoint():
         with pytest.raises(ValueError):
             AssistantConfig(**kwargs)
     assert KEY not in repr(AssistantConfig(api_key=KEY))
+
+
+async def test_alarm_tool_real_scoped_active_read_and_unsupported_assets(service):
+    from datetime import timedelta
+
+    from sqlalchemy import text
+
+    from apps.api.alarm_lifecycle import AlarmEvidence, AlarmRule, AlarmScope, QualifiedCondition
+    from apps.api.alarm_qualification import PressureRuleConfig
+    from apps.api.alarm_store import apply_condition, install_rule
+    from apps.api.auth import Principal
+
+    model = FakeModel(tool_call("get_active_alarms"), answer("활성 알람 1개입니다."))
+    auth, app = make_app(service, model)
+    account(auth, "alarm-admin", {"equipment_admin"})
+    viewer, _ = account(auth, "alarm-viewer", {"viewer"})
+    scope = AlarmScope(**SCOPE, asset_id="Sealer")
+    config = PressureRuleConfig(rule=AlarmRule(rule_id="pressure", version="v1", severity="HIGH"))
+    with service.engine.begin() as db:
+        install_rule(
+            db,
+            scope,
+            config,
+            input_id="install-assistant-rule",
+            at=AT,
+            principal=Principal("alarm-admin", frozenset({"equipment_admin"}), False),
+        )
+        for position, state, alarm in [
+            (1, "ACTIVE", "old-alarm"),
+            (2, "NORMAL", "old-alarm"),
+            (3, "ACTIVE", "active-alarm"),
+        ]:
+            apply_condition(
+                db,
+                "pressure",
+                QualifiedCondition(
+                    event_id=f"condition-{position}",
+                    scope=scope,
+                    rule_version="v1",
+                    position=position,
+                    condition=state,
+                    new_alarm_id=alarm,
+                    evidence=AlarmEvidence(
+                        observed_at=AT + timedelta(seconds=position),
+                        references=(f"evidence-{position}",),
+                    ),
+                ),
+            )
+        before = db.execute(text("SELECT count(*) FROM alarm_instances")).scalar_one()
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=ORIGIN) as client:
+        client.cookies.set(SESSION_COOKIE, viewer.token)
+        response = await post(client, viewer, body())
+    assert response.status_code == 200, response.text
+    assert len(response.json()["evidence"]) == 4
+    result = next(
+        json.loads(m["content"])
+        for m in json.loads(model.requests[-1].content)["messages"]
+        if m["role"] == "tool"
+    )
+    assets = {asset["asset_id"]: asset for asset in result["assets"]}
+    assert assets["Sealer"]["active_count"] == 1
+    assert assets["Sealer"]["items"][0]["alarm_id"] == "active-alarm"
+    assert assets["Infeed"]["active_count"] is None and assets["Infeed"]["status"] == 404
+    assert assets["Outfeed"]["active_count"] is None
+    with service.engine.connect() as db:
+        assert db.execute(text("SELECT count(*) FROM alarm_instances")).scalar_one() == before
+        assert db.execute(text("SELECT count(*) FROM alarm_actions")).scalar_one() == 0
+
+
+async def test_guest_quota_is_lower_and_shared_across_new_sessions(service):
+    from apps.api.guest import bootstrap_guest, issue_guest
+
+    auth = UserAuth(service.engine, allowed_origins={ORIGIN}, guest_viewer=True)
+    bootstrap_guest(auth)
+    model = FakeModel(answer("조회 가능합니다."), answer("조회 가능합니다."))
+    config = AssistantConfig(api_key=KEY, transport=httpx.MockTransport(model))
+    app = create_user_app(auth, UserHTTPConfig(origin=ORIGIN, guest_viewer=True, assistant=config))
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=ORIGIN) as client:
+        for index, expected in enumerate([200, 200, 429]):
+            session = issue_guest(auth, origin=ORIGIN, peer=f"192.0.2.{index + 1}")
+            client.cookies.set(SESSION_COOKIE, session.token)
+            response = await post(client, session, body())
+            assert response.status_code == expected, response.text
+    assert len(model.requests) == 2
 
 
 async def test_system_prompt_states_today_in_seoul(service):

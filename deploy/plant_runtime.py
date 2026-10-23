@@ -175,7 +175,9 @@ def api_target(value, allow_local_test):
     raise ValueError("Only the deployment or explicitly allowed loopback test API is supported")
 
 
-def commands(directory, config, token_file, api_url=API, allow_local_test=False):
+def commands(
+    directory, config, token_file, api_url=API, allow_local_test=False, measured_clock=False
+):
     from apps.gateway.__main__ import _token_file
 
     target = api_target(api_url, allow_local_test)
@@ -237,6 +239,8 @@ def commands(directory, config, token_file, api_url=API, allow_local_test=False)
     ]
     if target != API:
         gateway.append("--allow-loopback-http")
+    if measured_clock:
+        gateway.append("--clock-measured-round-trip")
     return {"simulator": simulator, "gateway": gateway}
 
 
@@ -277,7 +281,7 @@ def sanitized_line(line):
     return None
 
 
-def serve(directory, *, token_file, api_url=API, allow_local_test=False):
+def serve(directory, *, token_file, api_url=API, allow_local_test=False, measured_clock=False):
     with runtime_lock(directory):
         config = validate(directory)
         previous_pids = directory / "processes.json"
@@ -294,7 +298,9 @@ def serve(directory, *, token_file, api_url=API, allow_local_test=False):
                     continue
                 raise ValueError("Prior process may still be alive; never stop it implicitly")
             previous_pids.unlink()
-        launches = commands(directory, config, token_file, api_url, allow_local_test)
+        launches = commands(
+            directory, config, token_file, api_url, allow_local_test, measured_clock
+        )
         # Fail before starting either child if the selected local ports are occupied.
         for port in (config["console_port"], config["opc_port"]):
             with socket.socket() as probe:
@@ -418,6 +424,7 @@ def main():
     run.add_argument("--token-file", type=Path, required=True)
     run.add_argument("--api-url", default=API)
     run.add_argument("--allow-local-test", action="store_true")
+    run.add_argument("--clock-measured-round-trip", action="store_true")
     setup = sub.add_parser("commission")
     setup.add_argument("--password-file", type=Path, required=True)
     setup.add_argument("--new-password-file", type=Path)
@@ -439,6 +446,7 @@ def main():
                 token_file=args.token_file,
                 api_url=args.api_url,
                 allow_local_test=args.allow_local_test,
+                measured_clock=args.clock_measured_round_trip,
             )
         else:
             commission(

@@ -28,6 +28,7 @@ SUPPORTED_AUTH_REVISIONS = frozenset(
         "0015_analog_history",
         "0016_downtime_reasons",
         "0017_guest_viewer",
+        "0018_clock_evidence",
     }
 )
 SUPPORTED_INGESTION_REVISIONS = SUPPORTED_AUTH_REVISIONS | {"0002_ingestion"}
@@ -47,6 +48,7 @@ SUPPORTED_COMMAND_REVISIONS = frozenset(
         "0015_analog_history",
         "0016_downtime_reasons",
         "0017_guest_viewer",
+        "0018_clock_evidence",
     }
 )
 SUPPORTED_SETTLEMENT_REVISIONS = frozenset(
@@ -63,6 +65,7 @@ SUPPORTED_SETTLEMENT_REVISIONS = frozenset(
         "0015_analog_history",
         "0016_downtime_reasons",
         "0017_guest_viewer",
+        "0018_clock_evidence",
     }
 )
 SUPPORTED_WORKFLOW_REVISIONS = frozenset(
@@ -76,6 +79,7 @@ SUPPORTED_WORKFLOW_REVISIONS = frozenset(
         "0015_analog_history",
         "0016_downtime_reasons",
         "0017_guest_viewer",
+        "0018_clock_evidence",
     }
 )
 SUPPORTED_ALARM_REVISIONS = frozenset(
@@ -88,6 +92,7 @@ SUPPORTED_ALARM_REVISIONS = frozenset(
         "0015_analog_history",
         "0016_downtime_reasons",
         "0017_guest_viewer",
+        "0018_clock_evidence",
     }
 )
 SUPPORTED_ALARM_CAPTURE_REVISIONS = frozenset(
@@ -99,6 +104,7 @@ SUPPORTED_ALARM_CAPTURE_REVISIONS = frozenset(
         "0015_analog_history",
         "0016_downtime_reasons",
         "0017_guest_viewer",
+        "0018_clock_evidence",
     }
 )
 SUPPORTED_REGISTRATION_REVISIONS = SUPPORTED_WORKFLOW_REVISIONS | {"0008_work_orders"}
@@ -109,6 +115,7 @@ SUPPORTED_CANCELLATION_REVISIONS = frozenset(
         "0015_analog_history",
         "0016_downtime_reasons",
         "0017_guest_viewer",
+        "0018_clock_evidence",
     }
 )
 # Every new mixed-coordinator mutation requires this explicit feature barrier.
@@ -118,6 +125,7 @@ SUPPORTED_MIXED_ALARM_REVISIONS = frozenset(
         "0015_analog_history",
         "0016_downtime_reasons",
         "0017_guest_viewer",
+        "0018_clock_evidence",
     }
 )
 SCHEMA_LOCK_ID = 843001

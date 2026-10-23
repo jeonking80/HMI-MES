@@ -35,6 +35,7 @@ async def test_guest_http_validation_session_and_disabled(guest):
         assert (await client.get("/auth/config")).json() == {
             "guest_viewer": True,
             "assistant": False,
+            "analytics": True,
         }
         assert (await client.post("/auth/guest", json={})).status_code == 403
         headers = {"Origin": ORIGIN}
@@ -74,6 +75,7 @@ async def test_guest_http_validation_session_and_disabled(guest):
         assert (await client.get("/auth/config")).json() == {
             "guest_viewer": False,
             "assistant": False,
+            "analytics": True,
         }
         assert (await client.post("/auth/guest", json={}, headers=headers)).status_code == 404
 

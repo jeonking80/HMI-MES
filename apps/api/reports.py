@@ -7,6 +7,7 @@ old state event nor a late receipt establishes continuous communication.
 from __future__ import annotations
 
 import heapq
+import json
 from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import text
@@ -59,11 +60,14 @@ def build_timeline(start, end, evidence):
     pointer = 0
     heaps = {}
     gap_rows = []
+    receipt_fences = []
     for left, right in zip(points, points[1:], strict=False):
         while pointer < len(additions) and additions[pointer][1]["from"] <= left:
             index, entry = additions[pointer]
             if entry.get("sequence_gap"):
                 gap_rows.append(entry)
+            elif entry.get("receipt_fence"):
+                receipt_fences.append(entry)
             else:
                 key = (entry.get("source_id"), entry.get("stream_id"))
                 observed = entry.get("observed_at", entry["from"]).timestamp()
@@ -77,7 +81,23 @@ def build_timeline(start, end, evidence):
             if heap:
                 covering.append(relevant[heap[0][3]])
         gap_rows = [entry for entry in gap_rows if entry["to"] > left]
-        covering += gap_rows
+        # An unlocated loss can only cut coverage at its API receipt. It remains
+        # a barrier until newer, truly known same-stream capture evidence starts
+        # at/after that fence; late older captures cannot restore coverage.
+        receipt_fences = [
+            fence
+            for fence in receipt_fences
+            if fence["to"] > left
+            and not any(
+                entry["class"] != "UNKNOWN"
+                and (entry.get("source_id"), entry.get("stream_id"))
+                == (fence.get("source_id"), fence.get("stream_id"))
+                and entry.get("capture_order", (0, 0)) > fence["capture_order"]
+                and entry["from"] >= fence["from"]
+                for entry in covering
+            )
+        ]
+        covering += gap_rows + receipt_fences
         known = [e for e in covering if e["class"] != "UNKNOWN"]
         unknown = [e for e in covering if e["class"] == "UNKNOWN"]
         identities = {
@@ -116,7 +136,15 @@ def build_timeline(start, end, evidence):
                 {
                     k: v
                     for k, v in chosen.items()
-                    if k not in {"from", "to", "sequence_gap", "observed_at", "capture_order"}
+                    if k
+                    not in {
+                        "from",
+                        "to",
+                        "sequence_gap",
+                        "observed_at",
+                        "capture_order",
+                        "receipt_fence",
+                    }
                 }
             )
         if segment["class"] != "UNKNOWN":
@@ -128,6 +156,25 @@ def build_timeline(start, end, evidence):
         else:
             result.append(segment)
     return result
+
+
+def canonical_clock_available(db):
+    """Old analytical schemas remain readable without querying absent columns."""
+    return db.execute(
+        text("SELECT to_regclass('public.capture_clock_evidence') IS NOT NULL")
+    ).scalar_one()
+
+
+def clock_binding_sql(batch, proof, line):
+    """SQL prefilter only; the shared pure clock reader remains authoritative."""
+    return f"""{proof}.gateway_id={batch}.gateway_id AND {proof}.batch_id={batch}.batch_id
+      AND {proof}.line_id={line} AND {proof}.source_id={batch}.source_id
+      AND {proof}.stream_id={batch}.stream_id
+      AND {proof}.capture_generation={batch}.capture_generation
+      AND {proof}.capture_seq={batch}.capture_seq
+      AND {proof}.batch_sha256={batch}.content_sha256
+      AND {proof}.clock_epoch={batch}.body->'capture_time'->>'clock_epoch'
+      AND {proof}.original_capture_utc=({batch}.body->>'captured_at')::timestamptz"""
 
 
 def _clock_known(row):
@@ -202,21 +249,129 @@ def load_report_evidence(db, line_id, start, end, *, scope=None, execution_id=No
     several reports of the same scope; it must come from ``_clock_reversal_cutoffs``.
     """
     params = {"line": line_id, "start": start - timedelta(seconds=3), "end": end}
+    if reversals is None:
+        reversals = _clock_reversal_cutoffs(db, line_id, scope)
+    canonical = canonical_clock_available(db)
+    join = ""
+    proof = "NULL::jsonb AS clock_evidence"
+    at_sql = "(b.body->>'captured_at')::timestamptz"
+    if canonical:
+        join = (
+            " LEFT JOIN capture_clock_evidence clock ON "
+            "clock.gateway_id=b.gateway_id AND clock.batch_id=b.batch_id "
+        )
+        proof = "to_jsonb(clock) AS clock_evidence"
+        at_sql = (
+            "CASE WHEN "
+            + clock_binding_sql("b", "clock", "s.line_id")
+            + " AND clock.status='GOOD' THEN clock.canonical_api_utc ELSE "
+            + at_sql
+            + " END"
+        )
+    # Unknown-clock sample-less link failures need a receipt fence even when
+    # their untrusted claimed UTC falls outside the window. Keep prior fences
+    # across day boundaries; normal proof is required to clear them.
+    loss_sql = """jsonb_array_length(b.body->'samples')=0
+        AND jsonb_typeof(b.body->'communication')='object'
+        AND ((b.body->'communication'->>'state') IS DISTINCT FROM 'GOOD'
+          OR (b.body->'communication'->>'connected') IS DISTINCT FROM 'true')"""
+    # Preserve legacy heads without this registry, but on supported analytical
+    # heads overlay its cutoff from this statement's snapshot. A cached scan
+    # must not mask a reversal committed before the capture SELECT.
+    registry = db.execute(
+        text("SELECT to_regclass('public.analog_history_clock_state') IS NOT NULL")
+    ).scalar_one()
+    if registry:
+        join += """ LEFT JOIN public.analog_history_clock_state clock_registry
+          ON clock_registry.source_id=b.source_id AND clock_registry.stream_id=b.stream_id
+          AND clock_registry.gateway_id=b.gateway_id
+          AND clock_registry.capture_generation=b.capture_generation
+          AND clock_registry.clock_epoch=b.body->'capture_time'->>'clock_epoch' """
+        proof += ",clock_registry.reversal_seq AS durable_reversal_seq"
+    else:
+        proof += ",NULL::numeric AS durable_reversal_seq"
     where = (
-        "s.line_id=:line AND (b.body->>'captured_at')::timestamptz>=:start "
-        "AND (b.body->>'captured_at')::timestamptz<:end"
+        "s.line_id=:line AND ((" + at_sql + ">=:start AND " + at_sql + "<:end)"
+        " OR (b.stored_at<:end AND " + loss_sql + "))"
     )
+    if canonical:
+        params["reversal_keys"] = json.dumps(
+            [
+                dict(
+                    source=key[0],
+                    stream=key[1],
+                    gateway=key[2],
+                    generation=key[3],
+                    epoch=key[4],
+                    cutoff=value,
+                )
+                for key, value in reversals.items()
+            ]
+        )
+        cached_invalid = """EXISTS (
+          SELECT 1 FROM jsonb_to_recordset(CAST(:reversal_keys AS jsonb))
+          cr(source text,stream text,gateway text,generation numeric,epoch text,cutoff numeric)
+          WHERE cr.source=b.source_id AND cr.stream=b.stream_id AND cr.gateway=b.gateway_id
+            AND cr.generation=b.capture_generation
+            AND cr.epoch=b.body->'capture_time'->>'clock_epoch' AND b.capture_seq>=cr.cutoff)"""
+        invalid = cached_invalid
+        if registry:
+            invalid += " OR b.capture_seq>=clock_registry.reversal_seq"
+        # An invalidated accepted coordinate is an UNKNOWN barrier even when it
+        # precedes this window. Older late captures must not bypass it tomorrow.
+        barrier = (
+            clock_binding_sql("b", "clock", "s.line_id")
+            + " AND clock.status='GOOD' AND clock.canonical_api_utc<:end AND ("
+            + invalid
+            + ")"
+        )
+        where = "(" + where + " OR (s.line_id=:line AND " + barrier + "))"
     if scope:
         params.update(source=scope["source_id"], stream=scope["stream_id"])
         where += " AND s.source_id=:source AND s.stream_id=:stream"
+    # The legacy fallback needs only clock_assessment. Aggregate once per scope
+    # instead of probing and detoasting the entire decision history per capture.
+    # Keep original bodies intact: canonical evidence validates their full digest.
+    context_where = "cs.line_id=:line"
+    if scope:
+        context_where += " AND cs.source_id=:source AND cs.stream_id=:stream"
+    contexts = (
+        "WITH report_clock_contexts AS MATERIALIZED ("
+        "SELECT d.gateway_id,d.batch_id,"
+        "array_agg(jsonb_build_object('clock_assessment',"
+        "d.context->'clock_assessment')) AS contexts "
+        "FROM alarm_capture_decisions d JOIN source_streams cs "
+        "USING(source_id,stream_id) WHERE " + context_where + " GROUP BY d.gateway_id,d.batch_id) "
+    )
+    # Legacy rows have no canonical body-digest consumer. Keep their original
+    # nonempty-sample distinction and only the three tags this projection reads.
+    # Every row carrying durable evidence retains its complete original body,
+    # even UNKNOWN or invalidly bound evidence, for effective_capture_clock.
+    legacy_body = """jsonb_set(b.body,'{samples}',(
+        SELECT coalesce(jsonb_agg(sample ORDER BY ordinal),'[]'::jsonb)
+        FROM jsonb_array_elements(b.body->'samples') WITH ORDINALITY sample_rows(sample,ordinal)
+        WHERE ordinal=1 OR sample->>'tag_id' IN
+          ('Line.State','Line.ActiveExecutionId','Line.FaultCode')))"""
+    body_projection = legacy_body
+    if canonical:
+        body_projection = (
+            "CASE WHEN clock.batch_id IS NULL THEN " + legacy_body + " ELSE b.body END"
+        )
     rows = (
         db.execute(
             text(
-                """SELECT b.*,s.conflicted,s.reconciliation_required,
-        ARRAY(SELECT d.context FROM alarm_capture_decisions d
-          WHERE d.gateway_id=b.gateway_id AND d.batch_id=b.batch_id) AS contexts
-        FROM ingest_batches b JOIN source_streams s USING(source_id,stream_id)
-        WHERE """
+                contexts + "SELECT b.gateway_id,b.batch_id,b.source_id,b.stream_id,"
+                "b.capture_generation,b.capture_seq,b.content_sha256,"
+                + body_projection
+                + " AS body,b.stored_at,"
+                "s.conflicted,s.reconciliation_required," + proof + ","
+                "report_context.contexts FROM ingest_batches b "
+                "JOIN source_streams s USING(source_id,stream_id) "
+                "LEFT JOIN report_clock_contexts report_context "
+                "ON report_context.gateway_id=b.gateway_id "
+                "AND report_context.batch_id=b.batch_id "
+                + join
+                + " WHERE "
                 + where
                 + " ORDER BY b.capture_generation,b.capture_seq"
             ),
@@ -225,8 +380,6 @@ def load_report_evidence(db, line_id, start, end, *, scope=None, execution_id=No
         .mappings()
         .all()
     )
-    if reversals is None:
-        reversals = _clock_reversal_cutoffs(db, line_id, scope)
     evidence = []
     for row in rows:
         body = row["body"]
@@ -238,21 +391,91 @@ def load_report_evidence(db, line_id, start, end, *, scope=None, execution_id=No
             int(row["capture_generation"]),
             (body.get("capture_time") or {}).get("clock_epoch"),
         )
-        reversed_clock = int(row["capture_seq"]) >= reversals.get(key, float("inf"))
+        cutoff = reversals.get(key)
+        if row["durable_reversal_seq"] is not None:
+            cutoff = (
+                min(cutoff, int(row["durable_reversal_seq"]))
+                if cutoff is not None
+                else int(row["durable_reversal_seq"])
+            )
+        reversed_clock = cutoff is not None and int(row["capture_seq"]) >= cutoff
         communication = body.get("communication") or {}
         communication_lost = communication.get("state") != "GOOD" or not communication.get(
             "connected"
         )
+
+        known_clock = _clock_known(row)
+        invalidated_canonical = False
+        if row["clock_evidence"] is not None:
+            from apps.api.capture_clock import effective_capture_clock
+
+            decision = effective_capture_clock(
+                row["clock_evidence"],
+                body=body,
+                batch_sha256=row["content_sha256"],
+                reversal_seq=cutoff,
+            )
+            known_clock = decision.status == "GOOD" and row["clock_evidence"]["line_id"] == line_id
+            if known_clock:
+                at = decision.canonical_api_utc
+            elif decision.reason_code == "CLOCK_REVERSAL":
+                accepted = effective_capture_clock(
+                    row["clock_evidence"], body=body, batch_sha256=row["content_sha256"]
+                )
+                if accepted.status == "GOOD" and row["clock_evidence"]["line_id"] == line_id:
+                    # Invalidate the previously accepted coverage coordinate;
+                    # it cannot assert normal state or an occurrence time.
+                    at = accepted.canonical_api_utc
+                    invalidated_canonical = True
+        reported_lost = (
+            not body.get("samples") and body.get("communication") is not None and communication_lost
+        )
+        receipt_fence = reported_lost and (not known_clock or reversed_clock)
+        if receipt_fence:
+            # This is a safe upper bound for prior coverage, not a reconstructed
+            # gateway/PLC occurrence timestamp.
+            at = row["stored_at"]
+        if at >= end or (
+            not receipt_fence
+            and not invalidated_canonical
+            and at + timedelta(seconds=FRESHNESS_SECONDS) <= start
+        ):
+            continue
+        if invalidated_canonical and not receipt_fence:
+            evidence.append(
+                {
+                    "from": at,
+                    "to": end,
+                    "observed_at": at,
+                    "capture_order": (int(row["capture_generation"]), int(row["capture_seq"])),
+                    "receipt_fence": True,
+                    "unknown_time_basis": "INVALIDATED_CANONICAL_COVERAGE",
+                    "class": "UNKNOWN",
+                    "state": None,
+                    "fault_code": None,
+                    "stop_reason": None,
+                    "unknown_reason": "TIME_UNKNOWN",
+                    "source_id": row["source_id"],
+                    "stream_id": row["stream_id"],
+                    "execution_id": execution_id,
+                }
+            )
+            continue
+
         if not body.get("samples"):
             # A sample-less batch that reports a link failure is evidence of lost
             # communication, never a gap to be bridged by the previous state. Event-only
             # batches without a communication block (schema 1.0) say nothing about it.
-            reported_lost = body.get("communication") is not None and communication_lost
             if reported_lost or reversed_clock:
                 evidence.append(
                     {
                         "from": at,
-                        "to": at + timedelta(seconds=FRESHNESS_SECONDS),
+                        "to": end if receipt_fence else at + timedelta(seconds=FRESHNESS_SECONDS),
+                        **(
+                            {"receipt_fence": True, "unknown_time_basis": "API_RECEIPT_FENCE"}
+                            if receipt_fence
+                            else {}
+                        ),
                         "observed_at": at,
                         "capture_order": (int(row["capture_generation"]), int(row["capture_seq"])),
                         "class": "UNKNOWN",
@@ -267,7 +490,10 @@ def load_report_evidence(db, line_id, start, end, *, scope=None, execution_id=No
                 )
             continue
         samples = {s["tag_id"]: s for s in body.get("samples", [])}
-        active = samples.get("Line.ActiveExecutionId", {}).get("reading", {}).get("value")
+        active_sample = samples.get("Line.ActiveExecutionId", {})
+        active = active_sample.get("reading", {}).get("value")
+        if active_sample.get("status_code", 2**31) >> 30:
+            active = None
         if execution_id and active != execution_id:
             # A capture for another execution (or absent ownership tag) cuts off
             # earlier ownership evidence. Clock continuity is stream-wide, even
@@ -295,7 +521,14 @@ def load_report_evidence(db, line_id, start, end, *, scope=None, execution_id=No
         reason = None
         if communication_lost:
             reason = "COMMUNICATION_LOST"
-        elif not _clock_known(row) or reversed_clock:
+        elif (
+            not known_clock
+            or reversed_clock
+            or (
+                state_sample.get("acquired_at")
+                and timestamp(state_sample["acquired_at"]) != timestamp(body["captured_at"])
+            )
+        ):
             reason = "TIME_UNKNOWN"
         elif row["conflicted"] or not state or state_sample.get("status_code", 2**31) >> 30:
             reason = "NO_EVIDENCE"

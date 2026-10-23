@@ -62,7 +62,9 @@ def state(migrated):
         )
     consumer = AlarmConsumer(config(rules=(PRESSURE,)), consumer_epoch="reports-test")
     start(migrated, consumer)
-    service = IngestionService(migrated, alarm_consumer=consumer)
+    service = IngestionService(
+        migrated, alarm_consumer=consumer, trend_clock_policy=consumer.config.clock_policy
+    )
     for name in ("run", "other"):
         service.register_execution(
             execution_id=name,
@@ -419,7 +421,9 @@ def test_two_live_sources_are_ambiguous_but_exact_scope_is_preserved(state):
     )
     consumer = AlarmConsumer(second_config, consumer_epoch="second-epoch")
     start(state.engine, consumer)
-    service = IngestionService(state.engine, alarm_consumer=consumer)
+    service = IngestionService(
+        state.engine, alarm_consumer=consumer, trend_clock_policy=consumer.config.clock_policy
+    )
     ingest(state, capture(1, seconds=0))
     body = capture(1, seconds=0).body.model_dump(mode="python")
     body.update(source_id="second", gateway_id="second-gateway", batch_id="second-batch")

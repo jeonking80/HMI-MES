@@ -430,6 +430,7 @@ def test_explicit_mixed_feature_set_rejects_old_heads_without_claiming_coordinat
         "0015_analog_history",
         "0016_downtime_reasons",
         "0017_guest_viewer",
+        "0018_clock_evidence",
     }
     assert OLD not in supported
     # No fake writer/helper mirrors the proposed admission algorithm. The actual

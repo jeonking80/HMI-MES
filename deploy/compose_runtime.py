@@ -134,6 +134,8 @@ async def api():
     internal = [
         "serve",
         *common,
+        "--trend-clock-policy",
+        "same-host",
         "--key-id",
         "compose-v1",
         "--token-file",

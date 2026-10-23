@@ -441,7 +441,7 @@ async def test_kuls_contract_routes_are_mounted_in_serverless_factory(runtime):
             assert response.headers["cache-control"] == "no-store"
         response = await client.get("/auth/config")
         assert response.status_code == 200
-        assert response.json() == {"guest_viewer": False, "assistant": False}
+        assert response.json() == {"guest_viewer": False, "assistant": False, "analytics": False}
         assert (
             await client.post("/auth/guest", headers={"Origin": ORIGIN}, json={})
         ).status_code in {403, 404}
