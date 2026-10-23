@@ -414,6 +414,12 @@ M1의 주요 독립 운전·권한·실제 생산 경로는 확인했지만, 원
 - 재개 준비 보강: CX-22 wrapper도 UX-11의 기존same-host를 재사용하고 실제추가/재사용을manifest에 기록하도록 수정, focused15개통과. CX-19 성공경로는DOM조회1회가끝난뒤300초를검사하도록 마지막추가await를 제거했고 관련단위22개통과. 두변경Ruff검사·형식통과. 실제성능·30분회복·cleanbuild 통과를 대신하지 않는다.
 
 - CX-19 대표1,800배치·원본2932사건·실제로그인/DOM·1Hz수집 복구 **205.7806초/1개통과**, 기존동등성·권한·잠금 **22개38.828초통과**. 화면이력조회가Line공유잠금을길게보유하는문제를기존완전capture fast path사용2줄로수정했고독립high검토를마쳤다. 과거잘못된fixture·실패·부분근거를보존했다. 실제30분은이선행검증과구분한다.
+
+- CX-19 재개 실제 run5: 고정 커밋 `fc6296e`에서 **1,800.401859초 단절 후 208.339389초에 회복**, 원래 실행의 PAUSE/END_RUN/SETTLED와 양품2163·불량1081·폐기0 대조까지 통과했다. BUFFER_AGE_LIMIT에 따른 태그 관측240개 손실은 유지하며 원래 사건5–12의 재조회 복구와 구분한다. [실제 결과와 안전한 증거](work-orders/reports/CX-19.md)를 보존했고 소유 시험 자원은 정리했다. CX-20 전체 규모 실측과 CX-22 clean release는 별도로 진행하며, CX-21 실제8시간 제외·공개 OPS-02 관리 권한 미제공에 따른 인계 상태는 유지한다.
+
+- CX-20 재개 실측: 원시 **5,443,200행·분 집계90,720행** 전체 검산 뒤10명 동시 실제 HTTP 조회에서 **cold10표본 p95 1.398692초 / warm100표본 p95 1.343585초**, 목표3초 이내 통과. cold는 PG shared buffers만 비우고 OS tmpfs cache는 유지한 조건이다. 일회성 DB 약10.47GB이며 공개 무료 DB를 쓰지 않았다. 실행기 초기화/SQL bind 오류와 재시작 시 임시 포트 변경을 바로잡았고 실패·HTTP0표본은 통과로 대체하지 않는다. [보고서](work-orders/reports/CX-20.md)에 실제 소스·계획·크기·정리 근거를 보존한다.
+
+- CX-22 운영 설비 CLI 사전 검증: 생성기·prepare 초기화·기존 prepare·serve·commission의 실제 진입점5개, 보존·48태그 미ACK 큐·명시 commission/no START·SIGTERM 자식 정리 시험 **1개10.91초 통과**. 첫 시험의 gateway 로그 접두어 parser 오류와 원실패를 보존하고 수정했다. 닫힌 로컬 API에 대한 delivery blocked 검증이며 공개 적용/API commit으로 표시하지 않는다. clean release의 단일 수락 묶음에도 포함한다.
 - 전체backup/restore/resume 운영CLI 진입점도실제프로세스로 **1개10.452초통과**(6assertions,동일fixture PG17 Docker도구),nativehost도구검증과구분한다. 소유PG/복원DB정리완료. 현재polling웹빌드·고정커밋후실제30분검증을이어간다.
 
 ### Claude UI/UX 보강

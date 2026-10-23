@@ -1,0 +1,41 @@
+{
+  "scope": "local live CLI acceptance; not public deployment",
+  "transport": "polling",
+  "physics": "default 100ms ticker; no overrides",
+  "execution_id": "bf07f693-ad62-45eb-8a6b-01f3e9590f89",
+  "commands": {
+    "LOAD_JOB": "73a4d6a0-b40e-47cb-8b6b-6e839cdb25f9",
+    "START": "a5dad869-af1b-4506-90a4-1c9101e8c84c",
+    "PAUSE": "99106f0b-9668-4b09-816b-317d10374367",
+    "END_RUN": "f7cbb579-2df7-482b-b984-521acecf2a88"
+  },
+  "settlement": "SETTLED",
+  "totals": {
+    "good_quantity": "2163",
+    "reject_quantity": "1081",
+    "scrap_quantity": "0"
+  },
+  "simulator_final_summary": {
+    "schema_version": "1.0",
+    "source_id": "1b7d220e-c7d3-4bdb-9b09-1935055ac4fd",
+    "stream_id": "56206640-5486-4908-9618-ca06830c2df5",
+    "execution_id": "bf07f693-ad62-45eb-8a6b-01f3e9590f89",
+    "state": "ENDED",
+    "as_of": "2026-10-23T12:44:15.481670Z",
+    "counter_epoch": "ccbe6ce2-21a6-4ddd-8c13-28acd91db32a",
+    "recipe_version": "live-recipe-v1",
+    "parameters": {
+      "temperature_c": 150.0,
+      "speed_m_per_min": 10.0
+    },
+    "input_quantity": "3244",
+    "good_quantity": "2163",
+    "reject_quantity": "1081",
+    "scrap_quantity": "0",
+    "wip_quantity": 0,
+    "last_event_seq": "3251",
+    "final": true,
+    "ended_at": "2026-10-23T12:44:15.481670Z"
+  },
+  "completed_at": "2026-10-23T12:44:17.023350+00:00"
+}

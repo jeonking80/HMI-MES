@@ -1,0 +1,57 @@
+[
+  {
+    "name": "cx20-20261023T124603Z",
+    "data": "/tmp/cx20-20261023T124603Z",
+    "output": "/tmp/cx20-20261023T124603Z.json",
+    "log": "/tmp/cx20-20261023T124603Z.log",
+    "started_utc": "2026-10-23T12:46:03.731924+00:00",
+    "pid": 605925,
+    "container_id": "26db97176eb2bb5a23869263ce42e621a5261b27012c121caea8fc20adef5400",
+    "port": 33774,
+    "ended_utc": "2026-10-23T12:46:52.064186+00:00",
+    "cleanup_error_type": "CalledProcessError",
+    "secret_file_removed": true,
+    "container_removed": true,
+    "data_removed": true
+  },
+  {
+    "name": "cx20-20261023T124744Z",
+    "container_removed": true,
+    "data_removed": true,
+    "secret_file_removed": true
+  },
+  {
+    "name": "cx20-20261023T124825Z",
+    "data": "/tmp/cx20-20261023T124825Z",
+    "output": "/tmp/cx20-20261023T124825Z.json",
+    "log": "/tmp/cx20-20261023T124825Z.log",
+    "started_utc": "2026-10-23T12:48:25.153903+00:00",
+    "pid": 606502,
+    "container_id": "e3692b3d5981d538c634a9b5b58282d9eaa1a9d12dc7a9bfa5ad52c2689aad75",
+    "port": 33776,
+    "postgresql_version": "17.11 (Debian 17.11-1.pgdg12+2)",
+    "returncode": 1,
+    "elapsed_seconds": 1.0888745929987635,
+    "ended_utc": "2026-10-23T12:48:30.541696+00:00",
+    "container_removed": true,
+    "data_removed": true,
+    "secret_file_removed": true
+  },
+  {
+    "name": "cx20-20261023T125312Z",
+    "data": "/tmp/cx20-20261023T125312Z",
+    "output": "/tmp/cx20-20261023T125312Z.json",
+    "log": "/tmp/cx20-20261023T125312Z.log",
+    "started_utc": "2026-10-23T12:53:12.006636+00:00",
+    "pid": 607209,
+    "container_id": "d75afddd7bafc3767af76904e9048646c99f85738a0846b4fd95993e0904b605",
+    "port": 33777,
+    "postgresql_version": "17.11 (Debian 17.11-1.pgdg12+2)",
+    "returncode": 1,
+    "elapsed_seconds": 1.4986246199987363,
+    "ended_utc": "2026-10-23T12:53:17.173159+00:00",
+    "container_removed": true,
+    "data_removed": true,
+    "secret_file_removed": true
+  }
+]

@@ -1,0 +1,263 @@
+{
+  "case": "CX-19",
+  "outcome": "passed",
+  "scope": "actual disposable local CLI API connection outage, 48tags/1Hz, same-kernel default100ms process; no public deployment/no8h",
+  "target_sha": "fc6296ec9bd618388b1b5dfe6dda05342e94f06a",
+  "dirty": false,
+  "started_at_utc": "2026-10-23T12:09:53.292153+00:00",
+  "ended_at_utc": "2026-10-23T12:44:19.241787+00:00",
+  "outage_started_at_utc": "2026-10-23T12:10:40.100947+00:00",
+  "reconnected_at_utc": "2026-10-23T12:40:40.567400+00:00",
+  "outage_seconds": 1800.4018594730005,
+  "recovery_seconds": 208.33938915398903,
+  "assertions": [
+    {
+      "name": "actual_outage_at_least_30_minutes",
+      "passed": true,
+      "seconds": 1800.4018594730005
+    },
+    {
+      "name": "collection_continued_at_1Hz",
+      "passed": true,
+      "first": [
+        1,
+        36
+      ],
+      "last": [
+        1,
+        1834
+      ]
+    },
+    {
+      "name": "real_default_process_continued",
+      "passed": true,
+      "first": {
+        "events": 5,
+        "head_seq": "00000000000000000005",
+        "process_tick": 292
+      },
+      "last": {
+        "events": 2924,
+        "head_seq": "00000000000000002924",
+        "process_tick": 17808
+      }
+    },
+    {
+      "name": "recovery_completed_within_300_seconds",
+      "passed": true,
+      "seconds": 208.33938915398903
+    },
+    {
+      "name": "latest_48_tag_screen_recovered",
+      "passed": true,
+      "snapshot_status": 200,
+      "snapshot_bytes": 27142
+    }
+  ],
+  "resource_samples": 539,
+  "max_queue_bytes": 28492673,
+  "max_queue_age_seconds": 1800.54286,
+  "max_postgres_database_bytes": 191370931,
+  "max_postgres_wal_bytes": 956301312,
+  "loss_record_count": 5,
+  "lost_tag_observations": 240,
+  "losses": [
+    {
+      "loss_id": "28c0dd06-5b45-4aa9-8ed2-944e553494b4",
+      "reason_code": "BUFFER_AGE_LIMIT",
+      "event_ranges": [
+        [
+          "5",
+          "6"
+        ]
+      ],
+      "tag_observation_count": 48,
+      "affected_execution_ids": [
+        "bf07f693-ad62-45eb-8a6b-01f3e9590f89"
+      ]
+    },
+    {
+      "loss_id": "3a4e9cfa-80fd-4ab3-adc6-db9bd7914b64",
+      "reason_code": "BUFFER_AGE_LIMIT",
+      "event_ranges": [
+        [
+          "7",
+          "7"
+        ]
+      ],
+      "tag_observation_count": 48,
+      "affected_execution_ids": [
+        "bf07f693-ad62-45eb-8a6b-01f3e9590f89"
+      ]
+    },
+    {
+      "loss_id": "7ba913da-6585-4e97-a643-1bb3c6bcf434",
+      "reason_code": "BUFFER_AGE_LIMIT",
+      "event_ranges": [
+        [
+          "8",
+          "9"
+        ]
+      ],
+      "tag_observation_count": 48,
+      "affected_execution_ids": [
+        "bf07f693-ad62-45eb-8a6b-01f3e9590f89"
+      ]
+    },
+    {
+      "loss_id": "d3b8a76f-6303-42ef-937e-604584611d74",
+      "reason_code": "BUFFER_AGE_LIMIT",
+      "event_ranges": [
+        [
+          "10",
+          "10"
+        ]
+      ],
+      "tag_observation_count": 48,
+      "affected_execution_ids": [
+        "bf07f693-ad62-45eb-8a6b-01f3e9590f89"
+      ]
+    },
+    {
+      "loss_id": "990999d1-1240-4f71-8815-d931777feb4a",
+      "reason_code": "BUFFER_AGE_LIMIT",
+      "event_ranges": [
+        [
+          "11",
+          "12"
+        ]
+      ],
+      "tag_observation_count": 48,
+      "affected_execution_ids": [
+        "bf07f693-ad62-45eb-8a6b-01f3e9590f89"
+      ]
+    }
+  ],
+  "reconciliation": {
+    "target_sequence": 2924,
+    "source_rows": 3241,
+    "inbox_rows": 3240,
+    "mismatched_original_ids": [],
+    "cursors": [
+      {
+        "source_id": "1b7d220e-c7d3-4bdb-9b09-1935055ac4fd",
+        "stream_id": "56206640-5486-4908-9618-ca06830c2df5",
+        "verified_through_seq": "3241",
+        "latest_ingested_seq": "3241",
+        "updated_at": "2026-10-23 12:44:08.761171+00:00"
+      }
+    ],
+    "gaps": [],
+    "note": "source, inbox and cursor reads are sequential while capture continues; original-source assertion is bounded by target_sequence, not an atomic all-current-head snapshot"
+  },
+  "final_queue": {
+    "pending_batches": 1,
+    "inflight_batches": 1,
+    "queue_bytes": 31600,
+    "oldest_age_seconds": 1.240014,
+    "loss_records": 5,
+    "outbound_sample_counts": [
+      48
+    ],
+    "database_bytes": 30584832,
+    "wal_bytes": 4190072
+  },
+  "final_settlement": {
+    "scope": "local live CLI acceptance; not public deployment",
+    "transport": "polling",
+    "physics": "default 100ms ticker; no overrides",
+    "execution_id": "bf07f693-ad62-45eb-8a6b-01f3e9590f89",
+    "commands": {
+      "LOAD_JOB": "73a4d6a0-b40e-47cb-8b6b-6e839cdb25f9",
+      "START": "a5dad869-af1b-4506-90a4-1c9101e8c84c",
+      "PAUSE": "99106f0b-9668-4b09-816b-317d10374367",
+      "END_RUN": "f7cbb579-2df7-482b-b984-521acecf2a88"
+    },
+    "settlement": "SETTLED",
+    "totals": {
+      "good_quantity": "2163",
+      "reject_quantity": "1081",
+      "scrap_quantity": "0"
+    },
+    "simulator_final_summary": {
+      "schema_version": "1.0",
+      "source_id": "1b7d220e-c7d3-4bdb-9b09-1935055ac4fd",
+      "stream_id": "56206640-5486-4908-9618-ca06830c2df5",
+      "execution_id": "bf07f693-ad62-45eb-8a6b-01f3e9590f89",
+      "state": "ENDED",
+      "as_of": "2026-10-23T12:44:15.481670Z",
+      "counter_epoch": "ccbe6ce2-21a6-4ddd-8c13-28acd91db32a",
+      "recipe_version": "live-recipe-v1",
+      "parameters": {
+        "temperature_c": 150.0,
+        "speed_m_per_min": 10.0
+      },
+      "input_quantity": "3244",
+      "good_quantity": "2163",
+      "reject_quantity": "1081",
+      "scrap_quantity": "0",
+      "wip_quantity": 0,
+      "last_event_seq": "3251",
+      "final": true,
+      "ended_at": "2026-10-23T12:44:15.481670Z"
+    },
+    "completed_at": "2026-10-23T12:44:17.023350+00:00"
+  },
+  "frontend": {
+    "/tmp/hmi-v3-resume-web-fc6296e/index.html": {
+      "sha256": "de124f7b6c5bdfea810d3cf96f133177e71fea12a32bb418cefe12104e157a3c",
+      "bytes": 517
+    },
+    "/tmp/hmi-v3-resume-web-fc6296e/assets/index-BDro6Hrp.js": {
+      "sha256": "3f4e2c23b109bdb98166e2f28815bb395c04bc1120a9449cd17cec781aba255d",
+      "bytes": 461963
+    }
+  },
+  "cleanup": {
+    "owned_long_run_cli_remaining": 0,
+    "owned_runtime_directories_remaining": 0,
+    "postgres_scope": "Immediately after run5 cleanup the existing protected preview was the only observed container; subsequent CX20 containers belong to a different task and were not changed"
+  },
+  "original_local_artifacts": {
+    "/tmp/hmi-v3-cx19-real-5/CX-19-e8b9aa4bceae431bba0a7e02f84b9ffd.xml": {
+      "bytes": 135,
+      "sha256": "ad5c06a16489ddec671c57deab4970bdc63a5813ae396c275eab962fb3f5ee6a"
+    },
+    "/tmp/hmi-v3-cx19-real-5/simulator.log": {
+      "bytes": 5857,
+      "sha256": "5e75d1e2a686802b1b93ca3eb5e701995cf1de76a2fc8f717db4e8de295b4c9c"
+    },
+    "/tmp/hmi-v3-cx19-real-5/internal-api.log": {
+      "bytes": 704,
+      "sha256": "150856227f46c7a8775b874a65d5480c0cc3944732334e38068caea6955e1b04"
+    },
+    "/tmp/hmi-v3-cx19-real-5/user-api.log": {
+      "bytes": 352,
+      "sha256": "d3cca0b73910622640070dcc1ce6b015f3d19fc917dde2e769974067f392a676"
+    },
+    "/tmp/hmi-v3-cx19-real-5/gateway.log": {
+      "bytes": 427047,
+      "sha256": "62f36310989eb7beb5333c59eda382a897c4350dd46cb107923cc76c3ecb4f83"
+    },
+    "/tmp/hmi-v3-cx19-real-5/final-settlement.json": {
+      "bytes": 1352,
+      "sha256": "7f15206b216d0a0fbd1b237704dec6989bf97a4eb9dee606f31113e149d1173f"
+    },
+    "/tmp/hmi-v3-cx19-real-5/final.png": {
+      "bytes": 655694,
+      "sha256": "71727dfdd8160a6786cf4baab327df73e23aab44182cb2b8f718eda5c2a5ffe8"
+    },
+    "/tmp/hmi-v3-cx19-real-5/reconciliation.json": {
+      "bytes": 4281905,
+      "sha256": "e858fc855d50d346ad886ab81469bbba3765d9a35a70a0002b638355197ffaf1"
+    },
+    "/tmp/hmi-v3-cx19-real-5/resources.jsonl": {
+      "bytes": 13110207,
+      "sha256": "b28db0dc36697242dace1ff84ceea2e4f196c1120e7f9abf860e637258d40f80"
+    },
+    "/tmp/hmi-v3-cx19-real-5/CX-19-e8b9aa4bceae431bba0a7e02f84b9ffd.json": {
+      "bytes": 61426,
+      "sha256": "16ee6a2e3626cd10290e95b76b8db392f441d52b49e2706bb8340e03c3fe5301"
+    }
+  }
+}

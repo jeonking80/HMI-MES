@@ -1,0 +1,17 @@
+{
+  "name": "cx20-20261023T125418Z",
+  "data": "/tmp/cx20-20261023T125418Z",
+  "output": "/tmp/cx20-20261023T125418Z.json",
+  "log": "/tmp/cx20-20261023T125418Z.log",
+  "started_utc": "2026-10-23T12:54:18.805597+00:00",
+  "pid": 607648,
+  "container_id": "76866470904e0599c32072b0c70e16c2e6f69b4ed67e079ee36241445b449a5b",
+  "port": 33778,
+  "postgresql_version": "17.11 (Debian 17.11-1.pgdg12+2)",
+  "returncode": 1,
+  "elapsed_seconds": 349.9570649449888,
+  "ended_utc": "2026-10-23T13:00:12.921741+00:00",
+  "container_removed": true,
+  "data_removed": true,
+  "secret_file_removed": true
+}
