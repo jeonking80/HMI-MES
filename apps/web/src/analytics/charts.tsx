@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent, ReactNode } from 'react'
-import { clock, MISSING } from './format'
+import { clock, MISSING, secondClock } from './format'
 import { niceTicks } from './scale'
 
 function useWidth<T extends HTMLElement>(fallback = 640) {
@@ -20,13 +20,19 @@ function useWidth<T extends HTMLElement>(fallback = 640) {
 }
 
 function timeTicks(from: number, to: number, width: number): number[] {
-  const steps = [60e3, 5 * 60e3, 15 * 60e3, 30 * 60e3, 3600e3, 3 * 3600e3, 6 * 3600e3, 12 * 3600e3, 86400e3]
+  // Second steps keep a zoomed-in short run readable (UX: trend focus window).
+  const steps = [10e3, 15e3, 30e3, 60e3, 5 * 60e3, 15 * 60e3, 30 * 60e3, 3600e3, 3 * 3600e3, 6 * 3600e3, 12 * 3600e3, 86400e3]
   const target = Math.max(2, Math.floor(width / 110))
   const step = steps.find(candidate => (to - from) / candidate <= target) ?? 86400e3
   const offset = 9 * 3600e3 // align ticks to Seoul wall-clock boundaries
   const ticks: number[] = []
   for (let value = Math.ceil((from + offset) / step) * step - offset; value <= to; value += step) ticks.push(value)
   return ticks
+}
+
+/** Seconds appear only when the ticks fall inside a minute, so long spans keep their HH:MM labels. */
+function tickLabel(tick: number, ticks: number[]): string {
+  return ticks.some(value => value % 60e3 !== 0) ? secondClock(tick) : clock(tick)
 }
 
 const formatAxis = (value: number) => Math.abs(value) >= 1000 ? value.toLocaleString('ko-KR', { maximumFractionDigits: 0 }) : String(Number(value.toFixed(2)))
@@ -121,7 +127,7 @@ export function TimeSeriesChart({ title, unit, from, to, series, height = 240, b
         <text className="chart-tick" x={margin.left - 8} y={y(tick)} dy="0.32em" textAnchor="end">{formatAxis(tick)}</text>
       </g>)}
       <text className="chart-unit" x={margin.left - 8} y={10} textAnchor="end">{unit}</text>
-      {timeTicks(from, to, plotWidth).map(tick => <text key={tick} className="chart-tick" x={x(tick)} y={height - 8} textAnchor="middle">{clock(tick)}</text>)}
+      {timeTicks(from, to, plotWidth).map((tick, _index, ticks) => <text key={tick} className="chart-tick" x={x(tick)} y={height - 8} textAnchor="middle">{tickLabel(tick, ticks)}</text>)}
       <line className="chart-axis" x1={margin.left} x2={margin.left + plotWidth} y1={margin.top + plotHeight} y2={margin.top + plotHeight} />
       {gaps.map(gap => <g key={gap.from}>
         <rect x={x(gap.from)} y={margin.top} width={Math.max(1, x(gap.to) - x(gap.from))} height={plotHeight} fill={`url(#gap-${patternId})`} />

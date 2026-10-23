@@ -263,6 +263,10 @@ async def exercise(
                     (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
                     "--port",
                     str(intake_port),
+                    # Every process here runs on this host and shares its kernel UTC clock,
+                    # so the operator may assert it; analytics time is otherwise UNKNOWN.
+                    "--trend-clock-policy",
+                    "same-host",
                 ],
                 env,
             )
@@ -704,6 +708,21 @@ async def exercise_analytics(page, origin, out, execution_id, record):
         item["settlement_status"] == "SETTLED"
         and int(item["totals"]["good"]) == int(totals["good_quantity"]),
         "Execution report differs from the settled execution",
+    )
+    # With same-host clock evidence the run's own time must be known, not just parse.
+    trend = responses.get("/api/v1/trends", {}).get("body") or {}
+    good = sum(
+        1
+        for series in trend.get("series", [])
+        for point in series.get("points", [])
+        if point.get("quality") == "GOOD" and point.get("value") is not None
+    )
+    require(good > 0, "Trend has no GOOD value although the clock policy is configured")
+    durations = item["durations_seconds"]
+    require(durations["running"] > 0, "Execution report has no known running time")
+    checkpoint(
+        f"known time: {good} GOOD trend points, running {durations['running']:.3f}s, "
+        f"unknown {durations['unknown']:.3f}s"
     )
     (out / "responses.json").write_text(
         json.dumps(responses, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
