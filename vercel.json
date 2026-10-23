@@ -10,10 +10,8 @@
       "excludeFiles": "{.local/**,.cache/**,.venv/**,tests/**,docs/**,deploy/**,apps/web/node_modules/**,apps/web/src/**,**/*.sqlite*,**/*.pem,**/*.der,**/*.log}"
     }
   },
-  "rewrites": [
-    { "source": "/auth/:path*", "destination": "/api/index.py" },
-    { "source": "/internal/:path*", "destination": "/api/index.py" },
-    { "source": "/health/:path*", "destination": "/api/index.py" },
-    { "source": "/api/:path*", "destination": "/api/index.py" }
+  "routes": [
+    { "src": "^/(?:auth|internal|health|api)(?:/.*)?$", "dest": "/api/index.py" },
+    { "handle": "filesystem" }
   ]
 }
