@@ -407,6 +407,8 @@ M1의 주요 독립 운전·권한·실제 생산 경로는 확인했지만, 원
 - 2026-10-23 사용자 “8시간 시험은 하지마. 마무리하고 정리해” 지시에 따라 **CX-21 실제8시간은 이번 실행 범위에서 제외**하며 미실행으로 유지한다. 새 장시간·7일 대량 적재·릴리스 build 시험을 시작하지 않고 이번 작업을 정리한다. CX-19 run4는 실제1,800.201096초 단절을 측정했으나300초 내 복구 실패했다. 수정으로 최고 큐는 약28.49MB로 억제됐지만 마지막 pending836/inflight1·verified cursor4·gap5–10이 남았다. 실패는 유지하고 자동 재시도하지 않는다.
 - 최종 인계는 [KULS v3 정리](work-orders/reports/KULS-v3-HANDOFF.md)에 기록한다. T01~T12 분할17개·백업 관련153개·gateway 집중2개/회귀58개 검증 근거를 보존했다. 공개 OPS-02 적용, CX-20 전체 규모 성능, CX-22 clean build/단일 수락 묶음은 미실행이며 프로젝트 전체 완료·릴리스 통과로 표시하지 않는다. UI/README/Claude 소유 검증 스크립트는 변경하지 않았다.
 
+- 2026-10-23 후속 요청: 최신 main `51f2383`을 병합(`4c22332`)했다. UX-11 internal API의 기존 `--trend-clock-policy same-host`를 `extended_driver`가 중복 추가하지 않고 재사용하도록 수정했다. 인자가 없으면 기존처럼 삽입하며 중복·충돌·누락은 거절한다. 지정 시험의 기존 오류를 재현한 뒤 `tests/unit/test_long_run_acceptance.py` **18개 통과(0.43초)**, 수정 두 파일 Ruff 검사·형식 통과. 원본 driver는 변경하지 않았고 장시간 시험은 실행하지 않았다.
+
 ### Claude UI/UX 보강
 
 - 착수 전 확인: `scripts/check-operable-system.py` 로컬 실행 PASS(브라우저→API→PostgreSQL→게이트웨이→암호화 OPC UA→최종 SETTLED 대조). 현재 화면은 세로 약 7,000px의 단일 페이지이며 트렌드·보고서·대시보드 화면이 없다.

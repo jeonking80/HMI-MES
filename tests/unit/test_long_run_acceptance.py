@@ -54,6 +54,65 @@ def test_driver_hook_is_read_only_and_preserves_default_physics(tmp_path):
     assert "4294967295" in str(driver.exercise.__code__.co_consts)
 
 
+@pytest.mark.parametrize(
+    ("policy_source", "valid"),
+    [
+        ("", True),
+        ('"--trend-clock-policy", "same-host"', True),
+        ('"--trend-clock-policy"', False),
+        ('"--trend-clock-policy", ""', False),
+        ('"--trend-clock-policy", "remote"', False),
+        ('"--trend-clock-policy", "--another-option"', False),
+        ('"--trend-clock-policy", policy', False),
+        ('"--trend-clock-policy=same-host"', False),
+        ('"--trend-clock-policy=remote"', False),
+        (
+            '"--trend-clock-policy", "same-host", "--trend-clock-policy", "same-host"',
+            False,
+        ),
+        (
+            '"--trend-clock-policy", "same-host", "--trend-clock-policy=remote"',
+            False,
+        ),
+    ],
+)
+def test_driver_clock_policy_compiled_argv(monkeypatch, tmp_path, policy_source, valid):
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    path = scripts / "check-operable-system.py"
+    source = (
+        "from datetime import timedelta\n"
+        "async def exercise():\n"
+        '    target = {"target": "20"}\n'
+        "    lifetime = timedelta(hours=1)\n"
+        '    delay = ".25"\n'
+        f'    argv = ["live-service", {policy_source}]\n'
+        '    checkpoint("PAUSE through browser and verify actual PLC PAUSED")\n'
+        "    return argv\n"
+    )
+    path.write_text(source)
+    monkeypatch.setattr(long_run_runtime, "ROOT", tmp_path)
+    monkeypatch.setattr(long_run_runtime, "load_operable_script", SimpleNamespace)
+    evidence = AcceptanceEvidence("CX-19", tmp_path)
+    calls = []
+
+    async def hook(live):
+        calls.append(live)
+
+    if valid:
+        driver = extended_driver(hook, evidence)
+        assert asyncio.run(driver.exercise()) == [
+            "live-service",
+            "--trend-clock-policy",
+            "same-host",
+        ]
+        assert len(calls) == 1
+    else:
+        with pytest.raises(RuntimeError, match="Live driver clock policy anchor changed"):
+            extended_driver(hook, evidence)
+    assert path.read_text() == source
+
+
 @pytest.mark.parametrize("port_open", [False, True])
 def test_outage_failure_restarts_identical_api_under_driver_supervision(
     monkeypatch, tmp_path, port_open

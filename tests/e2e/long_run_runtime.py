@@ -100,12 +100,28 @@ def extended_driver(hook, evidence):
         if isinstance(node, ast.List) and any(
             isinstance(item, ast.Constant) and item.value == "live-service" for item in node.elts
         ):
-            if any(
-                isinstance(item, ast.Constant) and item.value == "--trend-clock-policy"
-                for item in node.elts
-            ):
-                raise RuntimeError("Live driver clock policy anchor changed")
-            node.elts.extend([ast.Constant("--trend-clock-policy"), ast.Constant("same-host")])
+            policies = [
+                index
+                for index, item in enumerate(node.elts)
+                if isinstance(item, ast.Constant)
+                and isinstance(item.value, str)
+                and (
+                    item.value == "--trend-clock-policy"
+                    or item.value.startswith("--trend-clock-policy=")
+                )
+            ]
+            if policies:
+                index = policies[0]
+                if (
+                    len(policies) != 1
+                    or node.elts[index].value != "--trend-clock-policy"
+                    or index + 1 >= len(node.elts)
+                    or not isinstance(node.elts[index + 1], ast.Constant)
+                    or node.elts[index + 1].value != "same-host"
+                ):
+                    raise RuntimeError("Live driver clock policy anchor changed")
+            else:
+                node.elts.extend([ast.Constant("--trend-clock-policy"), ast.Constant("same-host")])
             clock_policies += 1
         if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
             call = node.value
