@@ -237,3 +237,4 @@ a.button { display:inline-flex; align-items:center; text-decoration:none; }
 .assistant-table { font-size:.82rem; }
 .assistant-bubble blockquote { margin:.6rem 0 0; padding:.55rem .8rem; border-left:3px solid var(--status-warn); background:var(--status-warn-bg); border-radius:var(--radius-sm); color:var(--text); }
 .assistant-bubble code { padding:.05rem .3rem; border-radius:4px; background:var(--surface-muted); font-size:.82em; }
+.focus-bar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.6rem 1rem; padding:.6rem .9rem; margin:.25rem 0 1rem; font-size:.8rem; color:var(--text); background:var(--status-info-bg); border:1px solid var(--border); border-left:3px solid var(--status-info); border-radius:var(--radius-sm); }

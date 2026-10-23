@@ -33,6 +33,7 @@ export function duration(seconds: number | null | undefined): string {
 
 const dateTimeFormat = new Intl.DateTimeFormat('ko-KR', { timeZone: TIME_ZONE, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
 const timeFormat = new Intl.DateTimeFormat('ko-KR', { timeZone: TIME_ZONE, hour: '2-digit', minute: '2-digit', hour12: false })
+const secondFormat = new Intl.DateTimeFormat('ko-KR', { timeZone: TIME_ZONE, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
 const hourFormat = new Intl.DateTimeFormat('ko-KR', { timeZone: TIME_ZONE, hour: '2-digit', hour12: false })
 
 export function dateTime(value: string | null | undefined): string {
@@ -44,6 +45,10 @@ export function dateTime(value: string | null | undefined): string {
 export function clock(value: string | number): string {
   const parsed = typeof value === 'number' ? value : Date.parse(value)
   return Number.isFinite(parsed) ? timeFormat.format(parsed) : MISSING
+}
+
+export function secondClock(value: number): string {
+  return Number.isFinite(value) ? secondFormat.format(value) : MISSING
 }
 
 export function hourLabel(value: string): string {
@@ -88,4 +93,18 @@ export const analogTags = Object.keys(tagLabels)
 export function alignedEnd(anchor: number, span: number) {
   const step = span <= 3600e3 ? 1000 : 60e3
   return Math.floor(anchor / step) * step
+}
+
+/**
+ * Window to zoom into when values cover only a small part of the requested span (e.g. a short run
+ * inside a 1-hour view). Null when values already fill enough of it or there are none. The zoom is a
+ * display choice only; the full span and its missing slots stay reported next to the chart.
+ */
+export function focusWindow(times: number[], from: number, to: number, stepMs: number): { from: number; to: number } | null {
+  if (!times.length || to <= from) return null
+  const first = Math.min(...times)
+  const last = Math.max(...times) + stepMs
+  if ((last - first) / (to - from) >= 0.5) return null
+  const pad = Math.max((last - first) * 0.1, 10 * stepMs)
+  return { from: Math.max(from, first - pad), to: Math.min(to, last + pad) }
 }
