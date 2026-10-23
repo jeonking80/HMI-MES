@@ -7,7 +7,7 @@ import threading
 import time
 from collections import OrderedDict, deque
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Annotated
 from urllib.parse import urlsplit
@@ -21,6 +21,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from starlette.concurrency import run_in_threadpool
 
 from apps.api.alarm_http import mount_alarm_routes
+from apps.api.assistant import AssistantConfig, register_assistant_routes
 from apps.api.auth import (
     ABSOLUTE_TIMEOUT,
     LOGIN_TIMEOUT,
@@ -56,6 +57,8 @@ class UserHTTPConfig:
     max_body_bytes: int = 16_384
     monotonic: Callable[[], float] = time.monotonic
     guest_viewer: bool = False
+    # None disables the read-only assistant; its key never leaves server memory.
+    assistant: AssistantConfig | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if type(self.guest_viewer) is not bool:
@@ -360,7 +363,7 @@ def create_user_app(auth: UserAuth, config: UserHTTPConfig) -> FastAPI:
 
     @app.get("/auth/config")
     async def auth_config():
-        return {"guest_viewer": config.guest_viewer}
+        return {"guest_viewer": config.guest_viewer, "assistant": config.assistant is not None}
 
     @app.post("/auth/guest")
     async def guest(request: Request):
@@ -452,6 +455,9 @@ def create_user_app(auth: UserAuth, config: UserHTTPConfig) -> FastAPI:
     app.state.report_segment_annotator = annotate_report_segments
     register_spc_routes(app, auth)
     register_dashboard_routes(app, auth)
+    register_assistant_routes(
+        app, auth, config.assistant, origin=config.origin, session_cookie=SESSION_COOKIE
+    )
     mount_screen_ws(
         app,
         auth,

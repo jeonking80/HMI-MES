@@ -441,7 +441,7 @@ async def test_kuls_contract_routes_are_mounted_in_serverless_factory(runtime):
             assert response.headers["cache-control"] == "no-store"
         response = await client.get("/auth/config")
         assert response.status_code == 200
-        assert response.json() == {"guest_viewer": False}
+        assert response.json() == {"guest_viewer": False, "assistant": False}
         assert (
             await client.post("/auth/guest", headers={"Origin": ORIGIN}, json={})
         ).status_code in {403, 404}
@@ -515,3 +515,16 @@ def test_trend_retention_reaches_serverless_ingestion(monkeypatch, runtime):
     )
     serverless.create_vercel_app(config, engine=runtime.engine)
     assert seen == [retention]
+
+
+def test_assistant_is_enabled_only_by_its_key(monkeypatch):
+    _public_environment(monkeypatch)
+    monkeypatch.delenv("HMI_ASSISTANT_API_KEY", raising=False)
+    assert serverless.VercelConfig.from_environment().assistant is None
+    monkeypatch.setenv("HMI_ASSISTANT_API_KEY", "nvapi-fixture-only")
+    config = serverless.VercelConfig.from_environment()
+    assert config.assistant.model == "nvidia/nemotron-3-ultra-550b-a55b"
+    assert "nvapi-fixture-only" not in repr(config)
+    monkeypatch.setenv("HMI_ASSISTANT_MODEL", "bad model")
+    with pytest.raises(ValueError):
+        serverless.VercelConfig.from_environment()

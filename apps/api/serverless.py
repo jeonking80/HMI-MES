@@ -18,6 +18,7 @@ from sqlalchemy.pool import NullPool
 from starlette.responses import JSONResponse
 from starlette.routing import Mount
 
+from apps.api.assistant import DEFAULT_MODEL, AssistantConfig
 from apps.api.auth import UserAuth
 from apps.api.database import SUPPORTED_MIXED_ALARM_REVISIONS
 from apps.api.ingestion import IngestionService
@@ -100,6 +101,8 @@ class VercelConfig:
     # None keeps the baseline (7-day raw, 90-day minute). A public free-tier profile
     # may shorten it; see docs/architecture/TREND_HISTORY.md.
     trend_retention: TrendRetention | None = None
+    # Read-only assistant; absent key keeps the feature off.
+    assistant: AssistantConfig | None = field(default=None, repr=False)
 
     def __post_init__(self):
         UserHTTPConfig(
@@ -138,6 +141,12 @@ class VercelConfig:
         origin = os.environ["HMI_PUBLIC_ORIGIN"]
         database_dsn = os.environ["HMI_DATABASE_DSN"]
         trend_retention = _trend_retention()
+        assistant = None
+        if os.environ.get("HMI_ASSISTANT_API_KEY"):
+            assistant = AssistantConfig(
+                api_key=os.environ["HMI_ASSISTANT_API_KEY"],
+                model=os.environ.get("HMI_ASSISTANT_MODEL", DEFAULT_MODEL),
+            )
         policy = None
         if "HMI_GATEWAY_CREDENTIALS_JSON" not in os.environ:
             policy = _packaged_binding(origin)
@@ -157,6 +166,7 @@ class VercelConfig:
             credentials=credentials,
             source_binding_policy=policy,
             trend_retention=trend_retention,
+            assistant=assistant,
         )
 
 
@@ -254,7 +264,10 @@ def create_vercel_app(config: VercelConfig, *, engine=None):
     users = create_user_app(
         UserAuth(database, allowed_origins={config.origin}, guest_viewer=config.guest_viewer),
         UserHTTPConfig(
-            origin=config.origin, allow_insecure_loopback=False, guest_viewer=config.guest_viewer
+            origin=config.origin,
+            allow_insecure_loopback=False,
+            guest_viewer=config.guest_viewer,
+            assistant=config.assistant,
         ),
     )
     internal = (
