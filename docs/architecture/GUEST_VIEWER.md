@@ -6,7 +6,7 @@ CX-06은 기본 비활성이다. 기존 `demo`와 일반 viewer 로그인·비�
 
 새 기능에는 Alembic `0017_guest_viewer`가 필요하다. 기존 0014에서도 게스트를 끈 기존 인증 경로는 새 테이블을 조회하지 않는다. 서버 시작은 계정이나 스키마를 만들지 않는다.
 
-운영자가 명시적으로 다음을 실행한다. DB 연결은 기존 보호된 `HMI_DATABASE_DSN` 설정을 사용한다.
+운영자가 명시적으로 다음을 실행한다. provisioning은 보호된 오프라인 운영자/소유자 `HMI_DATABASE_DSN` 연결을 사용하며, 서비스 실행은 제한된 runtime 연결로 분리한다. Neon의 새 객체 권한 적용은 [배포 준비](KULS_DEPLOYMENT.md)를 따른다. runtime `hmi_app`은 전용 계정 표식에 SELECT만 가지므로 `bootstrap-guest`를 실행하는 연결로 사용하지 않는다.
 
 ```sh
 python -m apps.api bootstrap-guest --origin http://127.0.0.1:8002
