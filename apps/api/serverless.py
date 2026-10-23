@@ -1,6 +1,7 @@
 """Vercel ASGI composition using Neon; no background workers or provisioning."""
 
 import json
+import math
 import os
 import re
 import ssl
@@ -27,6 +28,7 @@ from apps.api.internal import (
     SourceBindingPolicy,
     create_internal_app,
 )
+from apps.api.trend_history import TrendRetention
 from apps.api.user_http import UserHTTPConfig, create_user_app
 
 
@@ -89,6 +91,22 @@ def _packaged_binding(origin):
     )
 
 
+def _retention_number(name: str, default: float, maximum: float) -> float:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        if not isinstance(raw, str) or not 1 <= len(raw) <= 64:
+            raise ValueError
+        value = float(raw)
+        if not math.isfinite(value) or not 0 < value <= maximum:
+            raise ValueError
+    except (TypeError, ValueError, OverflowError):
+        # Do not reflect deployment values in exceptions or logs.
+        raise ValueError("Invalid trend retention configuration") from None
+    return value
+
+
 @dataclass(frozen=True)
 class VercelConfig:
     origin: str
@@ -96,8 +114,14 @@ class VercelConfig:
     credentials: tuple[ServiceCredential, ...] = field(default=(), repr=False)
     source_binding_policy: SourceBindingPolicy | None = field(default=None, repr=False)
     guest_viewer: bool = False
+    trend_retention: TrendRetention = field(default_factory=TrendRetention)
 
     def __post_init__(self):
+        if not isinstance(self.trend_retention, TrendRetention) or any(
+            type(value) not in {int, float} or not math.isfinite(value)
+            for value in (self.trend_retention.raw_days, self.trend_retention.minute_days)
+        ):
+            raise ValueError("Invalid trend retention configuration")
         UserHTTPConfig(
             origin=self.origin, allow_insecure_loopback=False, guest_viewer=self.guest_viewer
         )
@@ -128,6 +152,12 @@ class VercelConfig:
 
     @classmethod
     def from_environment(cls):
+        raw_hours = _retention_number("HMI_TREND_RAW_HOURS", 168, 168)
+        minute_days = _retention_number("HMI_TREND_MINUTE_DAYS", 90, 90)
+        try:
+            retention = TrendRetention(raw_days=raw_hours / 24, minute_days=minute_days)
+        except ValueError:
+            raise ValueError("Invalid trend retention configuration") from None
         guest_setting = os.environ.get("HMI_GUEST_VIEWER_ENABLED", "false")
         if guest_setting not in {"true", "false"}:
             raise ValueError("HMI_GUEST_VIEWER_ENABLED must be true or false")
@@ -151,6 +181,7 @@ class VercelConfig:
             guest_viewer=guest_setting == "true",
             credentials=credentials,
             source_binding_policy=policy,
+            trend_retention=retention,
         )
 
 
@@ -225,7 +256,7 @@ def create_vercel_app(config: VercelConfig, *, engine=None):
     )
     internal = (
         create_internal_app(
-            IngestionService(database),
+            IngestionService(database, trend_retention=config.trend_retention),
             credential_bindings=config.credentials,
             config=InternalConfig(allow_insecure_loopback=False),
             source_binding_policy=config.source_binding_policy,
