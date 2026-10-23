@@ -112,3 +112,12 @@ UI·README·AGENTS·원본 작업지시서·Claude 소유 브라우저 스크립
 HTTP migration 재생/기존 이관/권한20개18.27초·독립 high5개6.36초 통과. 공개 Neon 전송은 하지 않았다. 실제 CLI 수락은 GOOD141점·RUNNING4.461093초·UNKNOWN1.033524초(NO_EVIDENCE만)·SETTLED 양품5/불량2/폐기0으로 설비 원본과 일치했다. 현재 소스·실제 Chromium·API/PG·암호화 OPC UA 경로이며 기존 웹 소스와 원본 검사 스크립트는 수정하지 않았다. 상세는 [CX-09](CX-09.md)·[CX-11](CX-11.md)를 따른다.
 
 최종 전체 로컬 검사와 현재 소스 Compose runtime 검사는 진행 중이다. T01~T12와 대형 성능·8시간·전체 복원 시험의 미완료 범위는 [CX-15](CX-15.md)를 따른다.
+
+## 최신 main 선행 병합과 CX-16 추가
+
+사용자 지시에 따라 `main`의 PR #3~#5가 포함된 `c681b21`을 먼저 받아 `fd92ea8`로 병합했다. 충돌은 assistant와 해당 통합 시험 두 파일에서 해결했다. upstream UI·Vercel60초·원본 v2 지시서 CX-16은 그대로 받았으며 UI/UX 소스를 별도로 수정하지 않았다.
+
+- CX-13은 이제 단일 `deadline_seconds=50`(최대50), 함수60초 기준이다. 최초 인증을 포함한 외부 시한과 모델 반복의 잔여 예산에 같은 설정을 사용한다. 날짜/KST 프롬프트, Nemotron `enable_thinking=false`, 일시 오류1회 재시도, 대시보드 모델 입력 축소와 기존504를 보존했고 우리 활성 알람·게스트2회/300초·로그 보호를 결합했다. 최신 조합 단위/실제PG·ASGI **43 passed, 21.42초**. 실제 공급자는 호출하지 않았다.
+- 병합 전 전체 명령 `PYTEST_ADDOPTS=--junitxml=/tmp/hmi-v2-full.xml ./scripts/check-local.sh`는 정적338파일을 통과했으나 **292 passed, 27 errors, 195.39초**, 사용자 새 지시 후 중단(exit2)이었다. 실패 원문: `psycopg.errors.DiskFull: could not create file "base/16384/39227": No space left on device`. VFS Docker에서 전체 PG와 Compose를 겹쳐 실행한 자원 실패다. 전체 명령 성공으로 표시하지 않으며 `/tmp/hmi-v2-check-local.{log}`, `/tmp/hmi-v2-full.xml`, `/tmp/hmi-v2-check-local-result.json`에 보존했다. 이후 새 검증은 큰 Docker 작업과 직렬로 실행한다. 기존 preview·보호된 영속 상태·전역 Docker 자원은 삭제하지 않았다.
+- 기존 CLI/Compose v2 수락 증거는 최신 main 병합 **이전** 결과다. Compose는 GOOD41·RUNNING6.84785초·NO_EVIDENCE만·SETTLED 및 guest48freshGOOD/웹/반복init을 통과했으며 cached image+현재소스RO mount 방식이다. clean build ENOSPC 한계를 없앤 결과로 해석하지 않는다.
+- 새 CX-16은 로컬 일회용 DB의 약3,800배치 규모에서 SQL 계획·응답 전후값을 측정하고 결과를 유지하며 최적화한다. 1Hz3,800건은 약63분20초이므로 전체24시간 규모나 공개Neon p95 성능으로 확대하지 않는다. 구현·검증은 진행 중이다.
