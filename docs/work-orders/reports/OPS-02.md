@@ -119,3 +119,54 @@ DSN을 메모리에서 파싱한 결과 DB는 모두 `hmi_mes_demo`, 사용자�
 문서의 295초 제한 명령에 `--clock-measured-round-trip`을 지정해 실행했다. 시작은 2026-10-23T16:19:21.933747Z, 종료는 16:19:25.898337Z(한국시간 10월 24일 01:19), 종료 코드는 1이었다. 감독 로그에 simulator와 gateway 시작 뒤 gateway의 command/settlement/capture blocked와 gateway exited code=1이 기록됐다. CLI는 상세 예외 대신 일반 오류만 출력하므로 정확한 내부 원인은 미확인이다. 5분 운전·GOOD 트렌드·가동 시간·수량 대조 성공으로 판정하지 않는다.
 
 사용자의 실패 시 중단 지시에 따라 재시도·복구 조작은 하지 않았다. 감독자의 정상 정리 후 두 자식 PID가 존재하지 않고 processes.json도 없음을 확인했다. 영속 SQLite·인증서·토큰은 보존했다. 비밀이 들어갈 수 있는 실행 로그는 Git 밖의 보호 경로 `/tmp/hmi-ops02-public-demo` 및 기존 runtime의 supervisor.log에 남겼다. 공개 수집 요청의 커밋 여부·DB 결과와 용량은 확인하지 않았으며 Claude에게 인계한다. 8시간 시험은 실행하지 않았다.
+
+## 실연 실패 읽기 전용 조사 — 사용자 지정 범위
+
+재실행·복구 조작·runtime 수정 없이 기존 로그와 두 SQLite를 읽었다. SQLite는 `mode=ro`, `PRAGMA query_only=ON`으로 열었다. 사용자의 명시적 결과 기록 요청에 따라 이 보고서만 수정했으며 프로그램·설정·상태 파일은 수정하지 않았다. 독립 medium 에이전트는 로그만 읽어 같은 결과를 확인했다.
+
+### 1. 종료 직전 로그의 증거와 한계
+
+`supervisor.log` 22707~22711행은 gateway 시작, command/settlement/capture의 blocked, gateway exited code=1만 기록한다. 22712행은 감독자 종료와 영속 scope 보존이다. `/tmp/hmi-ops02-public-demo/supervisor-output.log`에는 `Runtime operation failed; inspect private configuration and existing state.`만 있다. 두 로그에 `SourceCursorError`, `CURSOR_AHEAD`, `STREAM_MISMATCH`, `BufferCorruption` 또는 traceback은 없다.
+
+정적 코드 확인에서 gateway CLI는 예외 본문을 출력하지 않고 일반 종료 문구만 출력하며, plant 감독자의 `sanitized_line`은 구조화된 상태를 operation/state만 남겨 오류 클래스도 버린다. 따라서 **기존 로그로 실제 종료 오류 클래스·메시지를 복원할 수 없으며 SourceCursorError와 BufferCorruption을 구분할 수 없다.** blocked만으로 어느 예외라고 단정하지 않는다. 재현 실행이나 로깅 수정은 하지 않았다.
+
+### 2~3. 로컬 영속 상태 조회 결과
+
+| 대상 | 항목 | 읽은 값 |
+|---|---|---|
+| 시뮬레이터 | source_id / stream_id | demo-packaging-source-v1 / events-main |
+| 시뮬레이터 | simulator_identity.recovery_required | 1 |
+| 시뮬레이터 | runtime_state.snapshot_json.recovery_required | true |
+| 시뮬레이터 | simulator_identity.last_seq | 4 |
+| 시뮬레이터 | retained_from_seq | 1 |
+| 시뮬레이터 | 실제 source_events 건수 / 첫·마지막 seq | 4건 / 1~4 |
+| 게이트웨이 | source_progress source_id / stream_id | demo-packaging-source-v1 / events-main |
+| 게이트웨이 | source_progress.latest_read_seq | 3 |
+| 게이트웨이 | gateway_identity.last_capture_seq | 4267 |
+
+### 4. 비교 판정
+
+사용자가 제공한 공개 DB 상태는 verified_through_seq=3, max capture_seq=4267, gap=0이다. 이 조사에서는 공개 DB에 접속하지 않았으며 이 값은 독립 실측이 아닌 인계 정보다. 게이트웨이 사건 커서 3과 capture 4267은 각각 해당 공개 값과 일치한다. 시뮬레이터는 1~4를 보존하고 사건 head가 4이므로 게이트웨이 커서 3이 원본 head보다 앞서지 않으며, 다음 사건 4도 보존 범위 안이다. 로컬 source·stream도 서로 일치한다. 따라서 **현재 조회값에서는 CURSOR_AHEAD나 로컬 STREAM_MISMATCH를 뒷받침하는 증거가 없다.** 이는 실패 순간의 예외를 배제하는 판정은 아니다.
+
+recovery_required=true는 확인된 상태지만 이것만으로 gateway 종료의 직접 원인이라고 판정하지 않는다. BufferCorruption도 로그에 증거가 없으며 이번 조회는 전체 버퍼 무결성 검증이 아니므로 배제하지 않는다. 정확한 오류 클래스는 미확인으로 유지한다. 사용자 지시에 따라 이 기록 후 멈추며 재시작·큐 수정·커서 초기화·복구 승인·추가 시험을 하지 않는다.
+
+## 클래스 진단 보강 및 사용자 승인 실연 1회 — 2026-10-24 01:34 KST
+
+사용자가 오류 클래스 보강과 단일 재실연, 실행 중 commission 복구 확인 항목을 명시적으로 승인했다. gateway CLI의 최종 stderr와 `_run_workers` 상태 출력, 감독자 `sanitized_line`에 오류 클래스 이름을 보존했다. ASCII 식별자 `[A-Za-z_][A-Za-z0-9_]{0,127}`만 허용하고 메시지 본문·추가 필드·잘못된 클래스 이름은 제외한다. supervisor.log에 최종 종료 클래스를 남기기 위해 gateway/stopped 상태도 허용했다. 단위 시험은 신규 2개를 한 번 실행해 2개 통과했으며 변경 Python 3개 파일의 Ruff check 및 format --check를 각각 한 번 실행해 통과했다. 테스트 실패에 따른 반복 실행은 없다.
+
+실연은 기존 영속 runtime으로 `serve --clock-measured-round-trip`을 295초 상한으로 한 번 시작했다. 로컬 콘솔 준비 직후 `plant-hosting.md`의 기존 console-password 파일과 승인된 다섯 확인 인자를 사용해 commission을 한 번 실행했다. **commission exit0**, `Runtime operation completed; no production command submitted.`를 확인했다. 새 작업이나 생산 START는 제출하지 않았다.
+
+| 항목 | 실측 결과 |
+|---|---|
+| 시작 UTC / 한국시간 | 2026-10-23T16:34:45.905289Z / 2026-10-24 01:34:45 KST |
+| 종료 UTC / 한국시간 | 2026-10-23T16:34:53.024598Z / 2026-10-24 01:34:53 KST |
+| 경과 | 7.119초 |
+| serve / commission 횟수 | 각각 1회 |
+| commission 결과 | exit0 |
+| 최종 gateway 오류 클래스 | **BufferFull** |
+| 종료 전 capture 오류 클래스 | GatewayReadError 이후 BufferFull |
+| serve 결과 | exit1, 5분 운전 실패 |
+
+추가된 감독 로그의 마지막 오류는 `{"operation":"gateway","state":"stopped","error":"BufferFull"}`다. 이번 종료 클래스는 SourceCursorError나 BufferCorruption이 아닌 **BufferFull**로 확인됐다. 메시지 본문은 의도적으로 저장하지 않았으므로 어떤 한도/내부 조건이 발동했는지는 확정하지 않는다. 초기 GatewayReadError와 최종 BufferFull 사이의 인과관계도 별도 추정하지 않는다.
+
+허용된 단일 시도 후 추가 재시도·복구·큐 삭제·커서 조작을 하지 않았다. 감독자 종료 후 두 자식 PID가 없어졌고 processes.json도 없음을 확인했다. 원래 영속 상태는 보존했다. 로그·실행 메타데이터는 Git 밖 보호 경로 `/tmp/hmi-ops02-public-demo-retry1`과 기존 supervisor.log에 있다. DB/권한/배포 설정을 변경하지 않았고 DB 결과·용량은 조회하지 않았다. GOOD·가동 시간·수량 대조·5분 실연은 통과로 표시하지 않으며 이 기록 후 중단한다.

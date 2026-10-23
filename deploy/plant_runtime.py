@@ -6,6 +6,7 @@ import argparse
 import fcntl
 import json
 import os
+import re
 import secrets
 import shutil
 import signal
@@ -263,7 +264,8 @@ def sanitized_line(line):
         return None
     if (
         isinstance(value, dict)
-        and value.get("operation") in {"capture", "delivery", "command", "settlement"}
+        and isinstance(value.get("operation"), str)
+        and value["operation"] in {"capture", "delivery", "command", "settlement", "gateway"}
         and isinstance(value.get("state"), str)
         and value["state"]
         in {
@@ -275,9 +277,14 @@ def sanitized_line(line):
             "polled",
             "collected",
             "committed",
+            "stopped",
         }
     ):
-        return json.dumps({"operation": value["operation"], "state": value["state"]})
+        output = {"operation": value["operation"], "state": value["state"]}
+        error = value.get("error")
+        if isinstance(error, str) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,127}", error):
+            output["error"] = error
+        return json.dumps(output)
     return None
 
 

@@ -101,7 +101,11 @@ async def _settlement_loop(worker: RunSummaryWorker, stop: asyncio.Event) -> Non
 
 async def _run_workers(pump, command_worker, stop, *, settlement_worker=None) -> None:
     def status(value):
-        print(json.dumps({"operation": value["operation"], "state": value["state"]}), flush=True)
+        output = {"operation": value["operation"], "state": value["state"]}
+        error = _error_class(value.get("error"))
+        if error is not None:
+            output["error"] = error
+        print(json.dumps(output), flush=True)
 
     tasks = [
         asyncio.create_task(pump.run(stop, on_status=status)),
@@ -189,6 +193,12 @@ async def _serve(args) -> None:
                             loop.remove_signal_handler(sig)
 
 
+def _error_class(value):
+    if isinstance(value, str) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,127}", value):
+        return value
+    return None
+
+
 def main(argv=None) -> int:
     args = parser().parse_args(argv)
     try:
@@ -196,10 +206,14 @@ def main(argv=None) -> int:
         return 0
     except KeyboardInterrupt:
         return 0
-    except Exception:
+    except Exception as error:
         # Transport/driver errors can contain endpoint details; emit no exception body.
+        output = {"operation": "gateway", "state": "stopped"}
+        name = _error_class(type(error).__name__)
+        if name is not None:
+            output["error"] = name
         print(
-            "Gateway stopped; inspect configured identity, certificates, and queue status.",
+            json.dumps(output),
             file=sys.stderr,
         )
         return 1
