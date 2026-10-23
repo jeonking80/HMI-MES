@@ -295,3 +295,86 @@ async def test_guest_quota_is_lower_and_shared_across_new_sessions(service):
             response = await post(client, session, body())
             assert response.status_code == expected, response.text
     assert len(model.requests) == 2
+
+
+async def test_system_prompt_states_today_in_seoul(service):
+    from datetime import UTC, datetime
+    from zoneinfo import ZoneInfo
+
+    model = FakeModel(answer("확인"))
+    auth, app = make_app(service, model)
+    session, _ = account(auth, "viewer", {"viewer"})
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=ORIGIN) as client:
+        client.cookies.set(SESSION_COOKIE, session.token)
+        assert (await post(client, session, body())).status_code == 200
+    system = json.loads(model.requests[0].content)["messages"][0]["content"]
+    today = datetime.now(UTC).astimezone(ZoneInfo("Asia/Seoul")).date().isoformat()
+    assert f"오늘은 한국 시간 {today}" in system
+
+
+async def test_nemotron_thinking_is_off_and_provider_timeout_is_504(service):
+    model = FakeModel(answer("확인"))
+    auth, app = make_app(service, model)
+    session, _ = account(auth, "viewer", {"viewer"})
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=ORIGIN) as client:
+        client.cookies.set(SESSION_COOKIE, session.token)
+        assert (await post(client, session, body())).status_code == 200
+    sent = json.loads(model.requests[0].content)
+    assert sent["chat_template_kwargs"] == {"enable_thinking": False}
+
+    def slow(request):
+        raise httpx.ReadTimeout("slow provider", request=request)
+
+    auth = UserAuth(service.engine, allowed_origins={ORIGIN})
+    config = AssistantConfig(api_key=KEY, transport=httpx.MockTransport(slow))
+    app = create_user_app(auth, UserHTTPConfig(origin=ORIGIN, assistant=config))
+    session, _ = account(auth, "viewer2", {"viewer"})
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=ORIGIN) as client:
+        client.cookies.set(SESSION_COOKIE, session.token)
+        response = await post(client, session, body())
+    assert response.status_code == 504
+    assert KEY not in response.text
+
+
+async def test_short_remaining_budget_asks_for_a_final_answer_without_tools(service):
+    model = FakeModel(answer("지금까지 조회한 내용으로 답합니다."))
+    auth, app = make_app(service, model, timeout_seconds=5, deadline_seconds=10)
+    session, _ = account(auth, "viewer", {"viewer"})
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=ORIGIN) as client:
+        client.cookies.set(SESSION_COOKIE, session.token)
+        assert (await post(client, session, body())).status_code == 200
+    assert "tools" not in json.loads(model.requests[0].content)
+
+
+async def test_one_transient_provider_failure_is_retried(service):
+    replies = [
+        httpx.Response(503, json={}),
+        httpx.Response(200, json={"choices": [{"message": answer("재시도 후 답변")}]}),
+    ]
+    seen = []
+
+    def flaky(request):
+        seen.append(request)
+        return replies.pop(0)
+
+    auth = UserAuth(service.engine, allowed_origins={ORIGIN})
+    config = AssistantConfig(api_key=KEY, transport=httpx.MockTransport(flaky))
+    app = create_user_app(auth, UserHTTPConfig(origin=ORIGIN, assistant=config))
+    session, _ = account(auth, "viewer", {"viewer"})
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=ORIGIN) as client:
+        client.cookies.set(SESSION_COOKIE, session.token)
+        response = await post(client, session, body())
+    assert response.status_code == 200 and len(seen) == 2
+
+
+def test_dashboard_summary_keeps_totals_and_only_active_hours():
+    from apps.api.assistant import _summarize_dashboard
+
+    hourly = [
+        {"hour_start": f"h{i}", "good": "0", "reject": "0", "running_seconds": 0} for i in range(23)
+    ]
+    hourly.append({"hour_start": "h23", "good": "5", "reject": "0", "running_seconds": 60})
+    summary = _summarize_dashboard({"production": {"good": "5"}, "hourly": hourly})
+    assert summary["production"] == {"good": "5"}
+    assert [h["hour_start"] for h in summary["hourly_with_activity"]] == ["h23"]
+    assert summary["hourly_without_activity"] == 23

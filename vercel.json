@@ -2,11 +2,11 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "regions": ["sin1"],
-  "buildCommand": "npm --prefix apps/web ci && VITE_SCREEN_TRANSPORT=polling npm --prefix apps/web run build",
+  "buildCommand": "npm --prefix apps/web ci && VITE_SCREEN_TRANSPORT=polling VITE_ANALYTICS_PAGES=enabled npm --prefix apps/web run build",
   "outputDirectory": "apps/web/dist",
   "functions": {
     "api/index.py": {
-      "maxDuration": 30,
+      "maxDuration": 60,
       "excludeFiles": "{.local/**,.cache/**,.venv/**,tests/**,docs/**,deploy/**,apps/web/node_modules/**,apps/web/src/**,**/*.sqlite*,**/*.pem,**/*.der,**/*.log}"
     }
   },

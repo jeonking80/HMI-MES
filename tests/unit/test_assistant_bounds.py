@@ -12,6 +12,7 @@ import pytest
 from fastapi import FastAPI, Request
 from starlette.responses import JSONResponse
 
+import apps.api.assistant as assistant_module
 from apps.api.assistant import AssistantConfig, _Limiter, _Tools, register_assistant_routes
 
 ORIGIN = "https://assistant.test"
@@ -22,14 +23,21 @@ SCOPE = dict(line_id="line", source_id="source", stream_id="stream")
 NOW = datetime(2026, 10, 23, tzinfo=UTC)
 
 
+@pytest.fixture(autouse=True)
+def isolated_deadline_clock(monkeypatch):
+    # Keep the production 50 s planning thresholds while accelerating only the
+    # outer asyncio deadline in tests. No live provider or long test sleep.
+    monkeypatch.setattr(assistant_module, "asyncio", SimpleNamespace(timeout=asyncio.timeout))
+
+
 @pytest.mark.parametrize(
     "field,value",
     [
         ("timeout_seconds", float("nan")),
         ("timeout_seconds", float("inf")),
-        ("global_deadline_seconds", 26),
-        ("global_deadline_seconds", float("nan")),
-        ("global_deadline_seconds", True),
+        ("deadline_seconds", 51),
+        ("deadline_seconds", float("nan")),
+        ("deadline_seconds", True),
         ("session_limit", 0),
         ("global_limit", float("inf")),
         ("guest_limit", -1),
@@ -141,9 +149,8 @@ class Auth:
 def app(provider, *, deadline=0.08, auth=None):
     auth = auth or Auth()
     application = FastAPI()
-    config = AssistantConfig(
-        api_key=KEY, global_deadline_seconds=deadline, transport=httpx.MockTransport(provider)
-    )
+    config = AssistantConfig(api_key=KEY, transport=httpx.MockTransport(provider))
+    assistant_module.asyncio.timeout = lambda configured: asyncio.timeout(deadline)
     register_assistant_routes(
         application, auth, config, origin=ORIGIN, session_cookie="hmi_session"
     )

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { AuthError, changePassword, guestAvailable, guestLogin, login, logout } from './auth'
+import { AuthError, changePassword, deploymentFeatures, guestLogin, login, logout, noFeatures } from './auth'
 import type { Session } from './auth'
 import SnapshotPanel from './SnapshotPanel'
 import MesDraftPanel from './MesDraftPanel'
@@ -13,12 +13,13 @@ import CancellationPanel from './CancellationPanel'
 import { useCancellation } from './useCancellation'
 import { WorkOrderMutationGuard } from './workOrderMutationGuard'
 import Sidebar from './Sidebar'
-import { pageDefinition } from './navigation'
+import { buildNavigation, pageDefinition } from './navigation'
 import type { WorkspacePage } from './navigation'
 import DashboardPage from './analytics/DashboardPage'
 import TrendPage from './analytics/TrendPage'
 import ReportsPage from './analytics/ReportsPage'
 import SpcPage from './analytics/SpcPage'
+import AssistantPage from './analytics/AssistantPage'
 import type { Source } from './analytics/hooks'
 
 export default function App() {
@@ -33,7 +34,7 @@ export default function App() {
   const [mesOpened, setMesOpened] = useState(false)
   const [analyticsScope, setAnalyticsScope] = useState<Source | null>(null)
   const [busy, setBusy] = useState(false)
-  const [guestOffered, setGuestOffered] = useState(false)
+  const [features, setFeatures] = useState(noFeatures)
   const [guestMode, setGuestMode] = useState(false)
   const inFlight = useRef(false)
   const [error, setError] = useState('')
@@ -42,14 +43,15 @@ export default function App() {
   const passwordRequired = session?.must_change_password === true
   const showPasswordForm = session !== null && (passwordRequired || changingPassword)
   const screen = !session ? 'login' : showPasswordForm ? 'password' : 'workspace'
+  const signedIn = session !== null
 
   useEffect(() => { document.title = 'HMI-MES · 운영 시스템' }, [])
   useEffect(() => {
-    if (session) return
+    // Re-read on sign-in and sign-out: a deployment can change between visits.
     const controller = new AbortController()
-    void guestAvailable(controller.signal).then(available => { if (!controller.signal.aborted) setGuestOffered(available) })
+    void deploymentFeatures(controller.signal).then(value => { if (!controller.signal.aborted) setFeatures(value) })
     return () => controller.abort()
-  }, [session])
+  }, [signedIn])
   useEffect(() => { heading.current?.focus() }, [screen, workspaceTab])
   // Success notices are transient; errors stay until the next action.
   useEffect(() => {
@@ -157,11 +159,13 @@ export default function App() {
 
   if (session && screen === 'workspace') {
     const current = pageDefinition(workspaceTab)
+    const navigation = buildNavigation(features)
     return (
       <div className="app-shell workspace-shell">
         <a className="skip-link" href="#main-content">본문으로 이동</a>
         <Sidebar
           session={session}
+          navigation={navigation}
           page={workspaceTab}
           busy={busy}
           onNavigate={navigate}
@@ -182,6 +186,8 @@ export default function App() {
           {workspaceTab === 'dashboard' && <DashboardPage scope={analyticsScope} onScope={setAnalyticsScope} onSessionInvalid={invalidateSession} />}
           {workspaceTab === 'trends' && <TrendPage scope={analyticsScope} onScope={setAnalyticsScope} onSessionInvalid={invalidateSession} />}
           {workspaceTab === 'reports' && <ReportsPage session={session} scope={analyticsScope} onScope={setAnalyticsScope} onSessionInvalid={invalidateSession} />}
+          {/* Kept mounted (hidden) so the conversation survives switching pages. */}
+          {features.assistant && <div hidden={workspaceTab !== 'assistant'}><AssistantPage session={session} scope={analyticsScope} onScope={setAnalyticsScope} onSessionInvalid={invalidateSession} /></div>}
           {workspaceTab === 'spc' && <SpcPage scope={analyticsScope} onScope={setAnalyticsScope} onSessionInvalid={invalidateSession} />}
           {/* Work-order request ledgers belong to the operations and work-order pages; hidden (not unmounted) elsewhere to keep their state. */}
           <div hidden={workspaceTab !== 'operations' && workspaceTab !== 'drafts'}>
@@ -227,7 +233,7 @@ export default function App() {
             <input id="login-password" name="password" type="password" autoComplete="current-password" required value={password} disabled={busy} onChange={event => setPassword(event.target.value)} />
             <button id="login-submit" className="button primary full-width" type="submit" disabled={busy}>{busy ? '로그인 확인 중…' : '로그인'}</button>
             <p className="form-help">계정 발급이나 비밀번호 초기화는 설비 관리자에게 문의해 주세요.</p>
-            {guestOffered && <div className="guest-entry">
+            {features.guest && <div className="guest-entry">
               <span>또는</span>
               <button id="guest-login" className="button secondary full-width" type="button" disabled={busy} onClick={() => void run('guest')}>로그인 없이 둘러보기 (조회 전용)</button>
               <p className="form-help">운전·등록 같은 변경은 할 수 없으며 30분 뒤 자동으로 종료됩니다.</p>

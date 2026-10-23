@@ -60,7 +60,9 @@ class AssistantConfig:
     base_url: str = DEFAULT_BASE_URL
     max_rounds: int = 4
     timeout_seconds: float = 20.0
-    global_deadline_seconds: float = 25.0
+    # Whole answer budget under the 60 s serverless limit (vercel.json); later rounds stop
+    # calling tools.
+    deadline_seconds: float = 50.0
     # Per session and per process; protects the shared free-tier key from one viewer.
     session_limit: int = 10
     global_limit: int = 30
@@ -89,9 +91,15 @@ class AssistantConfig:
             raise ValueError("assistant endpoint must be credential-free HTTPS")
         if type(self.max_rounds) is not int or not 1 <= self.max_rounds <= 6:
             raise ValueError("assistant round bound is out of range")
-        for value in (self.timeout_seconds, self.global_deadline_seconds):
-            if type(value) not in (float, int) or not math.isfinite(value) or not 0 < value <= 25:
+        for value, maximum in ((self.timeout_seconds, 25), (self.deadline_seconds, 50)):
+            if (
+                type(value) not in (float, int)
+                or not math.isfinite(value)
+                or not 0 < value <= maximum
+            ):
                 raise ValueError("assistant time bound is out of range")
+        if self.timeout_seconds > self.deadline_seconds:
+            raise ValueError("assistant request timeout exceeds whole answer budget")
         for value, maximum in (
             (self.session_limit, 1000),
             (self.global_limit, 10000),
@@ -246,6 +254,22 @@ def _summarize_trend(body):
         )
     return {k: body.get(k) for k in ("from", "to", "resolution", "generated_at")} | {
         "series": series
+    }
+
+
+def _summarize_dashboard(body):
+    # Empty hours add input tokens (and seconds) without information; keep their count.
+    hourly = body.get("hourly") or []
+    active = [
+        h
+        for h in hourly
+        if h.get("good") not in (None, "0")
+        or h.get("reject") not in (None, "0")
+        or h.get("running_seconds")
+    ]
+    return {k: v for k, v in body.items() if k != "hourly"} | {
+        "hourly_with_activity": active,
+        "hourly_without_activity": len(hourly) - len(active),
     }
 
 
@@ -427,7 +451,12 @@ class _Tools:
         if name == "get_dashboard":
             scope = await self._scope()
             day = _day(arguments.get("date"), self.now)
-            return f"대시보드 {day}", "/api/v1/dashboard", scope | {"date": day}, lambda b: b
+            return (
+                f"대시보드 {day}",
+                "/api/v1/dashboard",
+                scope | {"date": day},
+                _summarize_dashboard,
+            )
         if name == "get_line_snapshot":
             scope = await self._scope()
             return "라인 스냅샷", "/api/v1/snapshot", scope, _summarize_snapshot
@@ -492,7 +521,13 @@ class _Tools:
 async def run_assistant(config, request_app, cookies, chat: ChatRequest, *, origin):
     """One answer with bounded tool rounds; returns answer and the evidence actually read."""
     now = datetime.now(UTC)
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}] + [
+    local = now.astimezone(SEOUL)
+    # The model has no clock; without this it guesses dates and queries the wrong day.
+    today = (
+        f"\n- 오늘은 한국 시간 {local.date().isoformat()}, 현재 시각은 {local:%H:%M} KST다."
+        " 사용자가 날짜를 말하지 않으면 오늘을 조회한다."
+    )
+    messages = [{"role": "system", "content": SYSTEM_PROMPT + today}] + [
         {"role": t.role, "content": t.content} for t in chat.messages
     ]
     async with (
@@ -511,17 +546,38 @@ async def run_assistant(config, request_app, cookies, chat: ChatRequest, *, orig
         ) as model,
     ):
         tools = _Tools(internal, chat.scope.model_dump() if chat.scope else None, now)
+        started = time.monotonic()
         for round_index in range(config.max_rounds + 1):
-            final_round = round_index == config.max_rounds
+            remaining = config.deadline_seconds - (time.monotonic() - started)
+            if remaining < 3:
+                raise TimeoutError("assistant deadline")
+            # Without tools the model must answer from what it has already read.
+            final_round = round_index == config.max_rounds or remaining < 2 * 8
             payload = {
                 "model": config.model,
                 "messages": messages,
                 "temperature": 0.2,
                 "max_tokens": 1024,
             }
+            if "nemotron" in config.model:
+                # Nemotron's reasoning phase took 20 s per round on real tool results and
+                # could exhaust max_tokens before the answer; answers stay tool-grounded.
+                payload["chat_template_kwargs"] = {"enable_thinking": False}
             if not final_round:
                 payload |= {"tools": TOOLS, "tool_choice": "auto"}
-            response = await model.post("/chat/completions", json=payload)
+            response = await model.post(
+                "/chat/completions",
+                json=payload,
+                timeout=min(config.timeout_seconds, remaining),
+            )
+            remaining = config.deadline_seconds - (time.monotonic() - started)
+            if response.status_code in {429, 500, 502, 503} and remaining > 10:
+                # The shared endpoint fails transiently; retry once while time remains.
+                response = await model.post(
+                    "/chat/completions",
+                    json=payload,
+                    timeout=min(config.timeout_seconds, remaining - 1),
+                )
             response.raise_for_status()
             message = response.json()["choices"][0]["message"]
             calls = (message.get("tool_calls") or [])[:4]
@@ -612,7 +668,7 @@ def register_assistant_routes(app, auth, config: AssistantConfig | None, *, orig
         try:
             # One budget includes request validation, caller authorization, every
             # provider round and every local GET. A tool round never resets it.
-            async with asyncio.timeout(config.global_deadline_seconds):
+            async with asyncio.timeout(config.deadline_seconds):
                 return await perform_chat(request)
         except TimeoutError:
             return JSONResponse(
