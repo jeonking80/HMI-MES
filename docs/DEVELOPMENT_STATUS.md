@@ -1,6 +1,6 @@
 # 개발 진행 상태
 
-기준일: 2026년 10월 21일 (Asia/Seoul)
+기준일: 2026년 10월 23일 (Asia/Seoul)
 
 **프로젝트 상태: 개발 진행 중. 기획서·개발계획서의 전체 완료 조건은 아직 충족하지 않았다.**
 
@@ -11,6 +11,8 @@
 주 에이전트가 의존성과 통합 검증을 조정한다. 서브에이전트는 `gpt-6.1-sol` medium을 기본으로 사용하며, high는 DB 마이그레이션·데이터 격리 등 위험도가 높은 검토에만 사용한다. DEV 항목을 작은 작업으로 나누고 각 결과를 확인한 뒤 후속 작업을 배정한다. 아래 작은 작업의 통과는 상위 DEV나 전체 프로젝트의 완료를 의미하지 않는다.
 
 ## 현재 작업
+
+공개 주소는 <https://hmi-mes.vercel.app>이다. 기존 Vercel Hobby·Neon Free를 유지하고, 현재 클라우드에서 별도 설비·게이트웨이를 실행하여 실제 OPC UA 관측 48개와 DB 커밋 ACK를 확인했다. 고정 수집원 등록과 서비스 인증도 공개 API에서 성공했다. 공개 화면의 실제 viewer 로그인·48개 태그 연속 갱신을 확인했으며 추가 유료 서비스나 사용자 수동 SQL·환경변수 입력은 필요 없다. 공개 배포의 생산·종료·정산 전체를 검증한 것은 아니다. 사용 순서는 [작업자 안내](OPERATOR_GUIDE.md), 재개 절차와 실행 환경의 제한은 [설비 연결](../deploy/plant-hosting.md)에 기록한다.
 
 M1의 독립 운전·원본 보관 보호·지속 온도 편차와 M2의 실제 OPC UA→게이트웨이→PostgreSQL 수집·명령·최종 정산 경로를 구현하고 집중 검증했다. M3는 인증·WebSocket 조회·제어 화면, 아날로그 알람 수집·저장·확인/메모와 실제 브라우저를 검증했다. M4는 작업지시 등록·배포·원자적 실행 연결·원래 결과 복구 화면과 수동 실행 조회 API를 검증했다.
 
@@ -334,3 +336,6 @@ M1의 주요 독립 운전·권한·실제 생산 경로는 확인했지만, 원
 - 위 변경의 기존 ingestion/Vercel/생성기 포함 **88개 통과(29.75초)**·Ruff/형식 **248개 파일**·실제 Vercel Python 빌더 통과. 빌더에서 고정 정책 JSON과 certifi CA 포함·비밀 파일0개를 확인했다. 독립 high는 고정 scope/동일 key 변조/무인증 DB접근0/schema-exclusive 경합/양방향 등록·COMMIT rollback 등 **31개 통과**를 확인했다. 아직 공개 POST를 실행한 결과는 아니며 이어서 실제 배포 검증한다. 로그 `/tmp/hmi-source-binding-final.log`, `/tmp/hmi-cloud-policy-builder.log`, 독립 `/tmp/test_source_binding_review.py`.
 - 공개 함수 실행 지역 `iad1`과 Neon Singapore의 차이를 확인했고 실제 DB ready 요청은 약2.8초였다. Vercel 공식 지역 문서의 Hobby 단일지역 지원을 확인하여 `vercel.json`의 지역을 `sin1` 하나로 지정했다. 요금제를 변경하거나 유료 리소스를 생성하지 않는다. 실제 공개 화면 갱신과 수집 ACK는 배포 후 별도로 확인한다.
 - 실제 `27accd2` 배포의 `sin1` 반영을 확인했으나 본문·query 없는 source 등록 POST가422로 거절됐다. 공식 Vercel 문서에서 named rewrite parameter가 query로 전달됨을 확인했고, 익명 화면 조회의 정확3개 scope query도422로 깨지는 것을 재현했다. `:path*` rewrite 대신 query를 합성하지 않는 PCRE routes와 filesystem 단계를 사용하도록 수정한다. 백엔드의 strict query·인증 검사는 완화하지 않는다. 아직 실제 source 등록은 성공하지 않았으며 수정 배포 후 재확인한다.
+- `6f06cb1` 공개 배포 후 원래 query 보존을 확인했다. 본문·query 없는 source 등록 POST와 인증된 서비스 health는 각각200, 익명 정확 scope 화면 요청은401, 여분 query 요청은422다. 공개 루트·실제 JS/CSS도200이다. 전용 클라우드 supervisor를 재개하고 실제 원격/자동·복구 확인을 수행했다. simulator→암호화 OPC UA→게이트웨이→Vercel→Neon 경로에서 capture711의48개 GOOD 관측과 capture710의COMMITTED ACK를 확인했다. 오래된 오프라인 배치453개는 보관기한을 지나 태그 관측이 유실됐다. 해당 배치에 사건 범위는 없고 ACK의 미해결 사건 gap은 비어 있다. 큐를 삭제하거나 유실을0으로 재설정하지 않았다.
+- 공개 viewer 브라우저 조회 검증이 **정상 종료**했다(2026-10-23 01:10 UTC). 정상 로그인·최초 암호 변경 후 정확한 source/stream/line을 선택했고, 최소3개 실제 batch에 걸친4회 연속48개 fresh/GOOD·heartbeatGOOD·CAPTURE_FRESH·화면 usable48개를 확인했다. WS0·페이지 오류0·비인증 업무 변경0·브라우저 저장소0, viewer 운전 변경 불가도 확인했다. `demo`의 사용자가 변경한 암호는 접근·재설정하지 않았다. 실제 설비는 정지·현재 실행 없음·양품0이며 공개 생산 명령은 제출하지 않았다.
+- 위 공개 브라우저 검증은 Chromium JavaScript/UI를 실행하되, 이 환경의 Chromium 직접 TLS 신뢰 실패로 Playwright route에서 정상 CA 검증·상속 프록시를 사용하는 httpx로 실제 공개 응답을 전달했다. 모의 응답·TLS 검증 해제·프록시 우회는 사용하지 않았다. 직접 Chromium TLS 검증 통과로 표시하지 않는다. 보호 증거 `.local/commissioning/public-screen-evidence.json`, 암호가 없는 화면 `.local/commissioning/public-screen.png`, 로그 `/tmp/hmi-public-screen-bridge.log`에 기록했다. 현재 클라우드 프로세스의 생존을 사용량 소진 후 또는 환경 중단 후의 상시 실행 보장으로 확대하지 않는다. 전체 기획 수락과 별개다.

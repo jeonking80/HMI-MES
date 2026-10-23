@@ -4,7 +4,9 @@ Vercel Hobby의 웹·API와 Neon Free DB는 유지한다. 별도 설비 앱과 �
 
 ## 현재 검증 경계
 
-공개 앱의 DB 준비 검사와 사용자 로그인·암호 변경은 사용자 결과로 확인했다. 별도 임시 DB·실제 CLI·브라우저·OPC UA의 작업 등록/배포/연결/예열/시작/생산/일시정지/종료/SETTLED 대조는 `scripts/check-operable-system.py`로 통과했다. 공개 앱의 실제 설비 수집·명령과 영속 호스팅은 이와 별도로 확인해야 한다.
+공개 앱의 DB 준비 검사와 사용자 로그인·암호 변경은 사용자 결과로 확인했다. `6f06cb1` 이후 공개 배포는 `sin1`에서 원래 query를 보존하는 라우팅을 사용하며, 명시적 source-binding POST와 인증된 서비스 상태 조회가 각각 200으로 확인됐다. 전용 클라우드 supervisor가 실행 중이며 실제 48개 태그의 GOOD 관측과 `COMMITTED` ACK, 해당 수집원의 미해결 사건 gap이 없음을 확인했다. 이전 오프라인 대기 batch 453개는 만료되어 오래된 태그 관측이 유실됐다. 이 batch에는 사건 범위가 없었으며, 원래 큐의 영수증·상태 기록은 삭제하지 않고 보존했다. 현재 고정 배포에는 추가 수동 SQL이나 환경변수 설정이 필요 없다.
+
+공개 앱에서 viewer 정상 로그인·최초 암호 변경·수집원 선택 후48개 태그의4회 연속 fresh/GOOD 갱신과 정상 heartbeat를 확인했다. Chromium UI의 요청을 정상 CA 검증·상속 프록시의 httpx로 실제 서버에 전달했으며 직접 Chromium TLS 검증과 구분한다. `demo`의 암호는 변경하지 않았다. 별도 임시 DB·실제 CLI·브라우저·OPC UA의 작업 등록/배포/연결/예열/시작/생산/일시정지/종료/SETTLED 대조는 `scripts/check-operable-system.py`로 통과했다. 공개 앱의 START·생산·종료·정산 수락 검사는 아직 남아 있다. 클라우드 환경 중단 후의 상시 실행도 보장하지 않는다.
 
 ## 연결 파일 생성과 수동 적용
 
@@ -52,12 +54,11 @@ Vercel Hobby의 웹·API와 Neon Free DB는 유지한다. 별도 설비 앱과 �
   --token-file "$PWD/.local/commissioning/connection/token.secret"
 ```
 
-새 저장소에 한해서 `prepare --initialize`를 명시한다. 일반 재실행은 `prepare`만 사용한다. 기동 후에는 설비가 복구 필요 상태로 멈춘다. 정지 출력·물품 위치·저장소·미결 명령을 실제 확인한 운영자가 별도 `commission` 명령으로 복구·REMOTE/AUTO를 설정한다. 이 명령은 START나 작업을 만들지 않는다. 현재 암호 파일을 지정하며 최초 암호 변경 후에는 `console-password`를 사용한다.
+새 저장소에 한해서 `prepare --initialize`를 명시한다. 일반 재실행은 `prepare`만 사용한다. 기동 후에는 설비가 복구 필요 상태로 멈춘다. 정지 출력·물품 위치·저장소·미결 명령을 실제 확인한 운영자가 별도 `commission` 명령으로 복구·REMOTE/AUTO를 설정한다. 이 명령은 START나 작업을 만들지 않는다. 아래는 최초 암호 변경을 마친 현재 런타임의 명령이며 `console-password`를 사용한다. 새 저장소의 최초 실행에만 `--password-file`을 `console-initial-password`로 지정하고 `--new-password-file .local/commissioning/runtime/console-password`를 추가한다.
 
 ```sh
 .venv/bin/python deploy/plant_runtime.py --directory .local/commissioning/runtime commission \
-  --password-file .local/commissioning/runtime/console-initial-password \
-  --new-password-file .local/commissioning/runtime/console-password \
+  --password-file .local/commissioning/runtime/console-password \
   --outputs-stopped --positions-verified --storage-reconciled \
   --commands-reconciled --operator-confirmed
 ```
@@ -78,7 +79,7 @@ uv sync --python 3.12 --frozen --no-dev --no-install-project
 .venv/bin/python deploy/plant_runtime.py --directory .local/commissioning/runtime prepare --initialize
 ```
 
-위 연결 파일 생성·수동 적용의 SQL과 Vercel 설정 두 가지를 완료하고, 같은 `token.secret`을 PC의 `.local/commissioning/connection/token.secret`에 보호 파일로 전달한다. 파일은 현재 실행 사용자 소유의 일반 파일이고 권한은 `0600`이어야 한다. 토큰 원문을 명령줄이나 채팅에 넣지 않는다. 기존 보호 파일을 덮어쓰지 않는다.
+현재 고정 배포는 위에서 확인한 binding을 유지하며 추가 SQL·Vercel 설정 없이 같은 `token.secret`을 PC의 `.local/commissioning/connection/token.secret`에 보호 파일로 전달한다. 다른 배포에만 위 연결 파일 생성·수동 적용 절차를 사용한다. 파일은 현재 실행 사용자 소유의 일반 파일이고 권한은 `0600`이어야 한다. 토큰 원문을 명령줄이나 채팅에 넣지 않는다. 기존 보호 파일을 덮어쓰지 않는다.
 
 이후 위의 `serve` 명령으로 실행한다. 로컬 설비 콘솔은 `http://127.0.0.1:8011`이며 계정은 `commissioning.operator`다. 최초 비밀번호는 런타임 디렉터리의 `console-initial-password` 보호 파일에 있다. 최초 준비의 실제 확인과 `commission`은 위 절차를 따르며, 기존 작업이 남은 재기동은 [설비 앱 실행 절차](../docs/architecture/SIMULATOR_RUN.md)의 명령·위치·수량 대조 절차를 따른다. 앱 A에서 값이 갱신되는 것을 확인한 후 [작업자 사용 순서](../docs/OPERATOR_GUIDE.md)를 따른다.
 

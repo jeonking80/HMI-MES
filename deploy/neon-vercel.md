@@ -4,9 +4,9 @@
 
 ## 현재 적용 상태
 
-사용자 콘솔 결과로 Neon 프로젝트 `hmi-mes-demo`, production 브랜치의 DB `hmi_mes_demo`에 초기 스키마 `0014_mixed_alarm_runtime`, 공장 1·라인 1·설비 3·태그 48·역할 4개가 저장된 것을 확인했다. `demo`·`viewer` 앱 계정도 생성됐으며 최초 로그인 시 비밀번호 변경이 필요하다. 사용자가 DB 역할 `hmi_app`의 LOGIN과 비밀번호 설정을 확인했다. **이 DB에 초기화·계정 SQL을 다시 실행하지 않는다.**
+사용자 콘솔 결과로 Neon 프로젝트 `hmi-mes-demo`, production 브랜치의 DB `hmi_mes_demo`에 초기 스키마 `0014_mixed_alarm_runtime`, 공장 1·라인 1·설비 3·태그 48·역할 4개가 저장된 것을 확인했다. `demo`·`viewer` 앱 계정도 생성됐으며 `demo`는 최초 비밀번호 변경과 정상 로그인을 확인했다. `viewer`도 공개 화면에서 정상 로그인·최초 암호 변경·48개 태그의 연속 갱신을 확인했다. 사용자가 DB 역할 `hmi_app`의 LOGIN과 비밀번호 설정을 확인했다. **이 DB에 초기화·계정 SQL을 다시 실행하지 않는다.**
 
-사용자 Vercel 콘솔에서 main `57aef27`의 Production 배포 Ready와 실제 도메인 `hmi-mes.vercel.app`을 확인했다. 사용자 브라우저의 `/api/ready` 응답은 `{"ready":false}`이므로 실제 Neon 런타임 연결은 아직 확인되지 않았다. 로그인과 별도 게이트웨이 연결도 후속 검증한다. Vercel 배포 Ready와 DB 준비 성공을 구분한다.
+현재 Production 도메인은 `hmi-mes.vercel.app`이며 `/api/ready`는 HTTP 200, `{"ready":true}`로 실제 Neon 런타임 연결을 확인했다. `6f06cb1` 이후 `sin1` 배포에서 원래 query를 보존하는 라우팅과 전용 scope 고정 정책을 적용했으며, 명시적 source 등록과 인증된 서비스 상태 조회도 HTTP 200으로 확인했다. 현재 고정 배포에는 추가 수동 SQL·환경변수 설정이 필요 없다. 공개 브라우저 운전 수락 검사는 아직 남아 있으며, DB 준비·인증·수집 확인만으로 START·생산·종료·정산이나 전체 운영 완료를 주장하지 않는다. 실제 수집 결과와 별도 로컬 E2E 검증 범위는 [설비 연결 준비](plant-hosting.md)를 따른다.
 
 ## 1. Neon 연결 문자열
 
