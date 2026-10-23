@@ -329,13 +329,47 @@ def load_report_evidence(db, line_id, start, end, *, scope=None, execution_id=No
     if scope:
         params.update(source=scope["source_id"], stream=scope["stream_id"])
         where += " AND s.source_id=:source AND s.stream_id=:stream"
+    # The legacy fallback needs only clock_assessment. Aggregate once per scope
+    # instead of probing and detoasting the entire decision history per capture.
+    # Keep original bodies intact: canonical evidence validates their full digest.
+    context_where = "cs.line_id=:line"
+    if scope:
+        context_where += " AND cs.source_id=:source AND cs.stream_id=:stream"
+    contexts = (
+        "WITH report_clock_contexts AS MATERIALIZED ("
+        "SELECT d.gateway_id,d.batch_id,"
+        "array_agg(jsonb_build_object('clock_assessment',"
+        "d.context->'clock_assessment')) AS contexts "
+        "FROM alarm_capture_decisions d JOIN source_streams cs "
+        "USING(source_id,stream_id) WHERE " + context_where + " GROUP BY d.gateway_id,d.batch_id) "
+    )
+    # Legacy rows have no canonical body-digest consumer. Keep their original
+    # nonempty-sample distinction and only the three tags this projection reads.
+    # Every row carrying durable evidence retains its complete original body,
+    # even UNKNOWN or invalidly bound evidence, for effective_capture_clock.
+    legacy_body = """jsonb_set(b.body,'{samples}',(
+        SELECT coalesce(jsonb_agg(sample ORDER BY ordinal),'[]'::jsonb)
+        FROM jsonb_array_elements(b.body->'samples') WITH ORDINALITY sample_rows(sample,ordinal)
+        WHERE ordinal=1 OR sample->>'tag_id' IN
+          ('Line.State','Line.ActiveExecutionId','Line.FaultCode')))"""
+    body_projection = legacy_body
+    if canonical:
+        body_projection = (
+            "CASE WHEN clock.batch_id IS NULL THEN " + legacy_body + " ELSE b.body END"
+        )
     rows = (
         db.execute(
             text(
-                "SELECT b.*,s.conflicted,s.reconciliation_required," + proof + ","
-                "ARRAY(SELECT d.context FROM alarm_capture_decisions d "
-                "WHERE d.gateway_id=b.gateway_id AND d.batch_id=b.batch_id) AS contexts "
-                "FROM ingest_batches b JOIN source_streams s USING(source_id,stream_id) "
+                contexts + "SELECT b.gateway_id,b.batch_id,b.source_id,b.stream_id,"
+                "b.capture_generation,b.capture_seq,b.content_sha256,"
+                + body_projection
+                + " AS body,b.stored_at,"
+                "s.conflicted,s.reconciliation_required," + proof + ","
+                "report_context.contexts FROM ingest_batches b "
+                "JOIN source_streams s USING(source_id,stream_id) "
+                "LEFT JOIN report_clock_contexts report_context "
+                "ON report_context.gateway_id=b.gateway_id "
+                "AND report_context.batch_id=b.batch_id "
                 + join
                 + " WHERE "
                 + where

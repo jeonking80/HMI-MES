@@ -60,6 +60,7 @@ def read_snapshot(
     source_id: str,
     stream_id: str,
     now: datetime,
+    prefer_complete_capture: bool = False,
 ) -> SnapshotRead:
     """Return latest observations, never open/commit a separate DB transaction.
 
@@ -92,10 +93,57 @@ def read_snapshot(
             )
         ).scalars()
     )
+
+    def latest_sample_capture():
+        return (
+            connection.execute(
+                sa.select(
+                    ingest_batches.c.body,
+                    ingest_batches.c.stored_at,
+                    ingest_batches.c.batch_id,
+                    ingest_batches.c.capture_generation,
+                    ingest_batches.c.capture_seq,
+                )
+                .where(
+                    ingest_batches.c.source_id == source_id,
+                    ingest_batches.c.stream_id == stream_id,
+                    ingest_batches.c.gateway_id == source["gateway_id"],
+                    ingest_batches.c.capture_generation == source["capture_generation"],
+                    sa.func.jsonb_array_length(ingest_batches.c.body["samples"]) > 0,
+                )
+                .order_by(ingest_batches.c.capture_seq.desc())
+                .limit(1)
+            )
+            .mappings()
+            .first()
+        )
+
+    latest = latest_sample_capture() if prefer_complete_capture else None
+    complete_rows = None
+    if latest is not None:
+        observations = latest["body"]["samples"]
+        names = [item["tag_id"] for item in observations]
+        # A complete newest capture dominates every older observation. Partial
+        # captures must retain the historical per-tag lookup, including BAD tags.
+        if expected.issubset(names) and len(names) == len(set(names)):
+            complete_rows = [
+                dict(
+                    sample=item,
+                    batch_id=latest["batch_id"],
+                    capture_generation=latest["capture_generation"],
+                    capture_seq=latest["capture_seq"],
+                    captured_at=latest["body"]["captured_at"],
+                    stored_at=latest["stored_at"],
+                )
+                for item in sorted(observations, key=lambda item: item["tag_id"])
+            ]
     # DISTINCT ON returns one observation per tag without loading the entire
     # retained batch history into Python. JSON values are parsed by TagSample.
-    rows = connection.execute(
-        sa.text("""
+    rows = (
+        complete_rows
+        if complete_rows is not None
+        else connection.execute(
+            sa.text("""
         SELECT DISTINCT ON (sample->>'tag_id') sample, b.batch_id,
                b.capture_generation, b.capture_seq,
                b.body->>'captured_at' AS captured_at, b.stored_at
@@ -108,8 +156,9 @@ def read_snapshot(
         ORDER BY sample->>'tag_id', b.capture_generation DESC, b.capture_seq DESC,
                  b.gateway_id, b.batch_id
     """),
-        {"line_id": line_id, "source_id": source_id, "stream_id": stream_id},
-    ).mappings()
+            {"line_id": line_id, "source_id": source_id, "stream_id": stream_id},
+        ).mappings()
+    )
     samples, evidence = [], []
     stale_after = _CONTRACT["quality"]["stale_after_ms"] / 1000
     for row in rows:
@@ -137,22 +186,8 @@ def read_snapshot(
         )
     # Use the newest sample capture, including legacy captures lacking health.
     # Never borrow older GOOD evidence to fill a newer capture's unknown health.
-    latest = (
-        connection.execute(
-            sa.select(ingest_batches.c.body, ingest_batches.c.stored_at)
-            .where(
-                ingest_batches.c.source_id == source_id,
-                ingest_batches.c.stream_id == stream_id,
-                ingest_batches.c.gateway_id == source["gateway_id"],
-                ingest_batches.c.capture_generation == source["capture_generation"],
-                sa.func.jsonb_array_length(ingest_batches.c.body["samples"]) > 0,
-            )
-            .order_by(ingest_batches.c.capture_seq.desc())
-            .limit(1)
-        )
-        .mappings()
-        .first()
-    )
+    if not prefer_complete_capture:
+        latest = latest_sample_capture()
     communication = None
     communication_captured_at = None
     heartbeat = "UNKNOWN"
