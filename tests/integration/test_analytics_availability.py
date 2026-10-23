@@ -16,9 +16,10 @@ from apps.api.user_http import UserHTTPConfig, create_user_app
 ORIGIN = "https://analytics.example.test"
 
 
-def application(engine):
+def application(engine, *, monotonic=None):
+    options = {} if monotonic is None else {"monotonic": monotonic}
     return create_user_app(
-        UserAuth(engine, allowed_origins={ORIGIN}), UserHTTPConfig(origin=ORIGIN)
+        UserAuth(engine, allowed_origins={ORIGIN}), UserHTTPConfig(origin=ORIGIN, **options)
     )
 
 
@@ -109,13 +110,18 @@ async def test_read_only_runtime_can_advertise_available_and_missing_grant_canno
         connect_args={"options": "-c role=analytics_reader"},
     )
     try:
-        readonly_app = application(reader)
+        clock = [0.0]
+        readonly_app = application(reader, monotonic=lambda: clock[0])
         assert (await config(readonly_app))["analytics"] is True
         with migrated.begin() as db:
             db.execute(sa.text("REVOKE SELECT ON capture_clock_evidence FROM analytics_reader"))
+        assert (await config(readonly_app))["analytics"] is True
+        clock[0] += 5.0
         assert (await config(readonly_app))["analytics"] is False
         with migrated.begin() as db:
             db.execute(sa.text("GRANT SELECT ON capture_clock_evidence TO analytics_reader"))
+        assert (await config(readonly_app))["analytics"] is False
+        clock[0] += 5.0
         assert (await config(readonly_app))["analytics"] is True
         with reader.connect() as db:
             assert db.execute(sa.text("SELECT current_user")).scalar_one() == "analytics_reader"
@@ -126,6 +132,7 @@ async def test_read_only_runtime_can_advertise_available_and_missing_grant_canno
             ).scalar_one()
         with migrated.begin() as db:
             db.execute(sa.text("REVOKE SELECT ON downtime_reason_history FROM analytics_reader"))
+        clock[0] += 5.0
         assert (await config(readonly_app))["analytics"] is False
         assert (await config(app))["analytics"] is True
     finally:

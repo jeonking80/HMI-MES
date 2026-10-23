@@ -1,5 +1,8 @@
 """Read-only, fail-closed availability for the complete CX-01 through CX-05 UI."""
 
+from collections.abc import Callable
+from threading import Lock
+
 import sqlalchemy as sa
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -25,13 +28,31 @@ REQUIRED_ROUTES = frozenset(
 )
 
 
-def analytics_available(app, auth) -> bool:
-    """Registration and readable supported schema, without granting user access.
+CACHE_TTL_SECONDS = 5.0
 
-    Each call rechecks schema under the migration shared lock. Missing runtime
-    grants, missing objects and DB outages return only False; no exception or
-    database details escape into the pre-login response. No row is written.
+
+class AnalyticsAvailabilityCache:
+    """One app's bounded schema/grant snapshot, with one in-flight refresh.
+
+    Both success and failure expire after five seconds. Route registration is
+    deliberately outside this cache and must still be checked on every request.
     """
+
+    def __init__(self, monotonic: Callable[[], float]):
+        self._monotonic = monotonic
+        self._lock = Lock()
+        self._value: bool | None = None
+        self._expires_at = 0.0
+
+    def available(self, auth) -> bool:
+        with self._lock:
+            if self._value is None or self._monotonic() >= self._expires_at:
+                self._value = _database_available(auth)
+                self._expires_at = self._monotonic() + CACHE_TTL_SECONDS
+            return self._value
+
+
+def _routes_available(app) -> bool:
     if getattr(app.state, "analytics_routes_registered", False) is not True:
         return False
     registered = {
@@ -39,8 +60,11 @@ def analytics_available(app, auth) -> bool:
         for route in app.routes
         for method in (getattr(route, "methods", None) or ())
     }
-    if not REQUIRED_ROUTES <= registered:
-        return False
+    return REQUIRED_ROUTES <= registered
+
+
+def _database_available(auth) -> bool:
+    """Probe supported schema/read grants without rows, writes, or error details."""
     try:
         with auth._transaction() as db:
             revisions = (
@@ -62,3 +86,15 @@ def analytics_available(app, auth) -> bool:
         return True
     except SQLAlchemyError:
         return False
+
+
+def analytics_available(app, auth, *, cache: AnalyticsAvailabilityCache | None = None) -> bool:
+    """Fail closed on current registration and a short schema/grant snapshot.
+
+    This advertises a feature, not authorization. Business endpoints continue to
+    check their own current session permissions and database access normally.
+    """
+    if not _routes_available(app):
+        return False
+    database_available = cache.available(auth) if cache is not None else _database_available(auth)
+    return database_available and _routes_available(app)
