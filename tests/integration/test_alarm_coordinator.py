@@ -663,6 +663,7 @@ def wait_advisory(state, pid):
 
 
 def test_actual_start_wins_shared_schema_lock_and_used_downgrade_then_refuses(state):
+    initial_revision = scalar(state, "SELECT version_num FROM alembic_version")
     coordinator = AlarmCoordinator(mixed(), consumer_epoch="race-api")
     holding, release, identified = Event(), Event(), Event()
     pid = []
@@ -694,7 +695,7 @@ def test_actual_start_wins_shared_schema_lock_and_used_downgrade_then_refuses(st
     finally:
         release.set()
         event.remove(state.engine, "before_cursor_execute", hold)
-    assert scalar(state, "SELECT version_num FROM alembic_version") == "0014_mixed_alarm_runtime"
+    assert scalar(state, "SELECT version_num FROM alembic_version") == initial_revision
 
 
 def test_empty_downgrade_wins_and_actual_new_start_refuses_after_waiting_schema(state):

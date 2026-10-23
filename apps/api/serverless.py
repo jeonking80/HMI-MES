@@ -19,7 +19,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Mount
 
 from apps.api.auth import UserAuth
-from apps.api.database import SUPPORTED_AUTH_REVISIONS
+from apps.api.database import SUPPORTED_MIXED_ALARM_REVISIONS
 from apps.api.ingestion import IngestionService
 from apps.api.internal import (
     InternalConfig,
@@ -95,9 +95,12 @@ class VercelConfig:
     database_dsn: str = field(repr=False)
     credentials: tuple[ServiceCredential, ...] = field(default=(), repr=False)
     source_binding_policy: SourceBindingPolicy | None = field(default=None, repr=False)
+    guest_viewer: bool = False
 
     def __post_init__(self):
-        UserHTTPConfig(origin=self.origin, allow_insecure_loopback=False)
+        UserHTTPConfig(
+            origin=self.origin, allow_insecure_loopback=False, guest_viewer=self.guest_viewer
+        )
         if self.source_binding_policy is not None and (
             not isinstance(self.source_binding_policy, SourceBindingPolicy)
             or self.source_binding_policy.credential not in self.credentials
@@ -125,6 +128,9 @@ class VercelConfig:
 
     @classmethod
     def from_environment(cls):
+        guest_setting = os.environ.get("HMI_GUEST_VIEWER_ENABLED", "false")
+        if guest_setting not in {"true", "false"}:
+            raise ValueError("HMI_GUEST_VIEWER_ENABLED must be true or false")
         origin = os.environ["HMI_PUBLIC_ORIGIN"]
         database_dsn = os.environ["HMI_DATABASE_DSN"]
         policy = None
@@ -142,6 +148,7 @@ class VercelConfig:
         return cls(
             origin=origin,
             database_dsn=database_dsn,
+            guest_viewer=guest_setting == "true",
             credentials=credentials,
             source_binding_policy=policy,
         )
@@ -211,8 +218,10 @@ def _readiness_failure(stage, error):
 def create_vercel_app(config: VercelConfig, *, engine=None):
     database = engine if engine is not None else neon_engine(config)
     users = create_user_app(
-        UserAuth(database, allowed_origins={config.origin}),
-        UserHTTPConfig(origin=config.origin, allow_insecure_loopback=False),
+        UserAuth(database, allowed_origins={config.origin}, guest_viewer=config.guest_viewer),
+        UserHTTPConfig(
+            origin=config.origin, allow_insecure_loopback=False, guest_viewer=config.guest_viewer
+        ),
     )
     internal = (
         create_internal_app(
@@ -236,7 +245,7 @@ def create_vercel_app(config: VercelConfig, *, engine=None):
                         .scalars()
                         .all()
                     )
-                    if len(head) != 1 or head[0] not in SUPPORTED_AUTH_REVISIONS:
+                    if len(head) != 1 or head[0] not in SUPPORTED_MIXED_ALARM_REVISIONS:
                         return {"ready": False, "stage": stage, "reason": "REVISION_UNSUPPORTED"}
                     stage = "runtime_role"
                     role = connection.execute(

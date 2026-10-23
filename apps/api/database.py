@@ -25,6 +25,9 @@ SUPPORTED_AUTH_REVISIONS = frozenset(
         "0012_alarm_line_fault",
         "0013_work_order_cancel",
         "0014_mixed_alarm_runtime",
+        "0015_analog_history",
+        "0016_downtime_reasons",
+        "0017_guest_viewer",
     }
 )
 SUPPORTED_INGESTION_REVISIONS = SUPPORTED_AUTH_REVISIONS | {"0002_ingestion"}
@@ -41,6 +44,9 @@ SUPPORTED_COMMAND_REVISIONS = frozenset(
         "0012_alarm_line_fault",
         "0013_work_order_cancel",
         "0014_mixed_alarm_runtime",
+        "0015_analog_history",
+        "0016_downtime_reasons",
+        "0017_guest_viewer",
     }
 )
 SUPPORTED_SETTLEMENT_REVISIONS = frozenset(
@@ -54,6 +60,9 @@ SUPPORTED_SETTLEMENT_REVISIONS = frozenset(
         "0012_alarm_line_fault",
         "0013_work_order_cancel",
         "0014_mixed_alarm_runtime",
+        "0015_analog_history",
+        "0016_downtime_reasons",
+        "0017_guest_viewer",
     }
 )
 SUPPORTED_WORKFLOW_REVISIONS = frozenset(
@@ -64,6 +73,9 @@ SUPPORTED_WORKFLOW_REVISIONS = frozenset(
         "0012_alarm_line_fault",
         "0013_work_order_cancel",
         "0014_mixed_alarm_runtime",
+        "0015_analog_history",
+        "0016_downtime_reasons",
+        "0017_guest_viewer",
     }
 )
 SUPPORTED_ALARM_REVISIONS = frozenset(
@@ -73,6 +85,9 @@ SUPPORTED_ALARM_REVISIONS = frozenset(
         "0012_alarm_line_fault",
         "0013_work_order_cancel",
         "0014_mixed_alarm_runtime",
+        "0015_analog_history",
+        "0016_downtime_reasons",
+        "0017_guest_viewer",
     }
 )
 SUPPORTED_ALARM_CAPTURE_REVISIONS = frozenset(
@@ -81,12 +96,30 @@ SUPPORTED_ALARM_CAPTURE_REVISIONS = frozenset(
         "0012_alarm_line_fault",
         "0013_work_order_cancel",
         "0014_mixed_alarm_runtime",
+        "0015_analog_history",
+        "0016_downtime_reasons",
+        "0017_guest_viewer",
     }
 )
 SUPPORTED_REGISTRATION_REVISIONS = SUPPORTED_WORKFLOW_REVISIONS | {"0008_work_orders"}
-SUPPORTED_CANCELLATION_REVISIONS = frozenset({"0013_work_order_cancel", "0014_mixed_alarm_runtime"})
+SUPPORTED_CANCELLATION_REVISIONS = frozenset(
+    {
+        "0013_work_order_cancel",
+        "0014_mixed_alarm_runtime",
+        "0015_analog_history",
+        "0016_downtime_reasons",
+        "0017_guest_viewer",
+    }
+)
 # Every new mixed-coordinator mutation requires this explicit feature barrier.
-SUPPORTED_MIXED_ALARM_REVISIONS = frozenset({"0014_mixed_alarm_runtime"})
+SUPPORTED_MIXED_ALARM_REVISIONS = frozenset(
+    {
+        "0014_mixed_alarm_runtime",
+        "0015_analog_history",
+        "0016_downtime_reasons",
+        "0017_guest_viewer",
+    }
+)
 SCHEMA_LOCK_ID = 843001
 
 

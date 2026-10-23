@@ -30,6 +30,7 @@ from apps.api.database import (
     SUPPORTED_INGESTION_REVISIONS,
     create_database_engine,
 )
+from apps.api.guest import bootstrap_guest
 from apps.api.ingestion import (
     IngestionService,
     IngestionUnavailable,
@@ -50,6 +51,8 @@ def parser() -> argparse.ArgumentParser:
     bootstrap.add_argument("--role", choices=sorted(ROLES), action="append", required=True)
     bootstrap.add_argument("--origin", required=True)
     bootstrap.add_argument("--password-file", type=Path, required=True)
+    guest = commands.add_parser("bootstrap-guest")
+    guest.add_argument("--origin", required=True)
     alarm_rules = commands.add_parser("configure-alarm-rules")
     alarm_rules.add_argument("--login", required=True)
     alarm_rules.add_argument("--password-file", type=Path, required=True)
@@ -57,6 +60,7 @@ def parser() -> argparse.ArgumentParser:
     alarm_rules.add_argument("--config-file", type=Path, required=True)
     users = commands.add_parser("serve-user")
     users.add_argument("--origin", required=True)
+    users.add_argument("--enable-guest-viewer", action="store_true")
     users.add_argument("--web-dir", type=Path, help="Explicit built web directory")
     users.add_argument("--host", default="127.0.0.1", choices=("127.0.0.1", "::1"))
     users.add_argument("--port", default=8002, type=int)
@@ -92,7 +96,9 @@ def _user_http_config(args) -> UserHTTPConfig:
     expected = f"http://{host}:{args.port}"
     if args.origin != expected:
         raise ValueError("Origin must exactly match the loopback HTTP listener")
-    return UserHTTPConfig(origin=args.origin, allow_insecure_loopback=True)
+    return UserHTTPConfig(
+        origin=args.origin, allow_insecure_loopback=True, guest_viewer=args.enable_guest_viewer
+    )
 
 
 def _password_file(path: Path) -> str:
@@ -213,7 +219,12 @@ def main(argv=None) -> int:
                 expires_at=expiry,
             )
         engine = create_database_engine()
-        if args.command in {"bootstrap-user", "serve-user", "configure-alarm-rules"}:
+        if args.command in {
+            "bootstrap-user",
+            "bootstrap-guest",
+            "serve-user",
+            "configure-alarm-rules",
+        }:
             with engine.connect() as connection:
                 revisions = (
                     connection.execute(text("SELECT version_num FROM alembic_version"))
@@ -222,10 +233,17 @@ def main(argv=None) -> int:
                 )
                 if len(revisions) != 1 or revisions[0] not in SUPPORTED_AUTH_REVISIONS:
                     raise ValueError("Apply explicit user authentication migration first")
-            auth = UserAuth(engine, allowed_origins={args.origin})
+            auth = UserAuth(
+                engine,
+                allowed_origins={args.origin},
+                guest_viewer=getattr(args, "enable_guest_viewer", False),
+            )
             if args.command == "bootstrap-user":
                 auth.bootstrap_user(args.login, password, roles=set(args.role))
                 print("App A user provisioning committed; initial password change required")
+            elif args.command == "bootstrap-guest":
+                bootstrap_guest(auth)
+                print("Dedicated guest viewer provisioning committed")
             elif args.command == "configure-alarm-rules":
                 configure_alarm_rules(
                     auth,
