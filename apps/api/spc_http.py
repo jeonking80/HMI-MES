@@ -44,7 +44,39 @@ def read_spc(connection, query: SPCQuery, *, now=None):
     rows = (
         connection.execute(
             text("""
-        SELECT e.parameters,e.registered_at,r.observation,
+        WITH certified_execution AS MATERIALIZED (
+          SELECT e.*,
+            (SELECT min((sample->>'acquired_at')::timestamptz)
+             FROM ingest_batches original
+             CROSS JOIN LATERAL jsonb_array_elements(original.body->'samples') sample
+             WHERE original.source_id=e.source_id AND original.stream_id=e.stream_id
+               AND sample->>'tag_id'=:tag
+               AND (sample->>'acquired_at')::timestamptz>=e.registered_at
+               AND (sample->>'acquired_at')::timestamptz<:now
+               AND EXISTS (
+                 SELECT 1 FROM jsonb_array_elements(original.body->'samples') identity
+                 WHERE identity->>'tag_id'='Line.ActiveExecutionId'
+                   AND ((identity->>'status_code')::bigint >> 30)=0
+                   AND identity->'reading'->>'value'=e.execution_id
+                   AND (identity->>'acquired_at')::timestamptz=
+                       (sample->>'acquired_at')::timestamptz)
+               AND ((sample->>'acquired_at')::timestamptz<:cutoff OR NOT EXISTS (
+                 SELECT 1 FROM analog_history_raw retained
+                 WHERE retained.line_id=:line_id
+                   AND retained.source_id=original.source_id
+                   AND retained.stream_id=original.stream_id
+                   AND retained.gateway_id=original.gateway_id
+                   AND retained.batch_id=original.batch_id
+                   AND retained.capture_generation=original.capture_generation
+                   AND retained.capture_seq=original.capture_seq
+                   AND retained.tag_id=:tag AND retained.sample_id=sample->>'sample_id'))
+            ) AS missing_prefix_at
+          FROM production_executions e
+          JOIN source_streams s ON s.source_id=e.source_id AND s.stream_id=e.stream_id
+          WHERE e.execution_id=:execution_id AND e.source_id=:source_id
+            AND e.stream_id=:stream_id AND s.line_id=:line_id
+        )
+        SELECT e.parameters,e.registered_at,e.missing_prefix_at,r.observation,
           (SELECT jsonb_agg(sample) FROM jsonb_array_elements(b.body->'samples') sample
            WHERE sample->>'tag_id'='Line.ActiveExecutionId') AS identities,
           (SELECT jsonb_agg(v.config) FROM alarm_capture_decisions d
@@ -53,7 +85,7 @@ def read_spc(connection, query: SPCQuery, *, now=None):
              AND d.source_id=r.source_id AND d.stream_id=r.stream_id
              AND d.capture_generation=r.capture_generation AND d.capture_seq=r.capture_seq
              AND v.config->>'kind'=:kind) AS configs
-        FROM production_executions e
+        FROM certified_execution e
         JOIN source_streams s ON s.source_id=e.source_id AND s.stream_id=e.stream_id
         LEFT JOIN analog_history_raw r ON r.source_id=e.source_id AND r.stream_id=e.stream_id
           AND r.line_id=s.line_id AND r.tag_id=:tag
@@ -162,6 +194,20 @@ def read_spc(connection, query: SPCQuery, *, now=None):
         unit="°C" if query.tag == "Sealer.TemperaturePV" else ANALOG_UNITS[query.tag],
         spec=historical_spec(rows[0]["parameters"], query.tag, configs),
     )
+    result["baseline_basis"] = "first-20-complete-execution-subgroups-prefix-certified"
+    result["baseline_limitation"] = None
+    missing_prefix = rows[0]["missing_prefix_at"]
+    if (
+        result["baseline"]
+        and missing_prefix is not None
+        and missing_prefix < datetime.fromisoformat(result["baseline"]["to"])
+    ):
+        # Lost originals might contain earlier complete groups. Retained groups cannot
+        # establish that they are the execution's first 20, even if 25 remain today.
+        result.update(status="INSUFFICIENT_DATA", baseline=None, limits=None, capability=None)
+        result["baseline_limitation"] = "ORIGINAL_PREFIX_RAW_UNAVAILABLE"
+        for group in result["subgroups"]:
+            group["violations"] = []
     result["history_limitation"] = "RAW_RETENTION_LIMITED; LATE_CAPTURES_MAY_REVISE_BASELINE"
     result["execution_id"] = query.execution_id
     result["scope"] = {k: values[k] for k in ("line_id", "source_id", "stream_id")}

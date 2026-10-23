@@ -4,6 +4,7 @@ from datetime import timedelta
 
 import httpx
 import pytest
+from sqlalchemy import text
 
 from apps.api.alarm_lifecycle import AlarmRule, AlarmScope
 from apps.api.alarm_qualification import TemperatureRuleConfig
@@ -21,7 +22,7 @@ from tests.integration.test_trend_history import AT, SCOPE, TAG, batch, policy, 
 
 
 @pytest.fixture
-def spc_state(migrated):
+def spc_state(migrated, request):
     bootstrap_reference_data(migrated)
     service = IngestionService(migrated, trend_clock_policy=policy())
     service.configure_source(**SCOPE, gateway_id="gateway-1", capture_generation=1, now=AT)
@@ -35,7 +36,8 @@ def spc_state(migrated):
         counter_epoch="counter-a",
         now=AT,
     )
-    for m in range(25):
+    count = getattr(request, "param", 25)
+    for m in range(count):
         for i, seconds in enumerate(OFFSETS):
             seq = m * 5 + i + 1
             at = AT + timedelta(minutes=m, seconds=seconds)
@@ -53,7 +55,7 @@ def spc_state(migrated):
             submit(
                 service,
                 GatewayBatch(body=body, content_sha256=batch_digest(body)),
-                now=AT + timedelta(minutes=26),
+                now=AT + timedelta(minutes=count + 1),
             )
     return service
 
@@ -132,3 +134,26 @@ async def test_viewer_auth_and_strict_scope(spc_state, monkeypatch):
             ).status_code == 422
         wrong = list(SCOPE.items()) + [("execution_id", "not-present"), ("tag", TAG)]
         assert (await client.get("/api/v1/spc/xbar-r", params=wrong)).status_code == 404
+
+
+@pytest.mark.parametrize("spc_state", [40], indirect=True)
+def test_retention_cannot_replace_first20_with_later25(spc_state):
+    now = AT + timedelta(minutes=40)
+    with spc_state.engine.connect() as db:
+        original = read_spc(db, query(), now=now)
+    assert original["status"] == "OK"
+    assert original["baseline"]["from"] == "2026-10-23T12:00:00Z"
+    with spc_state.engine.begin() as db:
+        db.execute(
+            text("DELETE FROM analog_history_raw WHERE acquired_at<:cutoff"),
+            {"cutoff": AT + timedelta(minutes=15)},
+        )
+    with spc_state.engine.connect() as db:
+        retained = read_spc(db, query(), now=now)
+    assert len(retained["subgroups"]) == 25
+    assert retained["status"] == "INSUFFICIENT_DATA"
+    assert retained["baseline"] is None
+    assert retained["limits"] is None
+    assert retained["capability"] is None
+    assert retained["baseline_limitation"] == "ORIGINAL_PREFIX_RAW_UNAVAILABLE"
+    assert all(group["violations"] == [] for group in retained["subgroups"])
