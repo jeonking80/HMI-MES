@@ -425,7 +425,12 @@ def test_empty_downgrade_wins_then_schema_reader_observes_old_head(old):
 
 def test_explicit_mixed_feature_set_rejects_old_heads_without_claiming_coordinator_coverage():
     supported = getattr(database, "SUPPORTED_MIXED_ALARM_REVISIONS", frozenset())
-    assert supported == {NEW}
+    assert supported == {
+        NEW,
+        "0015_analog_history",
+        "0016_downtime_reasons",
+        "0017_guest_viewer",
+    }
     assert OLD not in supported
     # No fake writer/helper mirrors the proposed admission algorithm. The actual
     # start/consume/invalidate gate tests belong to Unit B after it exists.

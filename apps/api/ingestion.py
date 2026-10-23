@@ -317,13 +317,22 @@ def _exact(value: Any) -> int:
 
 
 class IngestionService:
-    def __init__(self, engine: sa.Engine, *, alarm_consumer=None) -> None:
+    def __init__(
+        self,
+        engine: sa.Engine,
+        *,
+        alarm_consumer=None,
+        trend_clock_policy=None,
+        trend_retention=None,
+    ) -> None:
         if engine.dialect.name != "postgresql":
             raise ValueError("Ingestion requires PostgreSQL")
         self.engine = engine
         # Explicitly configured and started by the owning runtime. Its writes use
         # this same transaction, so no ACK can precede durable alarm processing.
         self.alarm_consumer = alarm_consumer
+        self.trend_clock_policy = trend_clock_policy
+        self.trend_retention = trend_retention
 
     @contextmanager
     def _transaction(self):
@@ -1057,6 +1066,16 @@ class IngestionService:
                 )
                 if self.alarm_consumer is not None:
                     self.alarm_consumer.consume(connection, body, source=source, now=now)
+                from apps.api.trend_history import capture_trends
+
+                capture_trends(
+                    connection,
+                    body,
+                    source=source,
+                    now=now,
+                    clock_policy=self.trend_clock_policy,
+                    retention=self.trend_retention,
+                )
                 self._before_commit(connection)
         if conflict is not None:
             raise IngestConflict(f"{conflict}; conflict evidence committed, no batch ACK issued")
