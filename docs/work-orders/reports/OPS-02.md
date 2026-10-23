@@ -60,3 +60,22 @@ cmp /tmp/hmi-v3-grants-0018.json deploy/neon-http/grants-0018.json
 사용자가 8시간 시험을 제외한 미완료 항목 전체 재개를 지시했다. 최신 main `51f2383`을 병합한 `a3da06141aa2a6e9da5e77398fc58c4fdd437500`에서 두 JSON을 다시 생성해 각각 `cmp` exit0을 확인했고 SHA-256은 위 표와 동일했다. 공개 `/api/ready`는 HTTP200 `{"ready":true}`였으나 배포 SHA·DB revision의 증거로 사용하지 않는다.
 
 현재 환경도 관리 도구·secret/runtime/identity binding이 없고, 위 다섯 named 환경변수의 설정 여부는 모두 false다. 공개 연결 문자열을 비밀 파일에서 탐색하거나 보호된 실습 DB 자격 증명을 대신 사용하지 않았다. 공개 backup/migration/runtime DML/Vercel 재배포·실연은 여전히 미실행이다. 작업지시서 OPS-02.6에 따라 검증된 준비물과 위 운영 실행 순서를 Claude에게 인계한다. 이는 공개 적용 통과 판정이 아니다.
+## 공개 적용 결과 (Claude, 2026-10-23)
+
+Codex 인계 후 Claude가 HTTPS `/sql` 배치로 실행했다. 이 환경은 Neon에 TCP로 접속할 수 없다.
+
+| 단계 | 결과 |
+|---|---|
+| 선행 조건 | Vercel production `a205c6a` READY, `/api/ready` ready, `alembic_version` 1행 `0017_guest_viewer` |
+| 준비물 동일성 | 같은 커밋에서 `clock-upgrade`·`clock-grants`를 다시 생성해 커밋된 JSON과 `cmp` 동일 |
+| 백업 | 이관 직전 전체 논리 백업: 48개 테이블, 3,923행, 테이블별 행 수 DB와 일치, 33MB. 비밀값이 있어 저장소에 넣지 않고 작업 세션 임시 폴더에만 보관(세션 종료 시 사라질 수 있음) |
+| 이관 0017→0018 | 10:57:31Z `upgrade-0017-0018.json` 20문장 한 트랜잭션 성공 |
+| 권한 | 10:57:35Z `grants-0018.json` 10문장 한 트랜잭션 성공. 카탈로그 확인: `capture_clock_evidence` SELECT·INSERT만, `capture_clock_probes` SELECT·INSERT·DELETE와 열 단위 UPDATE, 둘 다 TRUNCATE 없음 |
+| runtime 금지 DML 실측 | **미실행.** `hmi_app` 연결 시크릿이 `invalid header`로 거절되고, 소유자는 `hmi_app`으로 SET ROLE할 수 없다. 카탈로그 확인으로 대신하지 않는다. |
+| 이관 후 앱 | `/api/ready` ready |
+| 활성화 | Vercel production `HMI_CLOCK_MEASURED_ROUND_TRIP=true` 설정 후 재배포 READY(10:59:01Z) |
+| 활성화 후 확인 | `/api/health` alive, `/api/ready` ready, `/auth/config` guest·assistant·analytics true. 게스트 진입 200(viewer), 조회 200(대시보드 1.7초, 트렌드 0.6초, 실행 0.3초, 일일 1.5초), 챗봇 1회 200(16.2초, 근거: 라인 스냅샷), 게스트 쓰기(비밀번호 변경) 403 |
+| 공개 실연 GOOD·가동·수량 | **미실행.** 공개 source와 이어진 영속 runtime(게이트웨이·시뮬레이터 SQLite, 인증서, 서비스 토큰)이 이 환경에 없다. [PUBLIC_DEMO_RUN.md](../../architecture/PUBLIC_DEMO_RUN.md)대로 기존 PC에서 `--clock-measured-round-trip`으로 실행해야 한다. |
+| DB 용량 | 이관 전 33MB, 활성화 후 33 MB(실연 전) |
+
+새 캡처가 들어오기 전까지 공개 화면의 기존 데이터는 계속 "시간 불명"이다. 측정 이전 데이터를 GOOD으로 소급하지 않는다. 공개 실연과 runtime 실측이 끝나기 전에는 OPS-02를 완료로 표시하지 않는다.

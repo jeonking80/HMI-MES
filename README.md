@@ -24,13 +24,18 @@ KULS가 공개한 [HMI 시스템 구성예시](https://www.kuls.co.kr/ict/kict/i
 |---|---|
 | 공정도, 48개 태그와 품질, 운전 요청·원래 ID 추적, 실링기 아날로그 알람 | 공정 설정 버전·작업지시 등록, 배포, 라인 실행 연결, 미연결 작업 취소 |
 
-대시보드·트렌드·실적 보고서·SPC 관리도는 서버 API와 결합해 로컬 실제 실행(생산→종료→정산 후 네 화면 조회, CSV 내려받기)으로 검증했습니다. 다만 설비와 서버의 시각 일치 근거(시간 정책)를 아직 실행 환경에 구성하지 않아, 실제 실행에서는 트렌드 값과 가동 시간이 "시간 불명"으로 표시됩니다([작업지시서 v1.1 CX-09](docs/work-orders/CODEX_KULS_보강_v1.md)). 공개 배포에는 아직 적용하지 않았습니다. 아래 이미지는 계약 형식의 **고정 데이터로 렌더링한 미리보기**입니다.
+대시보드·트렌드·실적 보고서·SPC 관리도는 서버 API와 결합해 로컬 실제 실행(생산 → 종료 → 정산 후 화면 조회, CSV 내려받기)으로 검증했습니다. 조회 전용 운영 도우미(챗봇, NVIDIA Nemotron)는 공개 배포에서 실제 모델 응답을 확인했습니다. 같은 호스트의 시계 근거를 켠 실행에서는 트렌드 값과 가동·정지·불명 시간이 실제로 계산됩니다. 근거가 없는 구간은 정상으로 바꾸지 않고 "불명"으로 남깁니다.
 
-| 생산 대시보드 (미리보기) | 설비 트렌드 (미리보기) |
+| 설비 트렌드 (실제 운전) | 실적 · 보고서 (실제 운전) |
 |---|---|
-| ![대시보드 미리보기](docs/assets/screenshots/preview-dashboard.png) | ![트렌드 미리보기](docs/assets/screenshots/preview-trends.png) |
-| **실적 · 보고서 (미리보기)** | **SPC 관리도 (미리보기)** |
-| ![보고서 미리보기](docs/assets/screenshots/preview-reports.png) | ![SPC 미리보기](docs/assets/screenshots/preview-spc.png) |
+| ![트렌드 — 실제 운전](docs/assets/screenshots/live-trends.png) | ![보고서 — 실제 운전](docs/assets/screenshots/live-reports.png) |
+| 1분 남짓의 운전이라 값이 있는 구간으로 자동 확대했습니다. 실링 온도가 설정값까지 오르는 곡선입니다. | 실행별 수량·정산과 가동·정지·불명 시간입니다. 시작 직후 근거가 없는 1초는 "불명"으로 남습니다. |
+| **생산 대시보드 (미리보기)** | **SPC 관리도 (미리보기)** |
+| ![대시보드 미리보기](docs/assets/screenshots/preview-dashboard.png) | ![SPC 미리보기](docs/assets/screenshots/preview-spc.png) |
+
+<sub>위 두 장은 로컬 실제 운전 화면입니다. 아래 두 장은 계약 형식의 **고정 데이터로 렌더링한 미리보기**입니다. 짧은 검증 운전으로는 하루 단위 대시보드가 대부분 "불명"으로 나오고, SPC 관리한계는 20분 이상의 부분군이 쌓여야 계산되기 때문입니다.</sub>
+
+공개 화면(<https://hmi-mes.vercel.app>)에는 0018 이관과 원격 시계 측정이 적용되어 있습니다. 다만 기존 수집분은 측정 이전 데이터라 "시간 불명"으로 남고, 새 운전 데이터부터 시간이 계산됩니다([OPS-02 결과](docs/work-orders/reports/OPS-02.md)).
 
 ## 구현 현황
 
@@ -39,9 +44,9 @@ KULS가 공개한 [HMI 시스템 구성예시](https://www.kuls.co.kr/ict/kict/i
 | M0 계약·기반 (48개 태그, 명령·사건·전송 계약, DB·인증 설계) | 해당 범위 검증 통과 |
 | M1 설비 앱 (공정 모델, 가상 PLC, 명령 원장, SQLite 원자 저장, 인증 콘솔, OPC UA 서버) | 주요 경로 검증 통과, 전체 중단·복원 증적 남음 |
 | M2 연동 (OPC UA → 게이트웨이 버퍼 → HTTP → PostgreSQL, 명령 전달, 최종 정산) | 실제 네트워크 경로 검증 통과, 장시간·복구 성능 측정 남음 |
-| M3 HMI (인증, 실시간 화면, 운전 제어, 알람, 트렌드, 게스트 조회) | 구현·브라우저 검증, 트렌드 시간 근거 구성·통신 알람 남음 |
-| M4 MES (작업지시, 실행 연결·취소, 정산, 실적 보고·CSV, 정지 사유, SPC, 대시보드) | 구현·로컬 실제 결합 검증, 공개 배포 적용 남음 |
-| M5 운영 (수락 시험 T01~T12, 성능, 8시간 운전, 백업·복원) | 미착수 |
+| M3 HMI (인증, 실시간 화면, 운전 제어, 알람, 트렌드, 게스트 조회, 운영 도우미) | 구현·브라우저 검증, 로컬 시간 근거 결합 검증. 공개 화면의 새 데이터 시간 근거 실연 남음 |
+| M4 MES (작업지시, 실행 연결·취소, 정산, 실적 보고·CSV, 정지 사유, SPC, 대시보드) | 구현·로컬 실제 결합 검증, 공개 배포(DB 0018) 적용 |
+| M5 운영 (수락 시험 T01~T12, 성능, 장시간 운전, 백업·복원) | 일부 진행: T01~T12 분할 17개 통과(한 번에 묶은 실행 미실행), 백업 세트·별도 복원 검증. **30분 단절 후 5분 내 복구 실패**, 7일 이력 성능·깨끗한 빌드 릴리스 미실행, 8시간 운전 제외 |
 
 **전체 프로젝트는 아직 완료되지 않았습니다.** 작은 작업 단위의 통과를 전체 완료로 표시하지 않으며, 세부 근거는 [개발 진행 상태](docs/DEVELOPMENT_STATUS.md)와 [수락 시험 대응표](docs/ACCEPTANCE_EVIDENCE.md)에 있습니다.
 
@@ -52,15 +57,15 @@ CI 대신 저장소에 포함된 로컬 검사로 검증합니다. Docker(Postgr
 ```sh
 ./scripts/bootstrap-python.sh && ./scripts/bootstrap-web.sh && ./scripts/bootstrap-postgres.sh
 ./scripts/check-local.sh                                   # 린트·형식·Python 시험·웹 시험·타입 검사·빌드
-VITE_SCREEN_TRANSPORT=polling npm --prefix apps/web run build
+VITE_SCREEN_TRANSPORT=polling VITE_ANALYTICS_PAGES=enabled npm --prefix apps/web run build
 .venv/bin/python scripts/check-operable-system.py          # 브라우저 → API → PostgreSQL → 게이트웨이 → OPC UA → 정산
 ```
 
 | 검사 | 최근 결과 |
 |---|---|
-| `check-local.sh` 전체 | 2026-10-23 통과 — Python 2,098개, 웹 시험·타입 검사·린트·빌드 |
-| `check-operable-system.py` | 2026-10-23 PASS — 실제 설비 앱 생산·일시정지·종료 후 최종 수량 SETTLED 일치 |
-| `check-operable-system.py --analytics-dir … --guest-dir …` | 2026-10-23 PASS — 정산된 실행으로 대시보드·트렌드·보고서(CSV 포함)·SPC 실제 API 조회, 게스트 버튼 진입·쓰기 403 |
+| `check-local.sh` 전체 | 2026-10-23 통과(Codex 실행) — Python 2,354개, 웹 시험·타입 검사·린트·빌드 |
+| `check-operable-system.py --analytics-dir …` | 2026-10-23 PASS — 같은 호스트 시계 근거로 실제 생산·정산 후 분석 화면 조회. 트렌드 GOOD 138점, 가동 6.4초, 정산 수량 일치 |
+| `check-operable-system.py --guest-dir …` | 2026-10-23 PASS — 게스트 버튼 진입, 조회 전용, 쓰기 403 |
 | `check-app-a-browser.py` | 2026-10-23 PASS — 로그인·권한·응답 유실 복구·작업지시·알람·취소 브라우저 시나리오 |
 
 ## 개발 방식
