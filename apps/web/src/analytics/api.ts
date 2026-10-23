@@ -23,7 +23,8 @@ function list(value: unknown, limit = 20_000): unknown[] {
   need(Array.isArray(value) && value.length <= limit)
   return value as unknown[]
 }
-const identifier = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$(?![\s\S])/.test(value)
+/** Mirrors contracts.models.Identifier: 1-128 characters, no whitespace, any script. */
+const identifier = (value: unknown): value is string => typeof value === 'string' && /^\S+$/u.test(value) && [...value].length <= 128
 export const isTime = (value: unknown): value is string => typeof value === 'string'
   && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|\+00:00)$(?![\s\S])/.test(value) && Number.isFinite(Date.parse(value))
 const nullableTime = (value: unknown): value is string | null => value === null || isTime(value)
@@ -57,7 +58,7 @@ export interface Dashboard {
   freshness: { last_receipt_at: string | null; status: Freshness }
   production: Totals & { yield_ratio: number | null; basis: string; provisional: boolean }
   active_execution: null | {
-    execution_id: string; work_order_id: string; item_id: string; target_quantity: number | null
+    execution_id: string; work_order_id: string; item_id: string | null; target_quantity: number | null
     good: string; progress_ratio: number | null; line_state: string | null; settlement_status: string
   }
   time: { running_seconds: number; stopped_seconds: number; unknown_seconds: number; total_seconds: number; running_ratio: number | null; unknown_ratio: number | null }
@@ -90,13 +91,13 @@ export function parseDashboard(value: unknown): Dashboard {
   let active: Dashboard['active_execution'] = null
   if (root.active_execution !== null) {
     const item = record(root.active_execution, ['execution_id', 'work_order_id', 'item_id', 'target_quantity', 'good', 'progress_ratio', 'line_state', 'settlement_status'])
-    need(identifier(item.execution_id) && identifier(item.work_order_id) && identifier(item.item_id))
+    need(identifier(item.execution_id) && identifier(item.work_order_id) && (item.item_id === null || identifier(item.item_id)))
     need(item.target_quantity === null || (count(item.target_quantity) && item.target_quantity > 0))
     need(isQuantity(item.good) && nullableFinite(item.progress_ratio) && (item.progress_ratio === null || (item.progress_ratio as number) >= 0))
     need(item.line_state === null || identifier(item.line_state))
     need(identifier(item.settlement_status))
     active = {
-      execution_id: item.execution_id, work_order_id: item.work_order_id, item_id: item.item_id,
+      execution_id: item.execution_id, work_order_id: item.work_order_id, item_id: item.item_id as string | null,
       target_quantity: item.target_quantity as number | null, good: item.good, progress_ratio: item.progress_ratio as number | null,
       line_state: item.line_state as string | null, settlement_status: item.settlement_status,
     }
@@ -164,7 +165,9 @@ export function parseTrend(value: unknown): Trend {
 // ---- CX-02 / CX-03 reports -------------------------------------------------------------------
 
 export interface ExecutionReport {
-  execution_id: string; work_order_id: string; item_id: string; recipe_version: string
+  execution_id: string; work_order_id: string; item_id: string | null; recipe_version: string
+  /** The execution's own source scope; absent from older servers. */
+  source_id: string | null; stream_id: string | null
   target_quantity: number | null; registered_at: string; started_at: string | null; ended_at: string | null
   totals: Totals; yield_ratio: number | null; settlement_status: string; provisional: boolean; provisional_reasons: string[]
   durations_seconds: { running: number; stopped: number; unknown: number; total: number }
@@ -181,14 +184,18 @@ export function parseExecutionReports(value: unknown): ExecutionReportPage {
   need(root.next_cursor === null || (typeof root.next_cursor === 'string' && root.next_cursor.length <= 512))
   const items = list(root.items, 200).map(raw => {
     const item = record(raw, ['execution_id', 'work_order_id', 'item_id', 'recipe_version', 'target_quantity', 'registered_at', 'started_at', 'ended_at', 'totals', 'yield_ratio', 'settlement_status', 'provisional', 'provisional_reasons', 'durations_seconds', 'stopped_by_state'])
-    need(identifier(item.execution_id) && identifier(item.work_order_id) && identifier(item.item_id) && identifier(item.recipe_version))
+    need(identifier(item.execution_id) && identifier(item.work_order_id) && (item.item_id === null || identifier(item.item_id)) && identifier(item.recipe_version))
+    const sourceId = Object.hasOwn(item, 'source_id') ? item.source_id : null
+    const streamId = Object.hasOwn(item, 'stream_id') ? item.stream_id : null
+    need((sourceId === null && streamId === null) || (identifier(sourceId) && identifier(streamId)))
     need(item.target_quantity === null || (count(item.target_quantity) && item.target_quantity > 0))
     need(isTime(item.registered_at) && nullableTime(item.started_at) && nullableTime(item.ended_at))
     need(ratio(item.yield_ratio) && identifier(item.settlement_status) && typeof item.provisional === 'boolean')
     const stopped = record(item.stopped_by_state, [])
     need(Object.entries(stopped).every(([key, amount]) => identifier(key) && seconds(amount)))
     return {
-      execution_id: item.execution_id, work_order_id: item.work_order_id, item_id: item.item_id, recipe_version: item.recipe_version,
+      execution_id: item.execution_id, work_order_id: item.work_order_id, item_id: item.item_id as string | null, recipe_version: item.recipe_version,
+      source_id: sourceId as string | null, stream_id: streamId as string | null,
       target_quantity: item.target_quantity as number | null, registered_at: item.registered_at,
       started_at: item.started_at as string | null, ended_at: item.ended_at as string | null,
       totals: totals(item.totals), yield_ratio: item.yield_ratio, settlement_status: item.settlement_status,
@@ -272,6 +279,8 @@ export interface Subgroup { t: string; mean: number; range: number; n: number; v
 export interface Spc {
   tag_id: string; unit: string; method: string; subgroup_size: number; rules_version: string
   status: 'OK' | 'INSUFFICIENT_DATA'
+  /** Set when retention removed the run's original prefix, so no later data can certify a baseline. */
+  baseline_limitation: string | null
   baseline: { from: string; to: string; subgroups: number } | null
   limits: { xbar: ControlLimits; range: ControlLimits } | null
   spec: { usl: number; lsl: number; target: number | null; source: string } | null
@@ -292,6 +301,8 @@ export function parseSpc(value: unknown): Spc {
   const root = record(value, ['tag_id', 'unit', 'method', 'subgroup_size', 'rules_version', 'status', 'baseline', 'limits', 'spec', 'capability', 'subgroups', 'excluded', 'trend_warning', 'generated_at'])
   need(identifier(root.tag_id) && text(root.unit, 16) && identifier(root.method) && count(root.subgroup_size) && root.subgroup_size >= 2)
   need(identifier(root.rules_version) && (root.status === 'OK' || root.status === 'INSUFFICIENT_DATA') && isTime(root.generated_at))
+  const limitation = Object.hasOwn(root, 'baseline_limitation') ? root.baseline_limitation : null
+  need(limitation === null || identifier(limitation))
   let baseline: Spc['baseline'] = null
   if (root.baseline !== null) {
     const item = record(root.baseline, ['from', 'to', 'subgroups'])
@@ -343,14 +354,15 @@ export function parseSpc(value: unknown): Spc {
   }
   return {
     tag_id: root.tag_id, unit: root.unit, method: root.method, subgroup_size: root.subgroup_size, rules_version: root.rules_version,
-    status: root.status, baseline, limits: limitsValue, spec, capability, subgroups,
+    status: root.status, baseline_limitation: limitation as string | null, baseline, limits: limitsValue, spec, capability, subgroups,
     excluded: { count: excluded.count, reasons: excludedReasons as Record<string, number> }, trend_warning: trend, generated_at: root.generated_at,
   }
 }
 
 // ---- transport -------------------------------------------------------------------------------
 
-const MAX_BYTES = 4 * 1024 * 1024
+// The largest legal trend (4 tags x 10,080 minute points) is about 7 MiB of JSON.
+const MAX_BYTES = 16 * 1024 * 1024
 
 export async function readJson<T>(path: string, parse: (value: unknown) => T, signal: AbortSignal): Promise<T> {
   let response: Response

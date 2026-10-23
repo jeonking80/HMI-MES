@@ -148,6 +148,11 @@ def raw_observations(connection, scope, tag, start, end, *, buckets=None):
     return tuple(RawObservation.model_validate(row[0]) for row in rows)
 
 
+UNKNOWN_MINUTE = json.dumps(
+    {"value": None, "min": None, "max": None, "quality": "TIME_UNKNOWN", "valid_count": 0}
+)
+
+
 def capture_clock_valid(connection, body, epoch):
     """Remember clock reversal across minute/retention boundaries under the source lock."""
     binding = dict(
@@ -230,6 +235,22 @@ def capture_clock_valid(connection, body, epoch):
             AND capture_generation=:generation
             AND observation->'scope'->>'clock_epoch'=:epoch AND capture_seq>=:reversal"""),
             dict(binding, reversal=reversal),
+        )
+        # Retained minute projections outlive raw rows. Locate the minutes that used an
+        # invalidated capture from the immutable batches and stop serving them as known time;
+        # minutes whose raw rows remain are recomputed from those rows afterwards.
+        connection.execute(
+            sa.text("""UPDATE analog_history_minutes m SET point=m.point || CAST(:unknown AS jsonb)
+            FROM (SELECT DISTINCT s->>'tag_id' AS tag_id,
+                date_trunc('minute',(s->>'acquired_at')::timestamptz) AS minute
+              FROM ingest_batches b CROSS JOIN LATERAL jsonb_array_elements(b.body->'samples') s
+              WHERE b.source_id=:source_id AND b.stream_id=:stream_id AND b.gateway_id=:gateway
+              AND b.capture_generation=:generation
+              AND b.body->'capture_time'->>'clock_epoch'=:epoch
+              AND b.capture_seq>=:reversal) affected
+            WHERE m.source_id=:source_id AND m.stream_id=:stream_id
+            AND m.tag_id=affected.tag_id AND m.minute=affected.minute"""),
+            dict(binding, reversal=reversal, unknown=UNKNOWN_MINUTE),
         )
     connection.execute(
         sa.text("""INSERT INTO analog_history_clock_state

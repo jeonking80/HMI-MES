@@ -40,7 +40,8 @@ export default function SpcPage({ scope, onScope, onSessionInvalid }: { scope: S
   const executions = useResource(scope ? query('/api/v1/reports/executions', {
     line_id: scope.line_id, from: weekStart.toISOString().replace('.000Z', 'Z'), to: weekEnd.toISOString().replace('.000Z', 'Z'), limit: '50',
   }) : null, parseExecutionReports, onSessionInvalid)
-  const runs = executions.data?.items ?? []
+  // The list is line-wide; SPC is scoped, so keep only runs recorded by the selected source.
+  const runs = (executions.data?.items ?? []).filter(run => !run.source_id || !scope || (run.source_id === scope.source_id && run.stream_id === scope.stream_id))
   const chosen = executionId || runs[0]?.execution_id || ''
   const spc = useResource(scope && chosen ? query('/api/v1/spc/xbar-r', { line_id: scope.line_id, source_id: scope.source_id, stream_id: scope.stream_id, tag, execution_id: chosen }) : null, parseSpc, onSessionInvalid)
   const data = spc.data
@@ -71,7 +72,11 @@ export default function SpcPage({ scope, onScope, onSessionInvalid }: { scope: S
       <PageNotice tone="info" title="통계적 공정관리(SPC) · 머신러닝이 아닌 통계 규칙 기반입니다.">
         부분군 {data.subgroup_size}개 표본(1분마다 12초 간격) · 기준선은 실행 초기 {data.baseline?.subgroups ?? 0}개 부분군 · {data.rules_version}
       </PageNotice>
-      {data.status === 'INSUFFICIENT_DATA' && <PageNotice tone="unknown" title="관리한계를 계산할 데이터가 부족합니다.">기준선 부분군이 20개 이상 쌓이면 관리한계를 표시합니다. 현재 완전한 부분군 {data.subgroups.length}개.</PageNotice>}
+      {data.baseline_limitation === 'ORIGINAL_PREFIX_RAW_UNAVAILABLE'
+        ? <PageNotice tone="unknown" title="이 실행의 기준선은 더 이상 증명할 수 없습니다.">실행 초기의 원시 기록이 보관 기간을 지나 삭제되었습니다. 이후 데이터가 쌓여도 처음 20개 부분군을 대신하지 않으므로 관리한계와 공정능력을 계산하지 않습니다.</PageNotice>
+        : data.baseline_limitation
+          ? <PageNotice tone="unknown" title="기준선 계산에 제한이 있습니다.">사유: {data.baseline_limitation}</PageNotice>
+          : data.status === 'INSUFFICIENT_DATA' && <PageNotice tone="unknown" title="관리한계를 계산할 데이터가 부족합니다.">기준선 부분군이 20개 이상 쌓이면 관리한계를 표시합니다. 현재 완전한 부분군 {data.subgroups.length}개.</PageNotice>}
       <div className="kpi-grid">
         <KpiTile label="Cp (공정 산포)" value={decimal(data.capability?.cp)} tone={capabilityTone(data.capability?.cp)}>{capabilityText(data.capability?.cp)}{data.capability ? ` · 부분군 ${data.capability.subgroups}개` : ''}</KpiTile>
         <KpiTile label="Cpk (치우침 포함)" value={decimal(data.capability?.cpk)} tone={capabilityTone(data.capability?.cpk)}>{capabilityText(data.capability?.cpk)} · 1.33 이상 권장</KpiTile>

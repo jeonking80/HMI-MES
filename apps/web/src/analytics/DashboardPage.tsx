@@ -65,7 +65,7 @@ export default function DashboardPage({ scope, onScope, onSessionInvalid }: { sc
         <Card title="진행 중인 작업" kicker="CURRENT RUN">
           {data.active_execution ? <div className="run-card">
             <div className="run-head">
-              <div><strong>{data.active_execution.work_order_id}</strong><span>{data.active_execution.item_id}</span></div>
+              <div><strong>{data.active_execution.work_order_id}</strong><span>{data.active_execution.item_id ?? '품목 미연결'}</span></div>
               <Badge tone={lineTone(data.active_execution.line_state)}>{data.active_execution.line_state ? lineStateLabels[data.active_execution.line_state] ?? data.active_execution.line_state : '상태 불명'}</Badge>
             </div>
             <div className="progress" role="progressbar" aria-label="목표 대비 양품" aria-valuemin={0} aria-valuemax={100} aria-valuenow={data.active_execution.progress_ratio === null ? undefined : Math.round(Math.min(1, data.active_execution.progress_ratio) * 100)}>

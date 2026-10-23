@@ -76,7 +76,7 @@ function ExecutionReports({ session, scope, onScope, onSessionInvalid }: Props) 
       <div className="table-scroll"><table className="data-table selectable">
         <thead><tr><th scope="col">작업지시 · 품목</th><th scope="col">설정</th><th scope="col">목표</th><th scope="col">양품</th><th scope="col">불량</th><th scope="col">폐기</th><th scope="col">수율</th><th scope="col">가동 비율</th><th scope="col">시작</th><th scope="col">정산</th></tr></thead>
         <tbody>{items.map(item => <tr key={item.execution_id} className={selected?.execution_id === item.execution_id ? 'is-selected' : ''}>
-          <th scope="row"><button type="button" className="link-button" aria-pressed={selected?.execution_id === item.execution_id} onClick={() => setSelected(item)}>{item.work_order_id}</button><small>{item.item_id}</small></th>
+          <th scope="row"><button type="button" className="link-button" aria-pressed={selected?.execution_id === item.execution_id} onClick={() => setSelected(item)}>{item.work_order_id}</button><small>{item.item_id ?? '품목 미연결'}</small></th>
           <td>{item.recipe_version}</td>
           <td>{item.target_quantity?.toLocaleString('ko-KR') ?? '—'}</td>
           <td>{quantity(item.totals.good)}</td><td>{quantity(item.totals.reject)}</td><td>{quantity(item.totals.scrap)}</td>
@@ -92,7 +92,9 @@ function ExecutionReports({ session, scope, onScope, onSessionInvalid }: Props) 
   </>
 }
 
-function ExecutionDetail({ report, scope, session, onSessionInvalid }: { report: ExecutionReport; scope: Source; session: Session; onSessionInvalid: () => void }) {
+function ExecutionDetail({ report, scope: selectedScope, session, onSessionInvalid }: { report: ExecutionReport; scope: Source; session: Session; onSessionInvalid: () => void }) {
+  // A line-wide list can hold runs from other sources; detail requests use the run's own scope.
+  const scope: Source = report.source_id && report.stream_id ? { ...selectedScope, source_id: report.source_id, stream_id: report.stream_id } : selectedScope
   const path = query(`/api/v1/reports/executions/${encodeURIComponent(report.execution_id)}/timeline`, { line_id: scope.line_id, source_id: scope.source_id, stream_id: scope.stream_id })
   const timeline = useResource(path, parseTimeline, onSessionInvalid)
   const [segmentKey, setSegmentKey] = useState<string | null>(null)

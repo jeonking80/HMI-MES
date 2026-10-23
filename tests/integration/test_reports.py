@@ -164,6 +164,8 @@ def test_seoul_midnight_quantities_execution_isolation_and_uint64(state):
     values = {x["execution_id"]: x for x in listing["items"]}
     assert len(values) == 2
     assert values["run"]["totals"]["good"] == str(UINT64_MAX)
+    # Each item carries its own source scope so line-wide lists can open scoped details.
+    assert (values["run"]["source_id"], values["run"]["stream_id"]) == ("source", "stream")
     assert values["other"]["totals"]["good"] == "5"
     assert values["run"]["started_at"] is None and values["run"]["ended_at"] is None
     assert values["run"]["provisional"]

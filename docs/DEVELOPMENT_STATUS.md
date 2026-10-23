@@ -372,3 +372,17 @@ M1의 주요 독립 운전·권한·실제 생산 경로는 확인했지만, 원
 - 최종 회귀(최종 코드): 웹 typecheck·lint·화면 시험 85개, `check-app-a-browser.py`·`--focus-line-alarms`·`check-operable-system.py`(일반)·`check-operable-system.py --analytics-dir --guest-dir`(CSV 포함) 모두 PASS.
 - Compose(CX-07)는 이 환경에서 재현하지 못했다(차단): 이미지 빌드가 `ghcr.io/astral-sh/uv` 레이어를 내려받는 `pkg-containers.githubusercontent.com` 접속을 환경 네트워크 정책이 거절했다. Codex 보고의 Compose 검증 결과를 따르며, 이 환경에서 직접 확인한 것으로 표시하지 않는다.
 - 2026-10-23 사용자 결정 반영: CX-11(서로 다른 호스트 시간 근거) 승인으로 사양을 확정했고, 공개 이관 선행 조건인 CX-12(서버리스 트렌드 보관 환경변수)를 추가했다(`apps/api/serverless.py`에 보관 설정 경로가 없어 기본 7일 원시 보관이 Neon Free 용량을 넘을 수 있음). 공개 DB 이관·게스트 활성화는 이 환경에 Neon·Vercel 자격 증명이 없어 IDE 에이전트 작업지시서 [OPS-01](work-orders/OPS-01_공개배포_이관_활성화.md)로 넘겼다. `main` 직접 푸시는 운영 배포에 해당해 권한 정책으로 거절되어 PR로 대체했다.
+- PR #1 Codex 자동 리뷰 10건 처리(2026-10-23):
+  - 수정 8건:
+    - (P1) 원시값 보관 종료 후 드러난 시계 역행이 보존된 분 집계를 GOOD으로 남기던 문제 → 불변 `ingest_batches`로 영향 분을 찾아 TIME_UNKNOWN으로 무효화(수정 전 실패 재현 시험 포함)
+    - (P1) END_RUN 뒤 유휴 표본이 SPC에 귀속되던 문제 → 확정 종료 시각까지만 표본 사용
+    - 보고 항목에 `source_id`·`stream_id` 추가(필드 추가)와 UI의 실행별 범위 사용
+    - 식별자 검증을 공용 `Identifier` 계약과 일치(유니코드·문장부호 허용)
+    - 품목 미연결 실행의 `item_id: null` 허용
+    - 트렌드 응답 상한 4MiB → 16MiB(최대 합법 응답 약 7MiB)
+    - 누락 구간 계산 O(n²) → 색인 기반
+    - 범위 키 충돌 제거(JSON 직렬화)
+    - SPC `baseline_limitation` 표시
+  - 수정하지 않은 2건:
+    - CSP 인라인 style 차단 주장: React style 속성은 CSSOM으로 적용되어 `style-src 'self'`에서도 동작한다. 실제 서버 CSP 헤더 아래 색상 적용 확인을 `check-operable-system.py --analytics-dir`에 추가해 PASS.
+    - 시간대별 생산량이 2^53을 넘는 정밀도 문제: 현실적 경로가 없다(시간당 9천조 개).

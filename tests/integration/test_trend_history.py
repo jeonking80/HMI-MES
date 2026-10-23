@@ -299,3 +299,21 @@ def test_clock_registry_rebuild_preserves_immutable_reversal(
     submit(service, batch(4, AT + timedelta(seconds=62)))
     assert read(service, "second")[62]["quality"] == "TIME_UNKNOWN"
     assert scalar(service, "SELECT reversal_seq FROM analog_history_clock_state") == 2
+
+
+def test_reversal_found_after_raw_retention_invalidates_retained_minutes(service):
+    # Minute AT is projected from good captures 1 and 3, then its raw rows expire.
+    submit(service, batch(1, AT + timedelta(seconds=1), 1.0))
+    submit(service, batch(3, AT + timedelta(seconds=3), 3.0))
+    assert read(service)[0]["quality"] == "PARTIAL"
+    assert read(service)[0]["value"] == 2.0
+    with service.engine.begin() as connection:
+        cleanup_trends(connection, now=AT + timedelta(days=8), retention=TrendRetention())
+    assert scalar(service, "SELECT count(*) FROM analog_history_raw") == 0
+    # A delayed capture 2 timed after capture 3 proves the clock reversed at 3;
+    # the retained minute must stop presenting capture 3 as good evidence.
+    submit(service, batch(2, AT + timedelta(seconds=5), 2.0), now=AT + timedelta(days=8, minutes=1))
+    point = read(service)[0]
+    assert point["quality"] == "TIME_UNKNOWN"
+    assert point["value"] is None and point["min"] is None and point["max"] is None
+    assert point["valid_count"] == 0

@@ -660,6 +660,18 @@ async def exercise_analytics(page, origin, out, execution_id, record):
                 break
             await asyncio.sleep(0.1)
         require(api in responses, "Reporting page did not call its real API: " + api)
+        if name == "dashboard":
+            # React applies style props through CSSOM, which the server's
+            # style-src 'self' CSP allows; dynamic colors must actually render.
+            policy = (await page.context.request.get(origin + "/")).headers.get(
+                "content-security-policy", ""
+            )
+            require("style-src 'self'" in policy, "User app CSP header was not served")
+            color = await page.evaluate(
+                "getComputedStyle(document.querySelector('.chart-legend .legend-swatch'))"
+                ".backgroundColor"
+            )
+            require(color not in ("", "rgba(0, 0, 0, 0)"), "Inline chart color blocked by CSP")
         if name == "reports":
             await page.locator(".data-table .link-button").first.click()
             await page.locator(".timeline-segment").first.wait_for(timeout=15_000)

@@ -11,6 +11,7 @@ from starlette.responses import JSONResponse
 
 from apps.api.execution_read import ExecutionLookup, ExecutionNotFound
 from apps.api.minute_aggregation import ANALOG_UNITS, RawObservation, aggregate_minutes
+from apps.api.reports import execution_state_bounds
 from apps.api.spc import SPCSlot, calculate_spc
 
 
@@ -39,6 +40,10 @@ def historical_spec(parameters, tag, configs):
 def read_spc(connection, query: SPCQuery, *, now=None):
     now = now or datetime.now(UTC)
     values = query.model_dump()
+    # After END_RUN the PLC can keep the ended execution ID active while idle. Samples are
+    # attributed only up to the confirmed STOPPING->STOPPED end, never through idle time.
+    _, ended = execution_state_bounds(connection, query.execution_id)
+    until = min(now, ended) if ended is not None else now
     # One statement snapshot supplies the execution identity, original batch attribution,
     # raw clock proof and capture-assigned historical rule (never channel current_version).
     rows = (
@@ -52,7 +57,7 @@ def read_spc(connection, query: SPCQuery, *, now=None):
              WHERE original.source_id=e.source_id AND original.stream_id=e.stream_id
                AND sample->>'tag_id'=:tag
                AND (sample->>'acquired_at')::timestamptz>=e.registered_at
-               AND (sample->>'acquired_at')::timestamptz<:now
+               AND (sample->>'acquired_at')::timestamptz<:until
                AND EXISTS (
                  SELECT 1 FROM jsonb_array_elements(original.body->'samples') identity
                  WHERE identity->>'tag_id'='Line.ActiveExecutionId'
@@ -89,7 +94,7 @@ def read_spc(connection, query: SPCQuery, *, now=None):
         JOIN source_streams s ON s.source_id=e.source_id AND s.stream_id=e.stream_id
         LEFT JOIN analog_history_raw r ON r.source_id=e.source_id AND r.stream_id=e.stream_id
           AND r.line_id=s.line_id AND r.tag_id=:tag
-          AND r.acquired_at>=greatest(e.registered_at,:cutoff) AND r.acquired_at<:now
+          AND r.acquired_at>=greatest(e.registered_at,:cutoff) AND r.acquired_at<:until
           AND (floor(extract(second FROM r.acquired_at)) IN (0,12,24,36,48)
                OR r.acquired_at>=:recent)
         LEFT JOIN ingest_batches b ON b.gateway_id=r.gateway_id AND b.batch_id=r.batch_id
@@ -99,9 +104,9 @@ def read_spc(connection, query: SPCQuery, *, now=None):
     """),
             dict(
                 values,
-                now=now,
+                until=until,
                 cutoff=now - timedelta(days=7),
-                recent=now - timedelta(minutes=15),
+                recent=until - timedelta(minutes=15),
                 kind="TEMPERATURE_DEVIATION"
                 if query.tag == "Sealer.TemperaturePV"
                 else "PRESSURE_LOW",
@@ -188,7 +193,7 @@ def read_spc(connection, query: SPCQuery, *, now=None):
     result = calculate_spc(
         slots=slots,
         start=start,
-        end=now,
+        end=until,
         now=now,
         tag_id=query.tag,
         unit="°C" if query.tag == "Sealer.TemperaturePV" else ANALOG_UNITS[query.tag],

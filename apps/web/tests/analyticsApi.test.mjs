@@ -109,6 +109,39 @@ test('fractional durations from the server are accepted, negative ones are not',
   assert.throws(() => api.parseExecutionReports(value))
 })
 
+test('identifiers follow the shared contract: any script, no whitespace, up to 128 characters', () => {
+  const value = fixture('executions')
+  value.items[0].work_order_id = '작업지시-001'
+  value.items[0].item_id = '.포장/500g'
+  assert.equal(api.parseExecutionReports(value).items[0].work_order_id, '작업지시-001')
+  value.items[0].work_order_id = 'has space'
+  assert.throws(() => api.parseExecutionReports(value))
+  value.items[0].work_order_id = 'x'.repeat(129)
+  assert.throws(() => api.parseExecutionReports(value))
+})
+
+test('unlinked executions may have no item, and source scope must be complete when present', () => {
+  const value = fixture('executions')
+  value.items[0].item_id = null
+  value.items[0].source_id = 'source-a'
+  value.items[0].stream_id = 'stream-a'
+  const item = api.parseExecutionReports(value).items[0]
+  assert.equal(item.item_id, null)
+  assert.deepEqual([item.source_id, item.stream_id], ['source-a', 'stream-a'])
+  delete value.items[0].stream_id
+  assert.throws(() => api.parseExecutionReports(value))
+  const dashboard = fixture('dashboard')
+  dashboard.active_execution.item_id = null
+  assert.equal(api.parseDashboard(dashboard).active_execution.item_id, null)
+})
+
+test('a permanent SPC baseline limitation is kept for display', () => {
+  const value = fixture('spc-insufficient')
+  value.baseline_limitation = 'ORIGINAL_PREFIX_RAW_UNAVAILABLE'
+  assert.equal(api.parseSpc(value).baseline_limitation, 'ORIGINAL_PREFIX_RAW_UNAVAILABLE')
+  assert.equal(api.parseSpc(fixture('spc')).baseline_limitation, null)
+})
+
 test('query keeps repeated tag parameters', () => {
   assert.equal(api.query('/api/v1/trends', { tag: ['A.B', 'C.D'], line_id: 'line-1' }), '/api/v1/trends?tag=A.B&tag=C.D&line_id=line-1')
 })

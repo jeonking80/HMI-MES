@@ -498,6 +498,8 @@ def read_execution_reports(db, line_id, start, end, *, now, limit=50, cursor=Non
         items.append(
             {
                 "execution_id": execution_id,
+                "source_id": row["source_id"],
+                "stream_id": row["stream_id"],
                 "work_order_id": row["work_order_id"],
                 "item_id": row["item_id"],
                 "recipe_version": row["recipe_version"],

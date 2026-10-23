@@ -157,3 +157,18 @@ def test_retention_cannot_replace_first20_with_later25(spc_state):
     assert retained["capability"] is None
     assert retained["baseline_limitation"] == "ORIGINAL_PREFIX_RAW_UNAVAILABLE"
     assert all(group["violations"] == [] for group in retained["subgroups"])
+
+
+def test_samples_after_confirmed_end_are_not_attributed(spc_state, monkeypatch):
+    # The PLC keeps the ended execution ID while idle; only samples before the confirmed
+    # STOPPING->STOPPED end (the bound reports also use) belong to the run.
+    import apps.api.spc_http as module
+
+    monkeypatch.setattr(
+        module, "execution_state_bounds", lambda db, execution_id: (AT, AT + timedelta(minutes=10))
+    )
+    with spc_state.engine.connect() as db:
+        result = read_spc(db, query(), now=AT + timedelta(minutes=25))
+    assert len(result["subgroups"]) == 10
+    assert result["status"] == "INSUFFICIENT_DATA"
+    assert result["limits"] is None

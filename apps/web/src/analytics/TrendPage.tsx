@@ -30,10 +30,12 @@ const groups = [
  * time could not be trusted, which is different from no data at all.
  */
 function gapsFor(series: TrendSeries[], stepMs: number) {
-  const times = [...new Set(series.flatMap(item => item.points.map(point => Date.parse(point.t))))].sort((a, b) => a - b)
+  // Index once so the 7-day maximum stays linear in the number of points.
+  const indexed = series.map(item => new Map(item.points.map(point => [Date.parse(point.t), point])))
+  const times = [...new Set(indexed.flatMap(map => [...map.keys()]))].sort((a, b) => a - b)
   const gaps: { from: number; to: number; timeUnknown: boolean }[] = []
   for (const t of times) {
-    const points = series.map(item => item.points.find(entry => Date.parse(entry.t) === t))
+    const points = indexed.map(map => map.get(t))
     if (!points.every(point => !point || point.value === null)) continue
     const timeUnknown = points.some(point => point?.quality === 'TIME_UNKNOWN')
     const last = gaps[gaps.length - 1]

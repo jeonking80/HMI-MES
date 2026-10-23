@@ -3,7 +3,8 @@ import { AnalyticsError, readJson } from './api'
 import type { Scope } from './api'
 
 export interface Source extends Scope { line_name: string }
-export const scopeKey = (source: Scope) => `${source.line_id}/${source.source_id}/${source.stream_id}`
+/** Unambiguous even when identifiers contain '/'. */
+export const scopeKey = (source: Scope) => JSON.stringify([source.line_id, source.source_id, source.stream_id])
 
 function parseSources(value: unknown): Source[] {
   if (!value || typeof value !== 'object' || !('sources' in value) || !Array.isArray(value.sources)) throw new AnalyticsError(0, '수집원 목록 형식을 확인할 수 없습니다.')
