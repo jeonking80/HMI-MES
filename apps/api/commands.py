@@ -66,6 +66,10 @@ def enqueue_command(
     command_permission(request), CSRF and Origin. This method rechecks actor and
     roles, but cannot authenticate a Principal constructed by an untrusted caller.
     """
+    from apps.api.recovery import recovery_required
+
+    if recovery_required(connection):
+        raise CommandScopeError("RECOVERY_REQUIRED: restored database control is restricted")
     request = CommandRequest.model_validate_json(request.model_dump_json())
     now = _TIME.validate_python(now)
     line_id, source_id, stream_id = (
@@ -232,6 +236,10 @@ _TERMINAL = {"SUCCEEDED", "FAILED", "REJECTED", "EXPIRED"}
 
 
 def _gateway_scope(connection, gateway, source, stream):
+    from apps.api.recovery import recovery_required
+
+    if recovery_required(connection):
+        raise CommandScopeError("RECOVERY_REQUIRED: restored database control is restricted")
     gateway, source, stream = (_ID.validate_python(value) for value in (gateway, source, stream))
     row = (
         connection.execute(
