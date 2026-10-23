@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { parseExecutionReports, parseSpc, query } from './api'
-import type { Spc } from './api'
 import { TimeSeriesChart } from './charts'
 import { SERIES_COLORS } from './scale'
 import type { Threshold } from './charts'
