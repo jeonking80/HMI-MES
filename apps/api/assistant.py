@@ -52,6 +52,8 @@ class AssistantConfig:
     base_url: str = DEFAULT_BASE_URL
     max_rounds: int = 4
     timeout_seconds: float = 20.0
+    # Whole answer budget under the 30 s serverless limit; later rounds stop calling tools.
+    deadline_seconds: float = 26.0
     # Per session and per process; protects the shared free-tier key from one viewer.
     session_limit: int = 10
     global_limit: int = 30
@@ -68,7 +70,11 @@ class AssistantConfig:
             raise ValueError("assistant model name is invalid")
         if not self.base_url.startswith("https://"):
             raise ValueError("assistant endpoint must use HTTPS")
-        if not 1 <= self.max_rounds <= 6 or not 1 <= self.timeout_seconds <= 25:
+        if (
+            not 1 <= self.max_rounds <= 6
+            or not 1 <= self.timeout_seconds <= 25
+            or not self.timeout_seconds <= self.deadline_seconds <= 28
+        ):
             raise ValueError("assistant bounds are out of range")
 
 
@@ -381,17 +387,38 @@ async def run_assistant(config, request_app, cookies, chat: ChatRequest, *, orig
         ) as model,
     ):
         tools = _Tools(internal, chat.scope.model_dump() if chat.scope else None, now)
+        started = time.monotonic()
         for round_index in range(config.max_rounds + 1):
-            final_round = round_index == config.max_rounds
+            remaining = config.deadline_seconds - (time.monotonic() - started)
+            if remaining < 3:
+                raise TimeoutError("assistant deadline")
+            # Without tools the model must answer from what it has already read.
+            final_round = round_index == config.max_rounds or remaining < 2 * 8
             payload = {
                 "model": config.model,
                 "messages": messages,
                 "temperature": 0.2,
                 "max_tokens": 1024,
             }
+            if "nemotron" in config.model:
+                # Nemotron's reasoning phase took 20 s per round on real tool results and
+                # could exhaust max_tokens before the answer; answers stay tool-grounded.
+                payload["chat_template_kwargs"] = {"enable_thinking": False}
             if not final_round:
                 payload |= {"tools": TOOLS, "tool_choice": "auto"}
-            response = await model.post("/chat/completions", json=payload)
+            response = await model.post(
+                "/chat/completions",
+                json=payload,
+                timeout=min(config.timeout_seconds, remaining),
+            )
+            remaining = config.deadline_seconds - (time.monotonic() - started)
+            if response.status_code in {429, 500, 502, 503} and remaining > 10:
+                # The shared endpoint fails transiently; retry once while time remains.
+                response = await model.post(
+                    "/chat/completions",
+                    json=payload,
+                    timeout=min(config.timeout_seconds, remaining - 1),
+                )
             response.raise_for_status()
             message = response.json()["choices"][0]["message"]
             calls = message.get("tool_calls") or []
@@ -473,6 +500,8 @@ def register_assistant_routes(app, auth, config: AssistantConfig | None, *, orig
             raise HTTPException(429, "assistant request limit reached")
         try:
             return await run_assistant(config, app, {session_cookie: token}, body, origin=origin)
+        except (TimeoutError, httpx.TimeoutException):
+            raise HTTPException(504, "assistant timed out") from None
         except (httpx.HTTPError, RuntimeError, KeyError, IndexError, TypeError, ValueError):
             # Never echo the provider error: it may contain the prompt or account details.
             raise HTTPException(502, "assistant unavailable") from None
