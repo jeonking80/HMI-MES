@@ -1,0 +1,265 @@
+{
+  "scope": "Logical historical preload and actual FIFO/OPC/HTTP/PG/browser. Not an actual 30-minute outage.",
+  "accepted": "hmi-fifo-dom-fixed-full",
+  "attempts": [
+    {
+      "attempt": "hmi-fifo-baseline-2",
+      "note": "Source10 exploration only; pytest cadence failure; JSON drain passed is not overall pass.",
+      "junit": {
+        "path": "CX-19-preflight/hmi-fifo-baseline-2.xml",
+        "sha256": "74bfbf780f33379fae5bc7b0593e51285069dd36a744dc07d32704bc87e5ea47",
+        "bytes": 709
+      },
+      "suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "1",
+          "skipped": "0",
+          "tests": "1",
+          "time": "221.976",
+          "timestamp": "2026-10-23T11:27:30.253728+00:00",
+          "hostname": "8661b16fa9a0"
+        }
+      ],
+      "raw_json_outcome": "passed",
+      "profile": {
+        "path": "CX-19-preflight/hmi-fifo-baseline-2.json",
+        "sha256": "768457010e855c1f0470afdeaeacf29286f304805ae7072c156e82c3f44e49a8",
+        "bytes": 2349
+      }
+    },
+    {
+      "attempt": "hmi-fifo-baseline",
+      "note": "Initial fixture failure; not accepted.",
+      "junit": {
+        "path": "CX-19-preflight/hmi-fifo-baseline.xml",
+        "sha256": "d4ba4696888fc16fe3fe663d8c312e6ec25bff978a767316650416993ddc5bdf",
+        "bytes": 1040
+      },
+      "suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "1",
+          "skipped": "0",
+          "tests": "1",
+          "time": "8.880",
+          "timestamp": "2026-10-23T11:26:37.607158+00:00",
+          "hostname": "8661b16fa9a0"
+        }
+      ],
+      "raw_json_outcome": "running",
+      "profile": {
+        "path": "CX-19-preflight/hmi-fifo-baseline.json",
+        "sha256": "30269f121a2827bc1f2762ca120efc2e0ee4d484439baea568808e45f3352cb6",
+        "bytes": 871
+      }
+    },
+    {
+      "attempt": "hmi-fifo-dom-fixed-full",
+      "note": "Accepted representative full drain, actual login/screen polling and unaltered clock validity.",
+      "junit": {
+        "path": "CX-19-preflight/hmi-fifo-dom-fixed-full.xml",
+        "sha256": "0a3e0c33a16cac307878360b5de539daaefbdd753317ab0292bf76fdc1fdbfec",
+        "bytes": 503
+      },
+      "suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "1",
+          "time": "254.423",
+          "timestamp": "2026-10-23T11:55:00.458629+00:00",
+          "hostname": "8661b16fa9a0"
+        }
+      ],
+      "raw_json_outcome": "passed",
+      "profile": {
+        "path": "CX-19-preflight/hmi-fifo-dom-fixed-full.json",
+        "sha256": "ecc738726a85cb18c85faa110b504281d56dba13fcb91529e6672f904fc91e6b",
+        "bytes": 15131
+      }
+    },
+    {
+      "attempt": "hmi-fifo-representative-fixed",
+      "note": "Aborted exploratory SQLite optimization; reverted, not adopted.",
+      "junit": {
+        "path": "CX-19-preflight/hmi-fifo-representative-fixed.xml.gz",
+        "sha256": "241b47f377fbcaa0300ae35b2795b7dc61bd9ba35a523d0292d4428f9d65fbb7",
+        "bytes": 507,
+        "original_sha256": "c2dbaafde4f48505345f7745426473b924e567890737222cd3f67985d8a8d603",
+        "original_bytes": 1060,
+        "compression": "gzip; decompressed bytes are the unchanged original JUnit"
+      },
+      "suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "1",
+          "skipped": "0",
+          "tests": "1",
+          "time": "331.116",
+          "timestamp": "2026-10-23T11:35:21.649858+00:00",
+          "hostname": "8661b16fa9a0"
+        }
+      ],
+      "raw_json_outcome": "running",
+      "profile": {
+        "path": "CX-19-preflight/hmi-fifo-representative-fixed.json",
+        "sha256": "d0971afe1b82319e937a6ed510534aed090d6e82e42e0d5182f8e9985448cd62",
+        "bytes": 10959
+      }
+    },
+    {
+      "attempt": "hmi-fifo-representative-full-old",
+      "note": "300-second backlog failure; historical GOOD seam; browser remained on login, separate HTTP snapshot load only.",
+      "junit": {
+        "path": "CX-19-preflight/hmi-fifo-representative-full-old.xml.gz",
+        "sha256": "1610c64c8e45b7215c58b8913a572bbb7c86c35513ce87e10b088699cf9c21e4",
+        "bytes": 503,
+        "original_sha256": "93833f9087fad28bf879646a75052bba585e41e236b9c3e01887e8c1cd89fdb7",
+        "original_bytes": 1069,
+        "compression": "gzip; decompressed bytes are the unchanged original JUnit"
+      },
+      "suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "1",
+          "skipped": "0",
+          "tests": "1",
+          "time": "351.133",
+          "timestamp": "2026-10-23T11:36:31.231417+00:00",
+          "hostname": "8661b16fa9a0"
+        }
+      ],
+      "raw_json_outcome": "running",
+      "profile": {
+        "path": "CX-19-preflight/hmi-fifo-representative-full-old.json",
+        "sha256": "855f6cbf10b32690e0e5b69b5bdcbdb7a0a4f69bbaeedcd7f311c9f49936ac08",
+        "bytes": 13260
+      }
+    },
+    {
+      "attempt": "hmi-fifo-representative-old",
+      "note": "150-batch cutoff, intentionally incomplete; valid_from seam, not actual restart clock.",
+      "junit": {
+        "path": "CX-19-preflight/hmi-fifo-representative-old.xml.gz",
+        "sha256": "7eb37f9c2b6389215a8ba46ac79d3412628e342fcca1fe5c8851001d3aa42fd8",
+        "bytes": 515,
+        "original_sha256": "20c826eb9064c05d85a850c9d0ae725b9b4961335801f732a5e58da9b16758c1",
+        "original_bytes": 1139,
+        "compression": "gzip; decompressed bytes are the unchanged original JUnit"
+      },
+      "suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "1",
+          "skipped": "0",
+          "tests": "1",
+          "time": "59.567",
+          "timestamp": "2026-10-23T11:32:54.198684+00:00",
+          "hostname": "8661b16fa9a0"
+        }
+      ],
+      "raw_json_outcome": "profiled_incomplete",
+      "profile": {
+        "path": "CX-19-preflight/hmi-fifo-representative-old.json",
+        "sha256": "011bcc64560d7fa1125643711b6f408af557951f865b642bdf515f9b58245e34",
+        "bytes": 3457
+      }
+    },
+    {
+      "attempt": "hmi-fifo-snapshot-regression",
+      "note": "Existing scoped equality/auth/line-lock regression.",
+      "junit": {
+        "path": "CX-19-preflight/hmi-fifo-snapshot-regression.xml",
+        "sha256": "507c3b86340c6db57ef783b85e706fa5c69d47cc30196ce96a0199850913b082",
+        "bytes": 3549
+      },
+      "suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "22",
+          "time": "38.828",
+          "timestamp": "2026-10-23T11:59:58.249630+00:00",
+          "hostname": "8661b16fa9a0"
+        }
+      ]
+    },
+    {
+      "attempt": "hmi-fifo-unknown-fixed-full",
+      "note": "FIFO drained near214s but browser login fixture failed; overall FAILED.",
+      "junit": {
+        "path": "CX-19-preflight/hmi-fifo-unknown-fixed-full.xml.gz",
+        "sha256": "9c05b4f43ceb68c3ea43d8e835649daffa8307b2efd7839f109eac2dc8a6fa9c",
+        "bytes": 506,
+        "original_sha256": "a9a398a72c476a4fcb92bcea25e1b13b0a9e33b857aacb626e832f9588c8bf3f",
+        "original_bytes": 1112,
+        "compression": "gzip; decompressed bytes are the unchanged original JUnit"
+      },
+      "suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "1",
+          "skipped": "0",
+          "tests": "1",
+          "time": "347.694",
+          "timestamp": "2026-10-23T11:45:41.143999+00:00",
+          "hostname": "8661b16fa9a0"
+        }
+      ],
+      "raw_json_outcome": "failed",
+      "profile": {
+        "path": "CX-19-preflight/hmi-fifo-unknown-fixed-full.json",
+        "sha256": "c45b497a912c39e4b1ec732d2e081278186e80382f54e37d6c59fe2e6cc9f5bc",
+        "bytes": 17573
+      }
+    },
+    {
+      "attempt": "hmi-fifo-unknown-old",
+      "note": "150-batch cutoff under actual clock validity, intentionally incomplete.",
+      "junit": {
+        "path": "CX-19-preflight/hmi-fifo-unknown-old.xml.gz",
+        "sha256": "9e66fa9bc82d388d7c86799889aaf0df1cbe4e4452b7b684bb0f536735e07cbf",
+        "bytes": 515,
+        "original_sha256": "575e112afc21fa1d26e59874b9a49bd2e7fa2f523e06f7f708dbb496723c47e9",
+        "original_bytes": 1134,
+        "compression": "gzip; decompressed bytes are the unchanged original JUnit"
+      },
+      "suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "1",
+          "skipped": "0",
+          "tests": "1",
+          "time": "62.159",
+          "timestamp": "2026-10-23T11:43:18.622957+00:00",
+          "hostname": "8661b16fa9a0"
+        }
+      ],
+      "raw_json_outcome": "profiled_incomplete",
+      "profile": {
+        "path": "CX-19-preflight/hmi-fifo-unknown-old.json",
+        "sha256": "c8ec39daa8871025e2b7b0a870f52c0ece2e6f6eca444dbfa46725c669f39dff",
+        "bytes": 7607
+      }
+    }
+  ],
+  "original_source": {
+    "path": "CX-19-preflight/original-source.json.gz",
+    "original_sha256": "24f91d4d068f4d9267132b4d848f4630769e153c8d6c9ec6075ac181ade1c955",
+    "gzip_sha256": "e26c962fe204a53e234af810f1807e55ecb35b14a13523c9b2e602ae95125c6a",
+    "original_bytes": 1485403,
+    "gzip_bytes": 95900
+  }
+}

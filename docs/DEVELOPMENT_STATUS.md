@@ -413,6 +413,9 @@ M1의 주요 독립 운전·권한·실제 생산 경로는 확인했지만, 원
 
 - 재개 준비 보강: CX-22 wrapper도 UX-11의 기존same-host를 재사용하고 실제추가/재사용을manifest에 기록하도록 수정, focused15개통과. CX-19 성공경로는DOM조회1회가끝난뒤300초를검사하도록 마지막추가await를 제거했고 관련단위22개통과. 두변경Ruff검사·형식통과. 실제성능·30분회복·cleanbuild 통과를 대신하지 않는다.
 
+- CX-19 대표1,800배치·원본2932사건·실제로그인/DOM·1Hz수집 복구 **205.7806초/1개통과**, 기존동등성·권한·잠금 **22개38.828초통과**. 화면이력조회가Line공유잠금을길게보유하는문제를기존완전capture fast path사용2줄로수정했고독립high검토를마쳤다. 과거잘못된fixture·실패·부분근거를보존했다. 실제30분은이선행검증과구분한다.
+- 전체backup/restore/resume 운영CLI 진입점도실제프로세스로 **1개10.452초통과**(6assertions,동일fixture PG17 Docker도구),nativehost도구검증과구분한다. 소유PG/복원DB정리완료. 현재polling웹빌드·고정커밋후실제30분검증을이어간다.
+
 ### Claude UI/UX 보강
 
 - 착수 전 확인: `scripts/check-operable-system.py` 로컬 실행 PASS(브라우저→API→PostgreSQL→게이트웨이→암호화 OPC UA→최종 SETTLED 대조). 현재 화면은 세로 약 7,000px의 단일 페이지이며 트렌드·보고서·대시보드 화면이 없다.
