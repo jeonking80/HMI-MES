@@ -314,8 +314,39 @@ class Observation:
         )
 
 
+def recovery_elapsed(evidence, started):
+    elapsed = time.monotonic() - started
+    evidence.check("recovery_completed_within_300_seconds", elapsed <= 300, seconds=elapsed)
+    return elapsed
+
+
 async def outage(live, evidence, output):
     observer = Observation(live, output)
+    try:
+        await _outage(live, evidence, output, observer)
+    except BaseException:
+        # This is the already-owned engine and source path, before driver cleanup.
+        # No credential discovery or additional environment is needed.
+        try:
+            source = observer.source()
+            target = max(int(event["seq"]) for event in source)
+            complete = observer.reconcile(target)
+            with sqlite3.connect(f"file:{live['queue']}?mode=ro", uri=True) as db:
+                db.row_factory = sqlite3.Row
+                ack = [dict(row) for row in db.execute("SELECT * FROM source_progress")]
+            evidence.record(
+                failure_reconciliation_complete=complete,
+                failure_reconciliation_path=str(output / "reconciliation.json"),
+                failure_gateway_ack_progress=ack,
+            )
+        except BaseException as error:
+            evidence.record(failure_snapshot_error=redact(f"{type(error).__name__}: {error}"))
+        raise
+    finally:
+        observer.engine.dispose()
+
+
+async def _outage(live, evidence, output, observer):
     api = next(
         child for child in live["children"] if "serve" in child.args and "apps.api" in child.args
     )
@@ -377,8 +408,7 @@ async def outage(live, evidence, output):
         )
         evidence.check(
             "real_default_process_continued",
-            last["source_progress"]["process_tick"] - first["source_progress"]["process_tick"]
-            > 0,
+            last["source_progress"]["process_tick"] - first["source_progress"]["process_tick"] > 0,
             first=first["source_progress"],
             last=last["source_progress"],
         )
@@ -415,8 +445,9 @@ async def outage(live, evidence, output):
             and all(item["fresh"] for item in snapshot["evidence"])
             and await live["page"].locator("[data-tag-id].usable").count() == 48
         ):
+            elapsed = recovery_elapsed(evidence, recovered)
             evidence.record(
-                recovery_seconds=time.monotonic() - recovered,
+                recovery_seconds=elapsed,
                 latest_snapshot=snapshot,
                 outage_seconds=disconnected,
                 losses_at_reconnect=last["losses"],
@@ -427,10 +458,8 @@ async def outage(live, evidence, output):
                 snapshot_status=response.status,
                 snapshot_bytes=len(latest),
             )
-            observer.engine.dispose()
             return
         await asyncio.sleep(1)
-    observer.engine.dispose()
     raise AssertionError(
         "Original events/cursor/gaps, backlog and latest state did not recover in 300 real seconds"
     )

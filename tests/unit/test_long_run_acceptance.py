@@ -3,6 +3,7 @@
 import asyncio
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -28,6 +29,14 @@ def test_transport_failure_preserves_error_but_redacts_credentials():
     safe = long_run_runtime.redact(failure, ["opaque"])
     assert "ECONNRESET" in safe
     assert "secret" not in safe and "bearer token" not in safe and "opaque" not in safe
+
+
+def test_late_recovery_cannot_pass_after_final_await(monkeypatch, tmp_path):
+    evidence = AcceptanceEvidence("CX-19", tmp_path)
+    monkeypatch.setattr(long_run_runtime.time, "monotonic", lambda: 301)
+    with pytest.raises(AssertionError, match="recovery_completed_within_300_seconds"):
+        long_run_runtime.recovery_elapsed(evidence, 0)
+    assert evidence.data["assertions"][-1]["seconds"] == 301
 
 
 def test_driver_hook_is_read_only_and_preserves_default_physics(tmp_path):
@@ -86,6 +95,7 @@ def test_outage_failure_restarts_identical_api_under_driver_supervision(
     class Observer:
         def __init__(self, *_args):
             self.calls = 0
+            self.engine = SimpleNamespace(dispose=lambda: None)
 
         def sample(self):
             self.calls += 1

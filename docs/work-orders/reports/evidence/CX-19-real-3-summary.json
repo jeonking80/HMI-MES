@@ -1,0 +1,152 @@
+{
+  "case": "CX-19",
+  "outcome": "failed",
+  "scope": "actual disposable local CLI API connection outage; not public deployment",
+  "target_sha": "77f965e5bd9922673fabac2a23461e673556fd43",
+  "dirty": true,
+  "started_at_utc": "2026-10-23T08:47:44.806846+00:00",
+  "ended_at_utc": "2026-10-23T09:23:34.620484+00:00",
+  "outage_started_at_utc": "2026-10-23T08:48:30.104850+00:00",
+  "reconnected_at_utc": "2026-10-23T09:18:30.520982+00:00",
+  "assertions": [
+    {
+      "name": "actual_outage_at_least_30_minutes",
+      "passed": true,
+      "seconds": 1800.3233348820067
+    },
+    {
+      "name": "collection_continued_at_1Hz",
+      "passed": true,
+      "first": [
+        1,
+        35
+      ],
+      "last": [
+        1,
+        1834
+      ]
+    },
+    {
+      "name": "real_default_process_continued",
+      "passed": true,
+      "first": {
+        "events": 5,
+        "head_seq": "00000000000000000005",
+        "process_tick": 286
+      },
+      "last": {
+        "events": 2921,
+        "head_seq": "00000000000000002921",
+        "process_tick": 17787
+      }
+    }
+  ],
+  "failure": "AssertionError: Original events/cursor/gaps, backlog and latest state did not recover in 300 real seconds",
+  "resource_samples": 530,
+  "max_queue_bytes": 99942837,
+  "max_queue_age_seconds": 1800.003751,
+  "max_loss_records": 17,
+  "max_postgres_database_bytes": 118473231,
+  "max_postgres_wal_bytes": 603979776,
+  "final_resource_sample": {
+    "utc": "2026-10-23T09:23:30.561141+00:00",
+    "capture_position": [
+      1,
+      2050
+    ],
+    "source_progress": {
+      "events": 3366,
+      "head_seq": "00000000000000003366",
+      "process_tick": 20455
+    },
+    "postgres": {
+      "database_bytes": 118473231,
+      "wal_bytes": "603979776"
+    }
+  },
+  "final_queue": {
+    "pending_batches": 753,
+    "inflight_batches": 1,
+    "queue_bytes": 99919395,
+    "oldest_age_seconds": 836.793511,
+    "loss_records": 17,
+    "outbound_sample_counts": [
+      48
+    ],
+    "database_bytes": 102936576,
+    "wal_bytes": 4770992
+  },
+  "read_only_ack_snapshot": {
+    "observed_at_utc": "2026-10-23T09:22:57.001515+00:00",
+    "source_events": 3314,
+    "source_event_ids_sha256": "f97b98340ea2642a46473e4745cfa516c8ebf89fb1e87772bba7c6b902b15cce",
+    "source_id": "d272c0c8-8362-464a-b5fc-a02cca53ccea",
+    "stream_id": "8e52bcae-f93d-4a06-aa43-4d8e1e562aec",
+    "latest_read_seq": "00000000000000002921",
+    "api_progress": {
+      "source_id": "d272c0c8-8362-464a-b5fc-a02cca53ccea",
+      "stream_id": "8e52bcae-f93d-4a06-aa43-4d8e1e562aec",
+      "verified_through_seq": "4",
+      "latest_ingested_seq": "1889",
+      "unresolved_gaps": [
+        {
+          "from_seq": "5",
+          "through_seq": "12",
+          "irrecoverable": false,
+          "detected_at": "2026-10-23T09:18:35.076668Z",
+          "reason_code": "MISSING_SOURCE_EVENTS",
+          "reason": "Source events not yet received",
+          "affected_execution_ids": []
+        },
+        {
+          "from_seq": "1843",
+          "through_seq": "1862",
+          "irrecoverable": false,
+          "detected_at": "2026-10-23T09:22:50.534189Z",
+          "reason_code": "MISSING_SOURCE_EVENTS",
+          "reason": "Source events not yet received",
+          "affected_execution_ids": []
+        }
+      ]
+    },
+    "committed_at": "2026-10-23T09:22:55.905725+00:00"
+  },
+  "original_local_artifacts": {
+    "/tmp/hmi-v3-cx19-real-3/CX-19-c1c2f8e730f44d8790deb0a368d68276.xml": {
+      "bytes": 384,
+      "sha256": "656e60b0bda14497a3d958da0a269a67b8df8b96b60c5d856a04ca93295f3f76"
+    },
+    "/tmp/hmi-v3-cx19-real-3/simulator.log": {
+      "bytes": 5857,
+      "sha256": "6ab532b5ce7e650cb00b1cb9ee65c8655c005c899f888edb78adf048cbcc119f"
+    },
+    "/tmp/hmi-v3-cx19-real-3/internal-api.log": {
+      "bytes": 704,
+      "sha256": "8a76463f307e47b11d7486eedf8c8501cc80834a500971921b528b37d8d85b3b"
+    },
+    "/tmp/hmi-v3-cx19-real-3/user-api.log": {
+      "bytes": 352,
+      "sha256": "a1b4e7f24fcb3bd4ab268b9187be74d4185f85208f9c0e936c4aff673c8d3469"
+    },
+    "/tmp/hmi-v3-cx19-real-3/gateway.log": {
+      "bytes": 393219,
+      "sha256": "a6c5e0b3dac33d657c93874b6101472f2055f65bac856f680dc80cafc37d8c89"
+    },
+    "/tmp/hmi-v3-cx19-real-3/final-failure.png": {
+      "bytes": 645062,
+      "sha256": "08008037933532b08dc84f6a5bb69a9985142e6e327334df515262121410b4b9"
+    },
+    "/tmp/hmi-v3-cx19-real-3/recovery-observer-source-and-ack.json": {
+      "bytes": 2064510,
+      "sha256": "43b5d44d6d773f3ae78dfdbccbcaae2f073f632e5c53a8401a978d88c412eeab"
+    },
+    "/tmp/hmi-v3-cx19-real-3/resources.jsonl": {
+      "bytes": 15932310,
+      "sha256": "5abf0ce2e62d1c7b29f18ccfefbd9be12676c1d7a63e2869c5695b3321601c80"
+    },
+    "/tmp/hmi-v3-cx19-real-3/CX-19-c1c2f8e730f44d8790deb0a368d68276.json": {
+      "bytes": 20897,
+      "sha256": "b38a4694cd60dbd9762a854c32f161c20f8a95cc2150ec63f02413264b9cc6a9"
+    }
+  }
+}
