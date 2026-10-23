@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import type { Session } from './auth'
-import { navigation } from './navigation'
-import type { PageDefinition, WorkspacePage } from './navigation'
+import type { NavigationGroup, PageDefinition, WorkspacePage } from './navigation'
 
 const roleLabels: Record<string, string> = {
   viewer: '조회 사용자', operator: '작업자', production_manager: '생산 담당자', equipment_admin: '설비 관리자',
@@ -14,6 +13,7 @@ const iconPaths: Record<PageDefinition['icon'], ReactNode> = {
   orders: <><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 8h6M9 12h6M9 16h4" /></>,
   report: <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></>,
   spc: <><path d="M3 6h18M3 18h18" strokeDasharray="2 2" /><path d="M3 12l4-2 3 3 4-4 3 2 4-1" /></>,
+  assistant: <><path d="M4 5h16v11H9l-5 4z" /><path d="M8 9.5h8M8 12.5h5" /></>,
 }
 
 function NavIcon({ icon }: { icon: PageDefinition['icon'] }) {
@@ -22,6 +22,7 @@ function NavIcon({ icon }: { icon: PageDefinition['icon'] }) {
 
 interface SidebarProps {
   session: Session
+  navigation: NavigationGroup[]
   page: WorkspacePage
   busy: boolean
   onNavigate: (page: WorkspacePage) => void
@@ -30,7 +31,7 @@ interface SidebarProps {
   onLogout: () => void
 }
 
-export default function Sidebar({ session, page, busy, onNavigate, onChangePassword, onLogout }: SidebarProps) {
+export default function Sidebar({ session, navigation, page, busy, onNavigate, onChangePassword, onLogout }: SidebarProps) {
   return <aside className="sidebar" aria-label="업무 메뉴">
     <div className="sidebar-brand">
       <span className="brand-mark" aria-hidden="true">H</span>
@@ -48,7 +49,7 @@ export default function Sidebar({ session, page, busy, onNavigate, onChangePassw
               aria-pressed={page === item.page}
               aria-current={page === item.page ? 'page' : undefined}
               disabled={!item.available}
-              title={item.available ? undefined : '서버 API 연동 후 제공됩니다.'}
+              title={item.available ? undefined : '이 배포에서는 아직 제공되지 않습니다.'}
               onClick={() => onNavigate(item.page)}
             >
               <NavIcon icon={item.icon} />

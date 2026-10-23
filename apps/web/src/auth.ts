@@ -63,15 +63,32 @@ export async function login(login: string, password: string): Promise<Session> {
   return sessionFrom(await post('/auth/login', { login, password }, challenge.csrf_token))
 }
 
-/** Whether this deployment offers the read-only guest session (CX-06). Any failure means no. */
-export async function guestAvailable(signal: AbortSignal): Promise<boolean> {
+export interface DeploymentFeatures {
+  /** Read-only guest session (CX-06). */
+  guest: boolean
+  /** Reporting APIs (CX-10). Null when the server does not report it; the build flag decides then. */
+  analytics: boolean | null
+  /** Read-only operations assistant (CX-08). */
+  assistant: boolean
+}
+
+export const noFeatures: DeploymentFeatures = { guest: false, analytics: null, assistant: false }
+
+/** What this deployment offers. Any failure means nothing optional is offered. */
+export async function deploymentFeatures(signal: AbortSignal): Promise<DeploymentFeatures> {
   try {
     const response = await fetch('/auth/config', { credentials: 'same-origin', cache: 'no-store', signal })
-    if (!response.ok) return false
+    if (!response.ok) return noFeatures
     const value: unknown = await response.json()
-    return typeof value === 'object' && value !== null && 'guest_viewer' in value && value.guest_viewer === true
+    if (typeof value !== 'object' || value === null) return noFeatures
+    const config = value as Record<string, unknown>
+    return {
+      guest: config.guest_viewer === true,
+      analytics: typeof config.analytics === 'boolean' ? config.analytics : null,
+      assistant: config.assistant === true,
+    }
   } catch {
-    return false
+    return noFeatures
   }
 }
 
