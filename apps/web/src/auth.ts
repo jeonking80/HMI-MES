@@ -63,6 +63,29 @@ export async function login(login: string, password: string): Promise<Session> {
   return sessionFrom(await post('/auth/login', { login, password }, challenge.csrf_token))
 }
 
+/** Whether this deployment offers the read-only guest session (CX-06). Any failure means no. */
+export async function guestAvailable(signal: AbortSignal): Promise<boolean> {
+  try {
+    const response = await fetch('/auth/config', { credentials: 'same-origin', cache: 'no-store', signal })
+    if (!response.ok) return false
+    const value: unknown = await response.json()
+    return typeof value === 'object' && value !== null && 'guest_viewer' in value && value.guest_viewer === true
+  } catch {
+    return false
+  }
+}
+
+/** Starts a 30-minute viewer-only session without a password. */
+export async function guestLogin(): Promise<Session> {
+  try {
+    return sessionFrom(await post('/auth/guest', {}))
+  } catch (cause) {
+    if (cause instanceof AuthError && cause.status === 404) throw new AuthError(404, '이 환경에서는 게스트 조회를 사용할 수 없습니다.')
+    if (cause instanceof AuthError && cause.status === 429) throw new AuthError(429, '게스트 접속이 많아 잠시 후 다시 시도해 주세요.')
+    throw cause
+  }
+}
+
 export async function changePassword(session: Session, newPassword: string): Promise<Session> {
   return sessionFrom(await post('/auth/password', { new_password: newPassword }, session.csrf_token))
 }

@@ -47,7 +47,7 @@ interface TimeSeriesChartProps {
   thresholds?: Threshold[]
   markers?: Marker[]
   /** Spans where no series has data; drawn as hatched gaps instead of connecting lines. */
-  gaps?: { from: number; to: number }[]
+  gaps?: { from: number; to: number; label?: string }[]
   showPoints?: boolean
 }
 
@@ -125,7 +125,7 @@ export function TimeSeriesChart({ title, unit, from, to, series, height = 240, b
       <line className="chart-axis" x1={margin.left} x2={margin.left + plotWidth} y1={margin.top + plotHeight} y2={margin.top + plotHeight} />
       {gaps.map(gap => <g key={gap.from}>
         <rect x={x(gap.from)} y={margin.top} width={Math.max(1, x(gap.to) - x(gap.from))} height={plotHeight} fill={`url(#gap-${patternId})`} />
-        {x(gap.to) - x(gap.from) > 64 && <text className="chart-gap-label" x={(x(gap.from) + x(gap.to)) / 2} y={margin.top + 14} textAnchor="middle">데이터 없음</text>}
+        {x(gap.to) - x(gap.from) > 64 && <text className="chart-gap-label" x={(x(gap.from) + x(gap.to)) / 2} y={margin.top + 14} textAnchor="middle">{gap.label ?? '데이터 없음'}</text>}
       </g>)}
       {thresholds.map(item => <g key={`${item.label}-${item.value}`}>
         <line className={`chart-threshold ${item.tone}`} x1={margin.left} x2={margin.left + plotWidth} y1={y(item.value)} y2={y(item.value)} />

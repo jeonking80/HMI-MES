@@ -34,7 +34,8 @@ export const isQuantity = (value: unknown): value is string => typeof value === 
 const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value)
 const nullableFinite = (value: unknown): value is number | null => value === null || finite(value)
 const ratio = (value: unknown): value is number | null => value === null || (finite(value) && value >= 0 && value <= 1)
-const seconds = (value: unknown): value is number => finite(value) && value >= 0 && Number.isInteger(value)
+/** Durations may be fractional; the server measures segments to sub-second precision. */
+const seconds = (value: unknown): value is number => finite(value) && value >= 0
 const count = (value: unknown): value is number => finite(value) && value >= 0 && Number.isInteger(value)
 const text = (value: unknown, max = 1000): value is string => typeof value === 'string' && [...value].length <= max
 

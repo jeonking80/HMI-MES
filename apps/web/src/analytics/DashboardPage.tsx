@@ -44,6 +44,9 @@ export default function DashboardPage({ scope, onScope, onSessionInvalid }: { sc
     {scope && !data && !dashboard.error && <EmptyState title="현황을 불러오는 중입니다." />}
     {data && <div className={dashboard.loading ? 'is-refreshing' : ''}>
       {freshnessNotice(data)}
+      {data.time.unknown_ratio !== null && data.time.unknown_ratio >= 0.5 && <PageNotice tone="unknown" title={`보고 시간의 ${percent(data.time.unknown_ratio)}를 가동·정지로 판정하지 못했습니다.`}>
+        시스템이 수집하지 않았거나 수집 시각을 신뢰할 근거가 없는 구간은 불명으로 남깁니다. 불명을 정지나 가동으로 바꾸지 않으므로 가동 비율이 낮게 보일 수 있습니다.
+      </PageNotice>}
       <div className="kpi-grid">
         <KpiTile label="양품 수량" value={quantity(data.production.good)} unit="개" tone="neutral">
           <ProvisionalBadge provisional={data.production.provisional} reasons={data.production.provisional ? [data.production.basis] : []} />

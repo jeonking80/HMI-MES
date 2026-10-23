@@ -51,7 +51,16 @@ def protected(directory, name, value):
     return path
 
 
-async def exercise(directory, executable, web_dir, screenshot, evidence, capture_dir=None):
+async def exercise(
+    directory,
+    executable,
+    web_dir,
+    screenshot,
+    evidence,
+    capture_dir=None,
+    analytics_dir=None,
+    guest_dir=None,
+):
     import httpx
     from alembic import command
     from playwright.async_api import async_playwright, expect
@@ -211,6 +220,8 @@ async def exercise(directory, executable, web_dir, screenshot, evidence, capture
                 ],
                 env,
             )
+            if guest_dir is not None:
+                run_cli(["apps.api", "bootstrap-guest", "--origin", origin], env)
             sim_secret.unlink()
             user_secret.unlink()
             simulator = launch(
@@ -266,6 +277,7 @@ async def exercise(directory, executable, web_dir, screenshot, evidence, capture
                     str(user_port),
                     "--web-dir",
                     str(web_dir),
+                    *(["--enable-guest-viewer"] if guest_dir is not None else []),
                 ],
                 env,
             )
@@ -572,6 +584,10 @@ async def exercise(directory, executable, web_dir, screenshot, evidence, capture
                         + "\n"
                     )
                     checkpoint("SETTLED: browser/API totals match real simulator final summary")
+                    if analytics_dir is not None:
+                        await exercise_analytics(page, origin, analytics_dir, execution_id, record)
+                    if guest_dir is not None:
+                        await exercise_guest(browser, origin, guest_dir)
                 finally:
                     if sys.exc_info()[0] is not None and "page" in locals():
                         if await page.locator("#workspace-drafts").is_visible():
@@ -591,6 +607,129 @@ async def exercise(directory, executable, web_dir, screenshot, evidence, capture
             )
 
 
+ANALYTICS_PAGES = ("dashboard", "trends", "reports", "spc")
+
+
+async def exercise_analytics(page, origin, out, execution_id, record):
+    """Open the reporting pages on the settled run and keep the real API responses.
+
+    Requires a web build with VITE_ANALYTICS_PAGES=enabled. A page passes when its real
+    responses parse in the UI (no error notice) and the dashboard/report quantities match
+    the settled execution.
+    """
+    from playwright.async_api import expect
+
+    checkpoint("analytics pages render real reporting API responses")
+    out.mkdir(parents=True, exist_ok=True)
+    responses = {}
+
+    async def keep(response):
+        path = response.url[len(origin) :].split("?", 1)[0]
+        if path.startswith(
+            ("/api/v1/dashboard", "/api/v1/trends", "/api/v1/reports", "/api/v1/spc")
+        ):
+            try:
+                responses.setdefault(
+                    path, {"status": response.status, "body": await response.json()}
+                )
+            except Exception:
+                responses.setdefault(path, {"status": response.status, "body": None})
+
+    page.on("response", keep)
+    totals = record["totals"]
+    for name in ANALYTICS_PAGES:
+        button = page.locator(f"#workspace-{name}")
+        require(await button.is_enabled(), "Analytics pages require VITE_ANALYTICS_PAGES=enabled")
+        await button.click()
+        await page.locator(f'[data-page="{name}"]').wait_for()
+        api = {
+            "dashboard": "/api/v1/dashboard",
+            "trends": "/api/v1/trends",
+            "reports": "/api/v1/reports/executions",
+            "spc": "/api/v1/spc/xbar-r",
+        }[name]
+        ready = {
+            "dashboard": ".kpi-grid",
+            "trends": ".chart svg",
+            "reports": ".data-table .link-button",
+            "spc": ".kpi-grid",
+        }[name]
+        await page.locator(f'[data-page="{name}"] {ready}').first.wait_for(timeout=15_000)
+        for _ in range(50):  # the response listener reads bodies asynchronously
+            if api in responses:
+                break
+            await asyncio.sleep(0.1)
+        require(api in responses, "Reporting page did not call its real API: " + api)
+        if name == "reports":
+            await page.locator(".data-table .link-button").first.click()
+            await page.locator(".timeline-segment").first.wait_for(timeout=15_000)
+            href = await page.locator('[data-page="reports"] a.download').get_attribute("href")
+            csv = await page.context.request.get(origin + href)
+            body = await csv.body()
+            require(
+                csv.status == 200
+                and csv.headers.get("content-type", "").startswith("text/csv")
+                and body.startswith(b"\xef\xbb\xbf")
+                and execution_id.encode() in body,
+                "Execution CSV download did not return the settled execution",
+            )
+        await expect(page.locator(f'[data-page="{name}"] .page-notice.bad')).to_have_count(0)
+        await page.screenshot(path=str(out / f"{name}.png"), full_page=True)
+    page.remove_listener("response", keep)
+    dashboard = next(
+        (item["body"] for path, item in responses.items() if path == "/api/v1/dashboard"), None
+    )
+    require(dashboard is not None, "Dashboard API was not called")
+    require(
+        int(dashboard["production"]["good"]) == int(totals["good_quantity"])
+        and int(dashboard["production"]["reject"]) == int(totals["reject_quantity"]),
+        "Dashboard production differs from the settled execution",
+    )
+    reports = responses.get("/api/v1/reports/executions", {}).get("body") or {}
+    item = next((x for x in reports.get("items", []) if x["execution_id"] == execution_id), None)
+    require(item is not None, "Execution report does not list the settled execution")
+    require(
+        item["settlement_status"] == "SETTLED"
+        and int(item["totals"]["good"]) == int(totals["good_quantity"]),
+        "Execution report differs from the settled execution",
+    )
+    (out / "responses.json").write_text(
+        json.dumps(responses, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
+    )
+
+
+async def exercise_guest(browser, origin, out):
+    """Enter through the guest button and confirm the session is read-only."""
+    from playwright.async_api import expect
+
+    checkpoint("guest button opens a read-only viewer session")
+    out.mkdir(parents=True, exist_ok=True)
+    context = await browser.new_context(viewport={"width": 1440, "height": 1000}, locale="ko-KR")
+    try:
+        page = await context.new_page()
+        await page.goto(origin, wait_until="domcontentloaded")
+        async with page.expect_response(lambda r: r.url == origin + "/auth/guest") as received:
+            await page.locator("#guest-login").click()
+        response = await received.value
+        require(response.status == 200, "Guest login failed: HTTP " + str(response.status))
+        data = await response.json()
+        require(data["roles"] == ["viewer"], "Guest session was not viewer-only")
+        await expect(page.locator("#current-roles")).to_have_text("조회 사용자")
+        await expect(page.locator(".guest-banner")).to_be_visible()
+        await expect(page.locator("#command-START")).to_have_count(0)
+        await expect(page.locator("#line-state")).not_to_have_text("불명", timeout=15_000)
+        # A well-formed write the guest is not allowed to make; the spec requires 403.
+        denied = await context.request.post(
+            origin + "/auth/password",
+            headers={"Origin": origin, "X-CSRF-Token": data["csrf_token"], "X-HMI-Request": "1"},
+            data={"new_password": "guest-cannot-change-this"},
+        )
+        require(denied.status == 403, "Guest write was not rejected: HTTP " + str(denied.status))
+        await page.screenshot(path=str(out / "guest.png"))
+    finally:
+        await context.close()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -601,6 +740,16 @@ def main():
     parser.add_argument("--evidence", type=Path, default=ROOT / ".local/operable-system.json")
     parser.add_argument(
         "--capture-dir", type=Path, help="Also save a viewport screenshot while the line runs"
+    )
+    parser.add_argument(
+        "--guest-dir",
+        type=Path,
+        help="Also provision the guest viewer and enter through the guest button",
+    )
+    parser.add_argument(
+        "--analytics-dir",
+        type=Path,
+        help="Also check the reporting pages on the settled run (analytics-enabled build)",
     )
     args = parser.parse_args()
     if not args.chromium or not (args.web_dir / "index.html").is_file():
@@ -616,6 +765,8 @@ def main():
                     args.screenshot.resolve(),
                     args.evidence.resolve(),
                     args.capture_dir.resolve() if args.capture_dir else None,
+                    args.analytics_dir.resolve() if args.analytics_dir else None,
+                    args.guest_dir.resolve() if args.guest_dir else None,
                 )
             )
     except BaseException as error:

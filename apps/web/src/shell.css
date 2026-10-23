@@ -93,3 +93,7 @@
   .sidebar-user-actions { flex:0 1 auto; }
   .workspace-shell .workspace { padding:1.25rem 1rem 2.5rem; }
 }
+
+.guest-entry { margin-top:1.25rem; padding-top:1rem; border-top:1px solid var(--border); text-align:center; }
+.guest-entry > span { display:block; font-size:.75rem; color:var(--text-subtle); margin-bottom:.25rem; }
+.guest-banner { background:var(--status-info-bg); border-color:#b9d1ea; color:#1f4f78; }

@@ -24,28 +24,31 @@ const groups = [
   { label: '투입', prefix: 'Infeed.' }, { label: '실링', prefix: 'Sealer.' }, { label: '배출', prefix: 'Outfeed.' },
 ]
 
-/** Spans where no series in the group has a value, so the chart shows a gap instead of a joined line. */
+/**
+ * Spans where no series in the group has a value, so the chart shows a gap instead of a joined line.
+ * A span made only of TIME_UNKNOWN slots is labelled separately: values arrived but their capture
+ * time could not be trusted, which is different from no data at all.
+ */
 function gapsFor(series: TrendSeries[], stepMs: number) {
   const times = [...new Set(series.flatMap(item => item.points.map(point => Date.parse(point.t))))].sort((a, b) => a - b)
-  const gaps: { from: number; to: number }[] = []
+  const gaps: { from: number; to: number; timeUnknown: boolean }[] = []
   for (const t of times) {
-    const empty = series.every(item => {
-      const point = item.points.find(entry => Date.parse(entry.t) === t)
-      return !point || point.value === null
-    })
-    if (!empty) continue
+    const points = series.map(item => item.points.find(entry => Date.parse(entry.t) === t))
+    if (!points.every(point => !point || point.value === null)) continue
+    const timeUnknown = points.some(point => point?.quality === 'TIME_UNKNOWN')
     const last = gaps[gaps.length - 1]
-    if (last && last.to >= t) last.to = t + stepMs
-    else gaps.push({ from: t, to: t + stepMs })
+    if (last && last.to >= t && last.timeUnknown === timeUnknown) last.to = t + stepMs
+    else gaps.push({ from: t, to: t + stepMs, timeUnknown })
   }
-  return gaps
+  return gaps.map(gap => ({ from: gap.from, to: gap.to, label: gap.timeUnknown ? '시간 불명' : '데이터 없음' }))
 }
 
 function coverage(series: TrendSeries) {
   const valid = series.points.reduce((sum, point) => sum + point.valid_count, 0)
   const expected = series.points.reduce((sum, point) => sum + point.expected_count, 0)
   const missing = series.points.filter(point => point.quality === 'MISSING').length
-  return { ratio: expected > 0 ? valid / expected : null, missing }
+  const timeUnknown = series.points.filter(point => point.quality === 'TIME_UNKNOWN').length
+  return { ratio: expected > 0 ? valid / expected : null, missing, timeUnknown }
 }
 
 export default function TrendPage({ scope, onScope, onSessionInvalid }: { scope: Source | null; onScope: (source: Source | null) => void; onSessionInvalid: () => void }) {
@@ -109,6 +112,9 @@ export default function TrendPage({ scope, onScope, onSessionInvalid }: { scope:
     {scope && !tags.length && <EmptyState title="태그를 하나 이상 선택해 주세요." />}
     {scope && tags.length > 0 && !data && !trend.error && <EmptyState title="추세를 불러오는 중입니다." />}
     {data && <div className={trend.loading ? 'is-refreshing' : ''}>
+      {data.series.some(item => item.points.some(point => point.quality === 'TIME_UNKNOWN')) && <PageNotice tone="unknown" title="수집 시각을 확인할 수 없는 값은 그리지 않았습니다.">
+        값은 수집됐지만 설비와 서버의 시각이 일치한다는 근거(시간 정책)가 없어 어느 시점의 값인지 확정할 수 없습니다. 추정 시각에 배치하지 않고 &lsquo;시간 불명&rsquo;으로 표시합니다.
+      </PageNotice>}
       <p className="data-footnote">{dateTime(data.from)} ~ {dateTime(data.to)} · {data.resolution === 'second' ? '1초 원시값' : '1분 집계(평균, 음영은 최소~최대)'} · 정책 {data.policy_version}</p>
       {byUnit.map(([unit, series]) => {
         const chartSeries: ChartSeries[] = series.map(item => ({
@@ -128,7 +134,7 @@ export default function TrendPage({ scope, onScope, onSessionInvalid }: { scope:
             </table>} />
           <ul className="coverage-list">{series.map(item => {
             const summary = coverage(item)
-            return <li key={item.tag_id}><span className="legend-swatch" style={{ background: colorOf(item.tag_id) }} />{tagLabels[item.tag_id]}: 유효 표본 {summary.ratio === null ? MISSING : `${(summary.ratio * 100).toFixed(1)}%`}{summary.missing > 0 && <b> · 누락 {summary.missing}구간</b>}</li>
+            return <li key={item.tag_id}><span className="legend-swatch" style={{ background: colorOf(item.tag_id) }} />{tagLabels[item.tag_id]}: 유효 표본 {summary.ratio === null ? MISSING : `${(summary.ratio * 100).toFixed(1)}%`}{summary.missing > 0 && <b> · 누락 {summary.missing}구간</b>}{summary.timeUnknown > 0 && <b> · 시간 불명 {summary.timeUnknown}구간</b>}</li>
           })}</ul>
         </Card>
       })}

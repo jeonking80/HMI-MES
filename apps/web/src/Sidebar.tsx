@@ -25,7 +25,8 @@ interface SidebarProps {
   page: WorkspacePage
   busy: boolean
   onNavigate: (page: WorkspacePage) => void
-  onChangePassword: () => void
+  /** Null hides the action, e.g. for the guest session that cannot change a password. */
+  onChangePassword: (() => void) | null
   onLogout: () => void
 }
 
@@ -67,7 +68,7 @@ export default function Sidebar({ session, page, busy, onNavigate, onChangePassw
         </div>
       </div>
       <div className="sidebar-user-actions">
-        <button className="button ghost" type="button" disabled={busy} onClick={onChangePassword}>비밀번호 변경</button>
+        {onChangePassword && <button className="button ghost" type="button" disabled={busy} onClick={onChangePassword}>비밀번호 변경</button>}
         <button id="logout" type="button" className="button ghost" disabled={busy} onClick={onLogout}>{busy ? '처리 중…' : '로그아웃'}</button>
       </div>
     </section>

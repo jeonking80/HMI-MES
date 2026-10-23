@@ -50,7 +50,9 @@ Vercel/NeonDB 배포·수집기 연결·전체 운영 검증이 완료되지는 
 
 ## 분석 화면 (대시보드·트렌드·보고서·SPC)
 
-`src/analytics/`의 네 화면은 [작업지시서](../../docs/work-orders/CODEX_KULS_보강_v1.md)의 CX-01~CX-05 서버 API 계약을 사용합니다. 서버 API가 통합·검증되기 전까지 일반 빌드에서는 메뉴가 "예정"으로 비활성입니다. 화면만 확인할 때는 빌드 시 `VITE_ANALYTICS_PAGES=enabled`를 지정합니다.
+`src/analytics/`의 네 화면은 [작업지시서](../../docs/work-orders/CODEX_KULS_보강_v1.md)의 CX-01~CX-05 서버 API를 사용합니다. 로컬 실제 결합은 `scripts/check-operable-system.py --analytics-dir <dir>`로 검증합니다. 공개 DB(Neon)에 새 스키마가 아직 없으므로 일반 빌드에서는 메뉴가 "예정"으로 비활성이며, 빌드 시 `VITE_ANALYTICS_PAGES=enabled`로 엽니다. 서버가 기능 제공 여부를 알리는 CX-10 이후에는 빌드 플래그 대신 서버 응답으로 메뉴를 엽니다.
+
+로그인 화면은 `GET /auth/config`의 `guest_viewer`가 true일 때만 "로그인 없이 둘러보기" 버튼(`#guest-login`)을 보여줍니다. 게스트는 조회 전용이며 비밀번호 변경 버튼도 숨깁니다.
 
 ```sh
 VITE_ANALYTICS_PAGES=enabled npm run build

@@ -100,6 +100,15 @@ test('SPC limits require a baseline and capability requires a specification', ()
   assert.throws(() => api.parseSpc(inverted))
 })
 
+test('fractional durations from the server are accepted, negative ones are not', () => {
+  const value = fixture('executions')
+  value.items[0].durations_seconds = { running: 812.37, stopped: 95.5, unknown: 0.13, total: 908 }
+  value.items[0].stopped_by_state = { PAUSED: 60.25 }
+  assert.equal(api.parseExecutionReports(value).items[0].durations_seconds.running, 812.37)
+  value.items[0].durations_seconds.stopped = -1
+  assert.throws(() => api.parseExecutionReports(value))
+})
+
 test('query keeps repeated tag parameters', () => {
   assert.equal(api.query('/api/v1/trends', { tag: ['A.B', 'C.D'], line_id: 'line-1' }), '/api/v1/trends?tag=A.B&tag=C.D&line_id=line-1')
 })

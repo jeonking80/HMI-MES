@@ -66,7 +66,8 @@ export const settlementLabels: Record<string, string> = {
 }
 
 export const provisionalLabels: Record<string, string> = {
-  DAY_NOT_FINISHED: '하루가 끝나지 않음', NOT_SETTLED: '실적 정산 전', TIME_UNKNOWN: '시간 품질 불명',
+  DAY_NOT_FINISHED: '하루가 끝나지 않음', NOT_SETTLED: '실적 정산 전', EXECUTION_NOT_SETTLED: '실적 정산 전',
+  TIME_UNKNOWN: '시간 품질 불명', UNKNOWN_TIME: '불명 시간 포함',
   COMMUNICATION_LOST: '통신 단절 구간 포함', RECEIVED_EVENTS: '수신 사건 기준',
 }
 

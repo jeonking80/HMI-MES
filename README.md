@@ -24,7 +24,7 @@ KULS가 공개한 [HMI 시스템 구성예시](https://www.kuls.co.kr/ict/kict/i
 |---|---|
 | 공정도, 48개 태그와 품질, 운전 요청·원래 ID 추적, 실링기 아날로그 알람 | 공정 설정 버전·작업지시 등록, 배포, 라인 실행 연결, 미연결 작업 취소 |
 
-대시보드·트렌드·실적 보고서·SPC 관리도 화면은 서버 API 통합을 진행 중입니다([작업지시서](docs/work-orders/CODEX_KULS_보강_v1.md)). 아래는 계약 형식의 **고정 데이터로 렌더링한 미리보기**이며 실제 API 결합 검증 전입니다.
+대시보드·트렌드·실적 보고서·SPC 관리도는 서버 API와 결합해 로컬 실제 실행(생산→종료→정산 후 네 화면 조회, CSV 내려받기)으로 검증했습니다. 다만 설비와 서버의 시각 일치 근거(시간 정책)를 아직 실행 환경에 구성하지 않아, 실제 실행에서는 트렌드 값과 가동 시간이 "시간 불명"으로 표시됩니다([작업지시서 v1.1 CX-09](docs/work-orders/CODEX_KULS_보강_v1.md)). 공개 배포에는 아직 적용하지 않았습니다. 아래 이미지는 계약 형식의 **고정 데이터로 렌더링한 미리보기**입니다.
 
 | 생산 대시보드 (미리보기) | 설비 트렌드 (미리보기) |
 |---|---|
@@ -39,8 +39,8 @@ KULS가 공개한 [HMI 시스템 구성예시](https://www.kuls.co.kr/ict/kict/i
 | M0 계약·기반 (48개 태그, 명령·사건·전송 계약, DB·인증 설계) | 해당 범위 검증 통과 |
 | M1 설비 앱 (공정 모델, 가상 PLC, 명령 원장, SQLite 원자 저장, 인증 콘솔, OPC UA 서버) | 주요 경로 검증 통과, 전체 중단·복원 증적 남음 |
 | M2 연동 (OPC UA → 게이트웨이 버퍼 → HTTP → PostgreSQL, 명령 전달, 최종 정산) | 실제 네트워크 경로 검증 통과, 장시간·복구 성능 측정 남음 |
-| M3 HMI (인증, 실시간 화면, 운전 제어, 알람 확인·메모) | 구현·브라우저 검증, 트렌드·통신 알람 남음 |
-| M4 MES (작업지시 등록·배포·실행 연결·취소, 실행 정산 조회) | 구현·브라우저 검증, 보고서·정지 사유 진행 중 |
+| M3 HMI (인증, 실시간 화면, 운전 제어, 알람, 트렌드, 게스트 조회) | 구현·브라우저 검증, 트렌드 시간 근거 구성·통신 알람 남음 |
+| M4 MES (작업지시, 실행 연결·취소, 정산, 실적 보고·CSV, 정지 사유, SPC, 대시보드) | 구현·로컬 실제 결합 검증, 공개 배포 적용 남음 |
 | M5 운영 (수락 시험 T01~T12, 성능, 8시간 운전, 백업·복원) | 미착수 |
 
 **전체 프로젝트는 아직 완료되지 않았습니다.** 작은 작업 단위의 통과를 전체 완료로 표시하지 않으며, 세부 근거는 [개발 진행 상태](docs/DEVELOPMENT_STATUS.md)와 [수락 시험 대응표](docs/ACCEPTANCE_EVIDENCE.md)에 있습니다.
@@ -58,8 +58,9 @@ VITE_SCREEN_TRANSPORT=polling npm --prefix apps/web run build
 
 | 검사 | 최근 결과 |
 |---|---|
-| `check-local.sh` 전체 | Python 1,913개·웹 시험·정적 검사·빌드 통과 (기록: [개발 진행 상태](docs/DEVELOPMENT_STATUS.md)) |
+| `check-local.sh` 전체 | 2026-10-23 통과 — Python 2,098개, 웹 시험·타입 검사·린트·빌드 |
 | `check-operable-system.py` | 2026-10-23 PASS — 실제 설비 앱 생산·일시정지·종료 후 최종 수량 SETTLED 일치 |
+| `check-operable-system.py --analytics-dir … --guest-dir …` | 2026-10-23 PASS — 정산된 실행으로 대시보드·트렌드·보고서(CSV 포함)·SPC 실제 API 조회, 게스트 버튼 진입·쓰기 403 |
 | `check-app-a-browser.py` | 2026-10-23 PASS — 로그인·권한·응답 유실 복구·작업지시·알람·취소 브라우저 시나리오 |
 
 ## 개발 방식
@@ -72,6 +73,7 @@ VITE_SCREEN_TRANSPORT=polling npm --prefix apps/web run build
 - 계약: [태그](contracts/tags/README.md) · [명령·사건 프로토콜](contracts/PROTOCOL.md) · [수집·ACK·화면 동기화](contracts/TRANSPORT.md) · [상태 전이](contracts/STATE_MACHINES.md)
 - 설계: [DB·인증](docs/architecture/DATA_AUTH.md) · [PLC 운전 조건](docs/architecture/PLC.md) · [명령 원장](docs/architecture/COMMAND_STORE.md) · [시뮬레이터 OPC UA](docs/architecture/SIMULATOR_OPCUA.md) · [게이트웨이 OPC UA](docs/architecture/GATEWAY_OPCUA.md) · [정산](docs/architecture/SETTLEMENT.md)
 - 실행: [게이트웨이·수집 API](docs/architecture/M2_RUN.md) · [앱 A 인증 서버](docs/architecture/API_RUN.md) · [설비 앱](docs/architecture/SIMULATOR_RUN.md) · [작업지시](docs/architecture/WORK_ORDERS.md) · [알람](docs/architecture/ALARM_RUN.md)
+- 로컬 한 번에 실행: [Docker Compose](docs/architecture/COMPOSE_RUN.md) — `docker compose up -d` 후 `http://127.0.0.1:8002`에서 **로그인 없이 둘러보기(조회 전용)**
 - 배포: [Neon·Vercel](deploy/neon-vercel.md) · [가상 설비 연결](deploy/plant-hosting.md) — 공개 화면 <https://hmi-mes.vercel.app> 의 설비·게이트웨이는 임시 클라우드 환경에서 실행하므로 상시 연결을 보장하지 않습니다.
 
 ## 1. 프로젝트 목표
@@ -227,7 +229,7 @@ OPC UA 채택과 포장라인 공정은 본 프로젝트의 설계 선택입니�
 | 화면 데이터 전달 | HTTP API, WebSocket (Vercel 배포는 HTTP 폴링) |
 | 검증 | pytest, Node test, Playwright(Chromium), 일회용 PostgreSQL 컨테이너 |
 
-의존성 버전은 lockfile에 고정했습니다. 웹·API는 Vercel, 운영 DB는 Neon에 배치하고 설비 앱과 OPC 게이트웨이는 별도 장기 실행 프로세스로 유지합니다. `docker compose` 한 명령 실행은 준비 중입니다.
+의존성 버전은 lockfile에 고정했습니다. 웹·API는 Vercel, 운영 DB는 Neon에 배치하고 설비 앱과 OPC 게이트웨이는 별도 장기 실행 프로세스로 유지합니다. 로컬에서는 [`docker compose up -d`](docs/architecture/COMPOSE_RUN.md) 한 명령으로 설비부터 화면까지 띄울 수 있습니다.
 
 ## 9. 개발 순서
 
@@ -235,8 +237,8 @@ OPC UA 채택과 포장라인 공정은 본 프로젝트의 설계 선택입니�
 - [x] 1단계 — 태그, 설비 상태, 명령과 생산 사건 계약 정의
 - [x] 2단계 — 설비 시뮬레이터와 가상 PLC·OPC UA 서버 구현 (전체 중단·복원 증적 남음)
 - [x] 3단계 — I/O 게이트웨이의 수집·저장·명령 전달 연결 (장시간·복구 성능 측정 남음)
-- [ ] 4단계 — HMI, 설비 상세, 알람과 트렌드 구현 (트렌드·통신 알람 진행 중)
-- [ ] 5단계 — 작업지시, 생산실적, 정지 사유와 보고서 구현 (보고서·정지 사유 진행 중)
+- [ ] 4단계 — HMI, 설비 상세, 알람과 트렌드 구현 (트렌드 구현·결합 완료, 시간 근거 구성·통신 알람 남음)
+- [ ] 5단계 — 작업지시, 생산실적, 정지 사유와 보고서 구현 (보고서·정지 사유·CSV 구현·결합 완료, 공개 배포 적용 남음)
 - [ ] 6단계 — 장애 복구, 권한, 백업 복원과 통합 검증
 
 체크한 단계도 남은 항목이 있으면 괄호에 적었습니다. 단계별 실제 검증 결과는 [개발 진행 상태](docs/DEVELOPMENT_STATUS.md)에 기록합니다.

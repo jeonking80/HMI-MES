@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { AuthError, changePassword, login, logout } from './auth'
+import { AuthError, changePassword, guestAvailable, guestLogin, login, logout } from './auth'
 import type { Session } from './auth'
 import SnapshotPanel from './SnapshotPanel'
 import MesDraftPanel from './MesDraftPanel'
@@ -33,6 +33,8 @@ export default function App() {
   const [mesOpened, setMesOpened] = useState(false)
   const [analyticsScope, setAnalyticsScope] = useState<Source | null>(null)
   const [busy, setBusy] = useState(false)
+  const [guestOffered, setGuestOffered] = useState(false)
+  const [guestMode, setGuestMode] = useState(false)
   const inFlight = useRef(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -42,6 +44,12 @@ export default function App() {
   const screen = !session ? 'login' : showPasswordForm ? 'password' : 'workspace'
 
   useEffect(() => { document.title = 'HMI-MES · 운영 시스템' }, [])
+  useEffect(() => {
+    if (session) return
+    const controller = new AbortController()
+    void guestAvailable(controller.signal).then(available => { if (!controller.signal.aborted) setGuestOffered(available) })
+    return () => controller.abort()
+  }, [session])
   useEffect(() => { heading.current?.focus() }, [screen, workspaceTab])
   // Success notices are transient; errors stay until the next action.
   useEffect(() => {
@@ -75,7 +83,7 @@ export default function App() {
     || workflow.history.some(item => item.attempt.intent.work_order_id === id)
   const cancellation = useCancellation(session, invalidateSession, workOrderGuard, knownLinked, () => { setMesOpened(true); setWorkspaceTab('drafts') })
 
-  async function run(action: 'login' | 'password' | 'logout') {
+  async function run(action: 'login' | 'guest' | 'password' | 'logout') {
     if (inFlight.current) return
     inFlight.current = true
     setBusy(true)
@@ -87,6 +95,13 @@ export default function App() {
         setChangingPassword(false)
         setWorkspaceTab('operations')
         setMesOpened(false)
+        setGuestMode(false)
+      } else if (action === 'guest') {
+        setSession(await guestLogin())
+        setChangingPassword(false)
+        setWorkspaceTab('operations')
+        setMesOpened(false)
+        setGuestMode(true)
       } else if (session && action === 'password') {
         setSession(await changePassword(session, newPassword))
         setChangingPassword(false)
@@ -150,7 +165,7 @@ export default function App() {
           page={workspaceTab}
           busy={busy}
           onNavigate={navigate}
-          onChangePassword={() => { setChangingPassword(true); setError(''); setNotice('') }}
+          onChangePassword={guestMode ? null : () => { setChangingPassword(true); setError(''); setNotice('') }}
           onLogout={() => void run('logout')}
         />
         <main id="main-content" className="workspace">
@@ -159,6 +174,7 @@ export default function App() {
             <h1 ref={heading} tabIndex={-1}>{current.title}</h1>
             <p className="intro">{current.description}</p>
           </header>
+          {guestMode && <div className="message guest-banner" role="status">게스트 조회 모드입니다. 화면을 둘러볼 수 있지만 운전·등록 요청은 서버가 거절합니다. 세션은 30분 뒤 종료됩니다.</div>}
           {error && <div className="message error" role="alert">{error}</div>}
           {notice && <div className="message success" role="status">{notice}</div>}
           <div hidden={workspaceTab !== 'operations'}><SnapshotPanel session={session} onSessionInvalid={invalidateSession} workflow={workflow} selectedOrder={selectedOrder} tracked={tracked} setTracked={setTracked} alarmLedger={alarmLedger} setAlarmLedger={setAlarmLedger} /></div>
@@ -211,6 +227,11 @@ export default function App() {
             <input id="login-password" name="password" type="password" autoComplete="current-password" required value={password} disabled={busy} onChange={event => setPassword(event.target.value)} />
             <button id="login-submit" className="button primary full-width" type="submit" disabled={busy}>{busy ? '로그인 확인 중…' : '로그인'}</button>
             <p className="form-help">계정 발급이나 비밀번호 초기화는 설비 관리자에게 문의해 주세요.</p>
+            {guestOffered && <div className="guest-entry">
+              <span>또는</span>
+              <button id="guest-login" className="button secondary full-width" type="button" disabled={busy} onClick={() => void run('guest')}>로그인 없이 둘러보기 (조회 전용)</button>
+              <p className="form-help">운전·등록 같은 변경은 할 수 없으며 30분 뒤 자동으로 종료됩니다.</p>
+            </div>}
           </form> : <>
             <div className="account-summary"><span>로그인 계정</span><strong>{session.login}</strong></div>
             <form id="password-form" onSubmit={submitPassword} aria-busy={busy}>

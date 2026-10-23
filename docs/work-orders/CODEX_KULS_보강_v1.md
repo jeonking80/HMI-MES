@@ -566,3 +566,53 @@ Codex가 수정할 필요는 없으며, 연결 지점을 이해하기 위한 목
 | UX-08 | README 재구성, 스크린샷·GIF | — |
 
 UI는 계약 JSON으로 만든 고정 데이터로 먼저 개발한다. 실제 API에 결합해 검증하기 전에는 "UI 구현, 실제 API 결합 미검증"으로 기록한다.
+
+---
+
+## v1.1 개정 (2026-10-23, 통합 검증 결과)
+
+`codex/kuls-backend`(`26b424f`)를 `claude/bold-feynman-rpbxfw`에 병합하고, 분석 화면을 실제 API에 결합해 `scripts/check-operable-system.py --analytics-dir`로 검증했다. 네 화면 모두 실제 응답을 받아 표시하는 것은 확인했다. 아래는 그 과정에서 확정한 계약 해석과 추가 작업이다.
+
+### 계약 해석 (변경 없음, 명확화)
+
+- `durations_seconds`, `stopped_by_state`, `*_seconds` 값은 **소수 초**일 수 있다. UI가 이를 받아들이도록 고쳤다(정수 강제 제거). 서버 쪽 변경은 필요 없다.
+- 잠정 사유 코드 `EXECUTION_NOT_SETTLED`, `UNKNOWN_TIME`을 UI 표시 문구에 추가했다.
+
+### CX-09. 같은 호스트 실행의 시간 근거 구성 (우선)
+
+**발견:** 로컬 CLI 실행기, Compose, Vercel 어디에서도 `trend_clock_policy`(`ConfiguredClockPolicy`)를 구성하지 않는다. 그래서 실제 실행에서 시간 품질이 항상 UNKNOWN이다.
+- 트렌드 1시간 조회 결과: 3,600점 중 값이 있는 점 0개(`TIME_UNKNOWN` 42, `MISSING` 3,558)
+- 실행 보고: 가동 0초, 불명 100%
+- 대시보드: 가동 비율 0%
+
+설계 원칙("근거 없는 시간은 불명")에는 맞지만, 근거를 구성할 수 있는 환경에서도 구성하지 않아 기능이 동작하지 않는 상태다.
+
+**요구:**
+1. API와 게이트웨이가 같은 호스트 커널 시계를 공유하는 실행(로컬 CLI 실행기, Compose)에서만 `SAME_HOST_SHARED_KERNEL_UTC` 정책을 **운영자가 명시적으로 켜는** 옵션을 추가한다. 예: 내부 API 실행기의 `--trend-clock-policy same-host`. 기본값은 지금처럼 꺼짐이다.
+2. 게이트웨이 재시작으로 `capture_generation`·`clock_epoch`가 바뀌어도 정책이 올바르게 바인딩되거나, 바뀐 epoch는 다시 불명이 되는 방식을 설계해 문서에 적는다. 기존 역행·미래 시각 검사는 약화하지 않는다.
+3. Compose(`deploy/compose_runtime.py`)와 `scripts/check-operable-system.py`가 쓰는 로컬 실행 경로에서 이 옵션을 켠다. 후자는 Claude 소유이므로, 필요한 CLI 인자만 보고서에 적으면 Claude가 반영한다.
+4. **Vercel(서로 다른 호스트)에는 적용하지 않는다.**
+
+**완료 기준:**
+- `check-operable-system.py --analytics-dir` 실행 결과가 다음을 만족한다.
+  - 트렌드에 GOOD 값이 존재한다.
+  - 실행 보고의 가동 시간이 0보다 크다.
+  - 불명은 시스템 기동 이전처럼 근거가 없는 구간에만 남는다.
+- Compose에서도 같은 결과를 확인한다.
+- 기존 시간 역행·미래 시각 시험은 그대로 통과한다.
+- 위험 검토: high(시간 근거·데이터 무결성).
+
+### CX-10. 분석 기능 제공 여부를 서버가 알림
+
+**배경:** 지금은 UI 빌드 플래그 `VITE_ANALYTICS_PAGES`로 메뉴를 연다. 그런데 공개 Neon은 head14라 새 API가 없다. 빌드 플래그로 메뉴를 열면 공개 화면이 오류가 나고, 닫으면 Compose에서도 닫힌다.
+
+**요구:**
+- `GET /auth/config`에 `"analytics": true|false`를 **추가**한다. 기존 `guest_viewer` 필드는 유지한다.
+- 값은 CX-01~05 경로가 등록되어 있고 DB 스키마가 이를 지원할 때만 true다.
+- 공개 배포(head14)에서는 false여야 한다.
+
+**완료 기준:** head14 스키마와 head17 스키마 각각에서 응답값을 확인하는 시험을 둔다. UI 결합(메뉴 활성화를 이 값으로 전환)은 Claude가 맡는다.
+
+### CX-11. 서로 다른 호스트의 시간 근거 (보류 · 사용자 결정 필요)
+
+Vercel API와 원격 게이트웨이처럼 시계를 공유하지 않는 배포에서 시간 근거를 얻으려면 측정 기반 오프셋 정책(왕복 시간으로 오차 범위를 정하는 방식 등)이 필요하다. 시간 신뢰 모델을 확장하는 설계 결정이므로, 사용자가 승인하기 전에는 착수하지 않는다. 이 결정 전까지 공개 데모의 트렌드·가동 시간은 불명으로 표시된다.
