@@ -18,22 +18,54 @@ const suggestions = [
   '최근 7일 작업별 수율 비교해 줘',
 ]
 
-/** Renders the model's light Markdown (paragraphs, "-" lists, **bold**) without injecting HTML. */
+/** Renders the model's light Markdown (paragraphs, lists, tables, quotes, **bold**, `code`) without injecting HTML. */
 function inline(text: string): ReactNode[] {
-  return text.split(/(\*\*[^*]+\*\*)/u).map((part, index) => part.startsWith('**') && part.endsWith('**') && part.length > 4
-    ? <strong key={index}>{part.slice(2, -2)}</strong>
-    : <Fragment key={index}>{part}</Fragment>)
+  return text.split(/(\*\*[^*]+\*\*|`[^`]+`)/u).map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) return <strong key={index}>{part.slice(2, -2)}</strong>
+    if (part.startsWith('`') && part.endsWith('`') && part.length > 2) return <code key={index}>{part.slice(1, -1)}</code>
+    return <Fragment key={index}>{part}</Fragment>
+  })
+}
+
+const cells = (line: string) => line.trim().replace(/^\|/u, '').replace(/\|$/u, '').split('|').map(cell => cell.trim())
+const isSeparator = (line: string) => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/u.test(line)
+
+function Block({ lines }: { lines: string[] }) {
+  if (lines.length >= 2 && lines.every(line => line.trim().startsWith('|')) && isSeparator(lines[1])) {
+    const [head, , ...rows] = lines
+    return <div className="table-scroll"><table className="data-table assistant-table">
+      <thead><tr>{cells(head).map((cell, index) => <th key={index} scope="col">{inline(cell)}</th>)}</tr></thead>
+      <tbody>{rows.map((row, index) => <tr key={index}>{cells(row).map((cell, column) => <td key={column}>{inline(cell)}</td>)}</tr>)}</tbody>
+    </table></div>
+  }
+  if (lines.every(line => /^\s*[-*•]\s+/u.test(line))) {
+    return <ul>{lines.map((line, item) => <li key={item}>{inline(line.replace(/^\s*[-*•]\s+/u, ''))}</li>)}</ul>
+  }
+  if (lines.every(line => /^\s*\d+[.)]\s+/u.test(line))) {
+    return <ol>{lines.map((line, item) => <li key={item}>{inline(line.replace(/^\s*\d+[.)]\s+/u, ''))}</li>)}</ol>
+  }
+  if (lines.every(line => line.trimStart().startsWith('>'))) {
+    return <blockquote>{lines.map((line, item) => <Fragment key={item}>{item > 0 && <br />}{inline(line.replace(/^\s*>\s?/u, ''))}</Fragment>)}</blockquote>
+  }
+  return <p>{lines.map((line, item) => <Fragment key={item}>{item > 0 && <br />}{inline(line.replace(/^#{1,6}\s+/u, ''))}</Fragment>)}</p>
+}
+
+/** Splits on blank lines, and also where a table or list starts or ends without one. */
+function blocks(text: string): string[][] {
+  const result: string[][] = []
+  let current: string[] = []
+  let kind = ''
+  for (const line of text.trim().split('\n')) {
+    const next = !line.trim() ? '' : line.trim().startsWith('|') ? 'table' : /^\s*([-*•]|\d+[.)])\s+/u.test(line) ? 'list' : line.trimStart().startsWith('>') ? 'quote' : 'text'
+    if (!next || (current.length && next !== kind)) { if (current.length) result.push(current); current = [] }
+    if (next) { current.push(line); kind = next }
+  }
+  if (current.length) result.push(current)
+  return result
 }
 
 function Answer({ text }: { text: string }) {
-  const blocks = text.trim().split(/\n{2,}/u)
-  return <>{blocks.map((block, index) => {
-    const lines = block.split('\n')
-    if (lines.every(line => /^\s*[-*•]\s+/u.test(line))) {
-      return <ul key={index}>{lines.map((line, item) => <li key={item}>{inline(line.replace(/^\s*[-*•]\s+/u, ''))}</li>)}</ul>
-    }
-    return <p key={index}>{lines.map((line, item) => <Fragment key={item}>{item > 0 && <br />}{inline(line.replace(/^#{1,6}\s+/u, ''))}</Fragment>)}</p>
-  })}</>
+  return <>{blocks(text).map((lines, index) => <Block key={index} lines={lines} />)}</>
 }
 
 function EvidenceList({ evidence, model, at }: { evidence: Evidence[]; model?: string; at?: string }) {

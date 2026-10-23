@@ -231,3 +231,9 @@ a.button { display:inline-flex; align-items:center; text-decoration:none; }
   .assistant-message { max-width:100%; }
   .assistant-form { padding:0 .9rem .9rem; }
 }
+.assistant-bubble ol { margin:.2rem 0 0; padding-left:1.4rem; }
+.assistant-bubble > * + * { margin-top:.6rem; }
+.assistant-bubble .table-scroll { margin-top:.6rem; }
+.assistant-table { font-size:.82rem; }
+.assistant-bubble blockquote { margin:.6rem 0 0; padding:.55rem .8rem; border-left:3px solid var(--status-warn); background:var(--status-warn-bg); border-radius:var(--radius-sm); color:var(--text); }
+.assistant-bubble code { padding:.05rem .3rem; border-radius:4px; background:var(--surface-muted); font-size:.82em; }

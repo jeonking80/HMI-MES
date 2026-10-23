@@ -204,3 +204,18 @@ def test_config_rejects_malformed_key_and_insecure_endpoint():
         with pytest.raises(ValueError):
             AssistantConfig(**kwargs)
     assert KEY not in repr(AssistantConfig(api_key=KEY))
+
+
+async def test_system_prompt_states_today_in_seoul(service):
+    from datetime import UTC, datetime
+    from zoneinfo import ZoneInfo
+
+    model = FakeModel(answer("확인"))
+    auth, app = make_app(service, model)
+    session, _ = account(auth, "viewer", {"viewer"})
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=ORIGIN) as client:
+        client.cookies.set(SESSION_COOKIE, session.token)
+        assert (await post(client, session, body())).status_code == 200
+    system = json.loads(model.requests[0].content)["messages"][0]["content"]
+    today = datetime.now(UTC).astimezone(ZoneInfo("Asia/Seoul")).date().isoformat()
+    assert f"오늘은 한국 시간 {today}" in system

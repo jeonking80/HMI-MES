@@ -356,7 +356,13 @@ class _Tools:
 async def run_assistant(config, request_app, cookies, chat: ChatRequest, *, origin):
     """One answer with bounded tool rounds; returns answer and the evidence actually read."""
     now = datetime.now(UTC)
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}] + [
+    local = now.astimezone(SEOUL)
+    # The model has no clock; without this it guesses dates and queries the wrong day.
+    today = (
+        f"\n- 오늘은 한국 시간 {local.date().isoformat()}, 현재 시각은 {local:%H:%M} KST다."
+        " 사용자가 날짜를 말하지 않으면 오늘을 조회한다."
+    )
+    messages = [{"role": "system", "content": SYSTEM_PROMPT + today}] + [
         {"role": t.role, "content": t.content} for t in chat.messages
     ]
     async with (
