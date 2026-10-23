@@ -140,6 +140,14 @@ class GatewayPump:
                 gap for gap in progress.api_progress.unresolved_gaps if not gap.irrecoverable
             ]
             after = recoverable[0].from_seq - 1 if recoverable else progress.latest_read_seq
+            # Replay only this missing interval, rather than requeueing up to
+            # 1,000 already-ingested neighbours on every poll while its ACK
+            # waits behind an outage backlog. The API remains the gap authority.
+            limit = (
+                min(1000, recoverable[0].through_seq - recoverable[0].from_seq + 1)
+                if recoverable
+                else 1000
+            )
             events, gaps, uncertain = (), (), False
             latest_read = progress.latest_read_seq
             try:
@@ -148,7 +156,7 @@ class GatewayPump:
                         source_id=self.source_id,
                         stream_id=self.stream_id,
                         after_seq=after,
-                        limit=1000,
+                        limit=limit,
                     )
                 )
                 if isinstance(page, EventReadError):

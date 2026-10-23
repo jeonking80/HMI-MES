@@ -397,6 +397,18 @@ M1의 주요 독립 운전·권한·실제 생산 경로는 확인했지만, 원
 - 최신 코드 실제 CLI/Chromium도 GOOD132점·RUNNING3.927885초·NO_EVIDENCE만·SETTLED 양품5/불량2/폐기0으로 통과했다. 이어 현재 소스RO+검토 이미지의 Compose runtime은 GOOD35점·RUNNING6.98818초·SETTLED·게스트·48freshGOOD·웹·반복init을78.556초에 통과했다. 새 이미지 clean build 성공으로 표현하지 않으며 기존 preview/보호된 runtime은 건드리지 않았다.
 - 이번 백엔드 v2와 추가 CX-16의 변경·검증을 작업 브랜치로 인계한다. UI/UX와 main 통합은 Claude 범위다. 공개18 이관은 OPS-02 별도 운영 작업이며, T01~T12 묶인 전체 수락·실제8시간/10명/p95·30분 실제 적체/5분 복구·전체 backup_set_id 복원은 여전히 부분 검증/미실행이다. 미실행을 통과로 표시하거나 프로젝트 전체 완료로 단정하지 않는다.
 
+- 2026-10-23 3차 지시서 착수: 최신 main `4490a4c`(`430fbf6` 포함)에서 `codex/kuls-backend-v3`를 만들었다. OPS-02 SQL 재생성·cmp 통과와 high 정적 검토를 수행했다. 공개 ready:true이나 이 환경에 관리 자격 증명이 없어 공개 변경은 지시서 §6대로 [운영 인계](work-orders/reports/OPS-02.md)한다. medium 담당을 수락·백업·실제 단절/장시간·7일 성능으로 나눴으며 검증 중이다. 전체 수락 및 비기능 미실행 항목을 완료로 표시하지 않는다.
+
+- 3차 P0 구현 `d11800f`: T01/T03/T07/T08/T10/T11 core6개, 실제 Chromium 경계9개, T09/T12 전체복원2개를 분할 검증했다. 복원은 DB owner marker를 공통 enqueue/claim 경계에서 강제하고 설정·세션·새 키·원본/수량/명령/열린 알람/커서를 별도 DB에서 대조했다. 관련 명령·권한·작업지시까지153개144.34초 통과, 독립high 최종검토 통과. 한 커밋의17개 전체묶음은 CX-22에서 아직 실행 전이다.
+- CX-21 사전조건은 실제 quota4core/32GiB RAM을 확인했지만 SSD를 입증할 수 없어 실행 전 차단(JSON/JUnit skip, 실제8시간0). root overlay·vda ROTA1, 미마운트 pmem0, /tmp tmpfs를 SSD라고 대체하지 않았다. CX-19 첫61초 시도는 읽기 keepalive ECONNRESET로 실패했고 기준을 바꾸지 않은 새 실제30분 시험을 처음부터 진행한다. 최초 실패를 누적시간·통과로 포함하지 않는다.
+
+- CX-19 실제1800초 TCP 단절 뒤300초 회복은 실패했다(큐100MB·손실기록17·적체/누락 잔존). 실패JSON/JUnit/요약을 reports/evidence에 보존한다. 작은 gap에도1000사건을 매초 재조회해 FIFO 큐를 증폭하는 원인을 실제 재현하고 요청 범위를 gap 길이로 제한했다. 수정 후 집중2개47.80초+관련58개32.58초 통과. 원래1800초/100MB/300초 기준은 유지하며 새 실제30분 수락 재실행 전이다.
+
+- 2026-10-23 사용자 “8시간 시험은 하지마. 마무리하고 정리해” 지시에 따라 **CX-21 실제8시간은 이번 실행 범위에서 제외**하며 미실행으로 유지한다. 새 장시간·7일 대량 적재·릴리스 build 시험을 시작하지 않고 이번 작업을 정리한다. CX-19 run4는 실제1,800.201096초 단절을 측정했으나300초 내 복구 실패했다. 수정으로 최고 큐는 약28.49MB로 억제됐지만 마지막 pending836/inflight1·verified cursor4·gap5–10이 남았다. 실패는 유지하고 자동 재시도하지 않는다.
+- 최종 인계는 [KULS v3 정리](work-orders/reports/KULS-v3-HANDOFF.md)에 기록한다. T01~T12 분할17개·백업 관련153개·gateway 집중2개/회귀58개 검증 근거를 보존했다. 공개 OPS-02 적용, CX-20 전체 규모 성능, CX-22 clean build/단일 수락 묶음은 미실행이며 프로젝트 전체 완료·릴리스 통과로 표시하지 않는다. UI/README/Claude 소유 검증 스크립트는 변경하지 않았다.
+
+- 2026-10-23 후속 요청: 최신 main `51f2383`을 병합(`4c22332`)했다. UX-11 internal API의 기존 `--trend-clock-policy same-host`를 `extended_driver`가 중복 추가하지 않고 재사용하도록 수정했다. 인자가 없으면 기존처럼 삽입하며 중복·충돌·누락은 거절한다. 지정 시험의 기존 오류를 재현한 뒤 `tests/unit/test_long_run_acceptance.py` **18개 통과(0.43초)**, 수정 두 파일 Ruff 검사·형식 통과. 원본 driver는 변경하지 않았고 장시간 시험은 실행하지 않았다.
+
 ### Claude UI/UX 보강
 
 - 착수 전 확인: `scripts/check-operable-system.py` 로컬 실행 PASS(브라우저→API→PostgreSQL→게이트웨이→암호화 OPC UA→최종 SETTLED 대조). 현재 화면은 세로 약 7,000px의 단일 페이지이며 트렌드·보고서·대시보드 화면이 없다.

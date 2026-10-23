@@ -1,0 +1,665 @@
+{
+  "case_id": "T01",
+  "acceptance_id": "T01-14e4b6da88c8441d9e183bf4cf11c374",
+  "target_sha": "4490a4cbef7c46e5dff9017d059ddc6b312df161",
+  "dirty": true,
+  "started_at_utc": "2026-10-23T08:19:18.597821+00:00",
+  "runner_argv": [
+    "/workspace/HMI-MES/.venv/lib/python3.12/site-packages/pytest/__main__.py",
+    "tests/e2e/test_core_acceptance.py",
+    "-q",
+    "--tb=short",
+    "--junitxml=/tmp/hmi-v3-cx17-core-third.xml"
+  ],
+  "source_sha256": {
+    "apps/api/__init__.py": "b0fdfcd4a54746cbcfb127f590b938e9b391bcefb788f9183073340d4ecef16a",
+    "apps/api/__main__.py": "357fcaa152d4313ce014cbf9253f0a5af90a82edb6861314e45623eaddfaa9f5",
+    "apps/api/alarm_capture.py": "fa65cc1ea313c7dfa562da5c85437dab36d67c0d10f6b4bb8e913bc0d452fe99",
+    "apps/api/alarm_consumer.py": "60c1a638317fd0d729a513c6d58a3d406b2b794665ff56a7095680c7f1e04cda",
+    "apps/api/alarm_coordinator.py": "ee7b4e820da9b8aa067bcab34174a9777a74ede5458fd69c692fb4005248c846",
+    "apps/api/alarm_fault.py": "eeaf98d67a24be938b4334f6fb4e4ea402693cfb64107835c322b0c5e550528a",
+    "apps/api/alarm_http.py": "d3ef4d1b8d600cd4b3bcf5d56b3924268000dc6734aea398306fafbcb3cc803f",
+    "apps/api/alarm_lifecycle.py": "f0e32487511888de0a918576e59ce60526ab8af5bab9f86cf835f90412e22677",
+    "apps/api/alarm_qualification.py": "3cafd9a3a6d7913d9be21f1839c23fa7e326910923d7771780f2af73c855967a",
+    "apps/api/alarm_rules.py": "7b35521338206f57df9b341cfd92dac3e7fc40a109314568fa9dcf7bc9cb2c80",
+    "apps/api/alarm_runtime.py": "f6d4674fdcda8a123758a99e1459b59d0256b8455e3c8f21f1da7d400494a9cb",
+    "apps/api/alarm_store.py": "aa7242a2499a29357415d57138e4fc555e929448b9501677a633b6dcb19775b0",
+    "apps/api/analytics_availability.py": "163ac4b0818fb1e04beae014db0e2e3631ff7bcf17790c545371fab0e2dde7ea",
+    "apps/api/assistant.py": "2b414393ae22c76300a151222418dba42ab5110985c717a28ab370c942b07fe8",
+    "apps/api/auth.py": "4b6e9b66f951207c8ca7d35f5a45392cdeff8b866d7f58663bdf1f63f0606955",
+    "apps/api/bootstrap.py": "800bdf101bdcea70b295e9975b856e05da422c73f4c5a508d27d81abf8399bd4",
+    "apps/api/capture_clock.py": "1c8e48dbda8f7caa8e363c50d9236f59110fa15aae329b42602f8e067b881751",
+    "apps/api/cloud_plant.json": "ea20ad36fd2870aaac148a01439b3b91c6be8693571e9be4f55975217b5226da",
+    "apps/api/commands.py": "d6177166e21ffc932ee113dab05bf38712d2c2c694bca56056d1dc5fea4deedf",
+    "apps/api/control_http.py": "28c117515fdb7b79262062a28b0f11e2507f4375c64a36fbfeaf4523e394ac5a",
+    "apps/api/dashboard.py": "8fe654a6e1e68417abfac2150cbac24c9f3126e4c210058e7f64c8ead96b3d5a",
+    "apps/api/dashboard_http.py": "2ce20c8bda7ae984ae3cea9284f7b8b9c43693048732d5772d57fec1a6aa45ea",
+    "apps/api/database.py": "84d71fd5954c2caba911ac6332aed4c340816d86066f571adef7f4c21fbc73e2",
+    "apps/api/downtime.py": "0a641f4060d7b1598ac266d08b49a9e45cbab1955f0dcbd4dc0aa734781228ec",
+    "apps/api/downtime_http.py": "e8dd692258b11b3c531d9ebbfb009c67beef92106ea440a6512e3157cd99b5ae",
+    "apps/api/execution_http.py": "616f4944d06ede59a3dbaf20d3dd31271db74fa27a2fb0055ab8d60cdda810be",
+    "apps/api/execution_plan.py": "7b432d5e2b8a04a04fa1965b3ba255c77749c916219864049d2ae170ca8ab6df",
+    "apps/api/execution_read.py": "5eb1cff2b17ab93278656e0e89eef87249d1226c724f39ba4115da1916b46ea5",
+    "apps/api/guest.py": "061a78113768f48622b5bab42afff6bcae95a640fe34a68f4e0ed48cc1494660",
+    "apps/api/ingestion.py": "2fda6da8899be9a110ad6091875645ab1c90f362232393b67331da1ee620dea3",
+    "apps/api/internal.py": "87782b36dacc86d34597276ca6f956d5bb1cdf22f7dea4ff7eab60c237c43758",
+    "apps/api/measured_clock.py": "e0667a87534c944c0fcf2cfc3d4961cbddd5be5cc3d8c05e2e9e35ddcf013d31",
+    "apps/api/migrations/env.py": "fe6a49b940cd9e15058b773e6985a6b477dfdc0148bc9d65f51b538cfc1f85a1",
+    "apps/api/migrations/versions/0001_reference_data.py": "66ea8a187911d4eb884be4db223dd482b3599ced7887a6425aece6fd6c955301",
+    "apps/api/migrations/versions/0002_ingestion.py": "a1875aa13bdb30433aff52e9bdc535a2f0ee25cae5faa84a8b812f4091d77d91",
+    "apps/api/migrations/versions/0003_user_auth.py": "8d96dbccac22313eef8d27a28cfebb24c21694f8e9e70e569ffb4a793f89698b",
+    "apps/api/migrations/versions/0004_commands.py": "ad9f3e65f2a0dae379fa897ee0396b6d4eb6a636e6abd64f21140446d12b197b",
+    "apps/api/migrations/versions/0005_command_dispatch.py": "71a2369d814865eba40430f6b89f556848510d104eb8ff96f5f27c3416b6fc2d",
+    "apps/api/migrations/versions/0006_settlement.py": "3e63ab091af67e010959539344575d67cf87969e20fb425dc4080932b6301aa0",
+    "apps/api/migrations/versions/0007_execution_plan.py": "d21c7afc5ae152663d3e2fab1ac17e5bfb6233ec1b9419c51b21efbbc8ee35bd",
+    "apps/api/migrations/versions/0008_work_orders.py": "58e0874df66a776fc8314ff683af9fcf697fe9acb0b55eedaed49f33d9e38fab",
+    "apps/api/migrations/versions/0009_work_order_binding.py": "7afe335349a4bad8d11f3455dac5f0289a5804b744a03cfaed748739f5dfd65d",
+    "apps/api/migrations/versions/0010_alarm_store.py": "dff1b4ca45d4960ab04e7b193080c61bed0368a31827a8591b9a71074d13e62b",
+    "apps/api/migrations/versions/0011_alarm_capture_context.py": "4360573bcd245d6067c35351386a251080173de9919e993d663245ecb4ca02ba",
+    "apps/api/migrations/versions/0012_alarm_line_fault.py": "563f8ba50718d028d2ded82baac6ef6245e470e3624bb0e490afbb0188b59b09",
+    "apps/api/migrations/versions/0013_work_order_cancel.py": "fb2f465def63c240971a1846a6b5f09fa8d01a74b85351b6cfbfaf83db9e138c",
+    "apps/api/migrations/versions/0014_mixed_alarm_runtime.py": "c4898f7aece61d441068354af165e375bdd1b9f17ad769a0bdfe5c215fdfdf95",
+    "apps/api/migrations/versions/0015_analog_history.py": "b8d41a973503094709559554174f1c1ac324afbb592beaca10b08e5064da1f78",
+    "apps/api/migrations/versions/0016_downtime_reasons.py": "436dc44040600e348af0f3a1e0d014bbc2c977f7df2a5162abf2e7d3169f8712",
+    "apps/api/migrations/versions/0017_guest_viewer.py": "ff709d193b450a8fc2fa24fcb49e7697197f9e577eae3980c6bfb1488ad61656",
+    "apps/api/migrations/versions/0018_clock_evidence.py": "62c3742558f26258e54d5c57e8c054064f78dec264917dd8494fe66d367acaed",
+    "apps/api/minute_aggregation.py": "65f41c74faa53c7f1de85b1113ef973c4fe2a7bd2c11ab2ef59dbfedcd37c0d0",
+    "apps/api/models.py": "854a255862b99339070420a2306413efb166455bf04ad66642a6b7d6428ae4e8",
+    "apps/api/reports.py": "ef4a37e7c292451f80b741c5342a6f13114f07a7efa0f5792efb17ab6c1eb5dc",
+    "apps/api/reports_http.py": "154fd48f4829e7788a1ce3273e846c4ba234fc9f62a602082454b5464c34b1c3",
+    "apps/api/screen_frames.py": "cfde040a28a895f1044fdfad3dd3eb9066c8db33c13826bf26c21a55ae20b274",
+    "apps/api/screen_ws.py": "52bb4492f5f6a7e60b0472f8d5f5c11a0cf32b88d7b75d5588d973a29cd47074",
+    "apps/api/serverless.py": "756e5ca654c31e970598e2629fb8cc45b7d0ebe8698069f33100ecfe7d59a87a",
+    "apps/api/settlement.py": "6d491b610452bb05cc84457b1f7ec82925638d20e834a749f352e82d73fcadfa",
+    "apps/api/settlement_http.py": "c761a49e7df06790bbd6ccbae253096f21854295734e78a4b8e9e28280438126",
+    "apps/api/snapshot.py": "0a704a16159314e9d2109bdccaeb1e55966032ab7009d1eec62b5682dad91585",
+    "apps/api/spc.py": "797342c129a27b44b34b25e075c968ba478f9638ed1a460bf9b4c076acbbb984",
+    "apps/api/spc_http.py": "b925d589409a905e747ecf8eb0e4dae027fd50674896ad935f34acd05c2478e1",
+    "apps/api/trend_history.py": "1d9c080edfa6f9f20ff9696cd28b4ea6efa8ad6d5842adce122b18f1ecf41123",
+    "apps/api/trend_http.py": "9acc1238ec58cec9cd843e8d6c5b6b38948885fdca3627cefc2c41aa1b195ab2",
+    "apps/api/user_http.py": "3b3223babe9a16014c69169a3eecf160df3a2acf0d250710b009b30a689a3dc9",
+    "apps/api/web.py": "4bfc19362d6cf038ed2880b1331d857bb702e1678200b39b6d69770f7edba16d",
+    "apps/api/work_order_cancel.py": "49ef2068f5e54e4542688e1782d9b29b78376b7de4644dd24d2b82ee346a8d9d",
+    "apps/api/work_order_cancel_http.py": "8d6e7830f1350f5f81f63c74a3faef0f0c7ab93ecb79c16c4520883870fa0ce6",
+    "apps/api/work_order_workflow.py": "db14f5a5dbfa28cfd7aa4bf5aa12fb86ca19605db7cf9c1def022d8170d1ed3c",
+    "apps/api/work_orders.py": "d4c36e8db726c10cc8a86aaf620465bc42b87f92454e4c44f9041471f9519874",
+    "apps/api/work_orders_http.py": "491179b4dc67416689967fc034beecc88248b75400b684abd5f3a6943b931239",
+    "apps/gateway/__init__.py": "6c50891007c2984533f4d7bd942fa6746f264f394ac504b46f8fcacdb788bafd",
+    "apps/gateway/__main__.py": "a5836ad62df1c205c8f8ab129296cdf20101003c26120b7bba9f7e6ddd396fd5",
+    "apps/gateway/buffer.py": "c8fc088de49792566322400425a45c169767c5ca4721baefdd234c4ded25a96c",
+    "apps/gateway/commands.py": "5878a1a183ce4552546de0b465ebdb3016e5bedc582f2ce57b19b781a7d83821",
+    "apps/gateway/http_client.py": "c836d5a170fea5e9a5b6266eb2f117fbbfad1e23785ba98f0ee554715d33a16c",
+    "apps/gateway/opcua_client.py": "f7c98051e10a6bfa96d3b8c0442ffd55e3bc0229a7eb3f7d6e113e8a1da84101",
+    "apps/gateway/settlement.py": "a9cc0db6eb645e9bb924faea59669b026d92c421b5223b3dd02cbac481842040",
+    "apps/gateway/worker.py": "7eb8cec867a53ae080de687c202c92b3b16348f2b9baa1fbb8a84fa0b7127565",
+    "apps/simulator/__init__.py": "bfc7bf1092c6af7b7db6b8021692458640482b95b0f727d2440e2358575af414",
+    "apps/simulator/__main__.py": "e98eda44f9c337687595ad3cd81a5cb4a2afc3a1d43bf9eee48feca6fef23640",
+    "apps/simulator/_field_channels_v1.py": "f261bde89764897c0a9b68a7d36c7ab0ca169975af25605bebb736fa7d1780f8",
+    "apps/simulator/_field_channels_v2.py": "1e92e1bfc3e41eb4b9a0f123c472602e1a006e410aff1b70ef0d8e839c5fbb1d",
+    "apps/simulator/auth.py": "3cf4f2a1726ca73e3a9cf6171f37cd36251369b52e10f2853b316430ac00b4a6",
+    "apps/simulator/certificates.py": "fb5faf131e4ea979c3d87611c2fa4d11892684d6657c18eaebf24203be8274b7",
+    "apps/simulator/command_store.py": "62e0f7a1dcac2ac616ed8250ff9539e001bc8620dad4892afa2b73e0ecb7c97f",
+    "apps/simulator/console.py": "915b1329799cce8c839f3fee09f9a1ac4dcdb85fd7bac1ab9150d923c543a4fc",
+    "apps/simulator/controller.py": "5e0bed9e5df5366342c055abdbfaeb4d221e1a0dca5a01814df37adb2c8b51e0",
+    "apps/simulator/field_channels.py": "e9ed6df9d772681adc0f4fe80ea52cb2e590a42f44d1dcc411da0397e4c92e1c",
+    "apps/simulator/field_delay.py": "369832fd994ef9e464ded61b29b04e53e413b9991bb34c9d1851827e8c5d58f2",
+    "apps/simulator/field_publication.py": "a26747177b722178cb7e2e70192c9c31875e2ae4039cba96efedac963b6d37d2",
+    "apps/simulator/opcua_server.py": "f7d522c8743bb856f99ca809ace724ffdc2a02c6d04f595427a07dbb89ab848f",
+    "apps/simulator/plc.py": "8303285dbbd2685a1729421bc5e321c06f11d62f683a0a559833489575715b09",
+    "apps/simulator/process.py": "faa7c8322f3dbfe44c05fcded7c502b4156fe080ef4834242135d206115e0f98",
+    "apps/simulator/storage.py": "4db6e12ac1d1f7a33e69327eeebe88b3cf4b2a55ff629eeddbaf247f801b403b",
+    "apps/simulator/tags.py": "1c8b8ea25fe15d0bf8cf59d822be4211038bc4d9e3d0d189fa3bad0c7094ff65",
+    "contracts/__init__.py": "dcc00f93465d84e6862541a34bb8676dadda00ae151a9f8c7c6f81d32a9cb663",
+    "contracts/clock_evidence.py": "dc2c0e40be5343466410b0fc8d82b6088a2483023f19dde34e0f8fb13aabaefc",
+    "contracts/examples/command-expired.json": "03fa92289b72d8a73655154216d5cf7c9441baeab1d58fe5fa24e98e1962ed21",
+    "contracts/examples/command-not-found.json": "e5b8be1bd23e3eb1fc75e69578f8b909df459916f75fcc320654866e2d61f02a",
+    "contracts/examples/command-outcome-unknown.json": "05f1e7cb82406ea968e94f10de5dc4c89199ea9ef55622ff0aa530eabd163d15",
+    "contracts/examples/command-rejected.json": "b0057c9c863cf58c166851f945a223786a22d7121cdbc24180492630be57da54",
+    "contracts/examples/command-request.json": "eb128da1c184be8b85ade53377fd944f0e5d1d32b1ba8aebd59ba1366284cb6e",
+    "contracts/examples/command-result-request.json": "1ab32713ac62bb2722dec475886044734bcfa7b76af5835064cfe747d5f2be7d",
+    "contracts/examples/command-result.json": "fed8541d384a2d23cfd93a201001ca27ae92e3b012f774d59fb3138e76b86931",
+    "contracts/examples/command-submission.json": "564f590c3f4841874744c1eda2de395cdf8784850f4e64b1a5ea2e79ff1aa7d2",
+    "contracts/examples/commands.json": "b346bef6fe7435906714f268e8ad49ef37a9209eb3a51be3aae18b9657a89b9e",
+    "contracts/examples/event-page.json": "59fd205d15ccd8ed5d05362b10bcf35a206645bc21d6db2ba18c5ff0499f9c68",
+    "contracts/examples/event-read-error.json": "436fdc9e012709fb351e61c4940f32ca2633b205c1b8c5adbe2e2eb19f8b16e4",
+    "contracts/examples/event.json": "1f3724879001faacea8c5fe56ed764c7bd1a78c667321cde7dc065a3874655a2",
+    "contracts/examples/read-events-request.json": "85d552e2d3438a5c4c93bbb078d7f57b62d90ea8a02608dd3091b63e21b791ab",
+    "contracts/examples/run-not-found.json": "1981f7bebde9f21d312d59fc0f0dddc2fc71f3fa81f601ee4df500011645c7ca",
+    "contracts/examples/run-summary-request.json": "90a510ed2d96b16a6687b8036525fbbcb0be5a6ba929c42cda2d994ab5ca8df1",
+    "contracts/examples/run-summary.json": "c12de019c2c930179fa2b4b12a57fcd2039f0287779319fef1c3a9ef58b330de",
+    "contracts/examples/transport-ack-gap.json": "24c35b381f5165d6781dea119b7ea4d09b9b2a2a3155b61459775073839c453f",
+    "contracts/examples/transport-ack-quarantined.json": "cdd2aea8ef474a92601cf6252311ec59e85de516bffa1573c7343efd15918b5b",
+    "contracts/examples/transport-ack.json": "84cee3b2397f23c59db2a8b2e55387eeb489bfef48b2eb0d63ce31779509f7bb",
+    "contracts/examples/transport-batch-capture-time.json": "59b2a6c6bbe413e41f4b6d7e80dd7d8f9181e1734f41ef8efde26563cee43805",
+    "contracts/examples/transport-batch-gap.json": "308cabf6dcbd50d011579e4c2d91cebed5ae132778aeca3b6c8d58046a8beff7",
+    "contracts/examples/transport-batch.json": "cabc1e55f085e880752c5133615e2d9515d855512abd6568acecc69ac3be2245",
+    "contracts/examples/transport-screen-resync.json": "851bc6fb2f3f3f94463d68b723e99fd63b725ccc8a771d815bcb48afd2e97bd0",
+    "contracts/examples/transport-screen-update.json": "cb81d9adeffbdf686ad63b7d72a8275c086b52f2d073abdf9e386b3a1e884852",
+    "contracts/examples/transport-screen.json": "eaa79bc766fb2bf1b61d7a29fee5c4f840f8df2735e72b5f7236c913e2c955ee",
+    "contracts/models.py": "8e586c6f0e67e35804af28cf3db75ddf77394775a0912c2944a4c9de38836323",
+    "contracts/schemas/app-screen.schema.json": "a0ca37ffb33918f2e61a4d4c7ed0fc5b75b736ed2c7c040c55111a2fb58d0d56",
+    "contracts/schemas/command-not-found.schema.json": "63dc97e0fd364505ac89586d22363710aed08fcef9877c80cab8f188f1f200be",
+    "contracts/schemas/command-request.schema.json": "46a21ddc70f1cd7d66f54a55881770100e935031cba101fc9f2712714b9777a1",
+    "contracts/schemas/command-result-request.schema.json": "8ee51585007e2a5aea09038215a0a7091fe84a7cf52e1eb36250da99c7021241",
+    "contracts/schemas/command-result.schema.json": "ebda4aa84f3dbc0596c71cf11afa5919d01cd43bf3e74b80379e948db475b1e5",
+    "contracts/schemas/command-submission.schema.json": "38b2d3b2cae56658c448ab22afda0f470d96c96d018cdfa3f50884a08971e80d",
+    "contracts/schemas/event-page.schema.json": "aa0ecdc69d3a487865ec923948f3e4f62425e36b9dfb25470c802ce82fc8febd",
+    "contracts/schemas/event-read-error.schema.json": "57b662bcd66cbd00f21640e65db161e87766a44ccc35993993c273952321e221",
+    "contracts/schemas/event.schema.json": "3163d1e8d331445d3993394010a8cac531bbc7475f9a97762ff011725b5a042e",
+    "contracts/schemas/read-events-request.schema.json": "f950753e313a05c17b9bc6b4a5cf3920175ee229b88e06684ac0b8c4a43a5559",
+    "contracts/schemas/run-not-found.schema.json": "a4d3b483437f4f1bd66b365ff5db13a41333f1e4d99df361815c14f82f1e422c",
+    "contracts/schemas/run-summary-request.schema.json": "e36c0ee08cb43e50a4aca5d59c93d931de65539d393edc3c24e5f458a9148166",
+    "contracts/schemas/run-summary.schema.json": "e20c32f1969ee621b883f35e1ec5bf981d8f28944fcc28cda51556f03c45de80",
+    "contracts/schemas/transport-ack.schema.json": "35fb383752aed85fe372f2ee907c8192262d1af81f2da810aff397aab9aca866",
+    "contracts/schemas/transport-batch.schema.json": "10096c19199f5c99e1502baeb783dbb271cf5a09c1c9f46f9d47a039dfa1b15a",
+    "contracts/schemas/transport-screen.schema.json": "0412a4ff3262ec5ae7dfdc5d7726b9b898aca856b552033dfc625e07f0bee4ef",
+    "contracts/tags/tags.v1.json": "4643e8b4488a50dd0dbf734935922891b94b7b52dd178edef0a6cd4a6708ea13",
+    "contracts/tags/validate.py": "96c4d769cac767679cb9f5a62faabf904f31ef9eb236188a64510fcd05df614a",
+    "contracts/transport.py": "526d2bafb5caafd83a047cae6648d528316e6cf04a0d15de559fb85652479c81",
+    "deploy/backup_set.py": "b0aa8d9a1bed7618a7e09ea014a43aba332a2c68f2b05df875f3ef2ac14a9b33",
+    "deploy/compose_runtime.py": "ea06161f1b10a13965ccaa9fdb40d3e01780902a8bd5cc2b88c78acbf11bf282",
+    "deploy/generate_gateway_setup.py": "a823ad6b8835c852236cd4046bb31bb6c00ba2e29232f34f92a33af49daaf572",
+    "deploy/generate_neon_demo.py": "48b14e7126385141450b1383b8e42f6c373b28ae2ae631f2a9d2bf97f407aa70",
+    "deploy/generate_neon_init.py": "c567bf6f75851afd119cd5bc2db387a7634539dcd3445fa3f01fafc2d00ed47d",
+    "deploy/neon-clock-grants.sql": "2107653ce5a4dce44bc56345423f2d8f4eaf31f8abf5dd55f1af27d2ef4a4298",
+    "deploy/neon-http/grants-0017.json": "2c316acb4783948c0deeff71016e2f1a3df42ff836996ad02f4e7e94d70edf38",
+    "deploy/neon-http/grants-0018.json": "800dbd5ce9cdb183f2753e88e34cb02b64f0a278c5a9335d77019663fcab392b",
+    "deploy/neon-http/upgrade-0014-0017.json": "7bf28e0c18667fe0b48d0569f37b88475141751b865dcd33a26e2ad8ab86d7cb",
+    "deploy/neon-http/upgrade-0017-0018.json": "cf8fc04e08bdffe2d1241384f7d26e880eb68185927c4475f5aef43dcd656796",
+    "deploy/neon-init.sql": "d542f65d080f92817de6ac4bb4fb7ca1f26eb35310a0174793b8475d0967bef5",
+    "deploy/neon-kuls-grants.sql": "dfe7cad4b15f73c6d075ee2c1b43a93f9bc4b45845f822335b285b82fb22f73b",
+    "deploy/plant_runtime.py": "680f4ef92b2456c61f6675f2af4f7948c7740ea4be7b112f47a51efab7d7c35d",
+    "deploy/plant_service.py": "1fe14a85f1aa08310d9f728bd08223b9c290890cb9e5600777f7ff9c76d338d8",
+    "tests/e2e/acceptance_runtime.py": "15f07275748c1ed13a101dcb2d925b50900d1488d7c32c7b443c11546cb3370e",
+    "tests/e2e/browser_boundary.py": "c42dc8a354f558686baae49556906a0ea97075958b8dfd8349296413795c1b85",
+    "tests/e2e/conftest.py": "1d53a448235780b6948bf6e9d6ee7d356486f08392a92bdfddf09db5e2201c45",
+    "tests/e2e/long_run_runtime.py": "8635450a9be5515e3707b6f2402de1551dad2b7912b414645aaa4b0743055884",
+    "tests/e2e/test_browser_acceptance.py": "51b587a1b04e12eeb0e90b7ceb6349e97ba86b7b54faa2a96369a39d02c6a873",
+    "tests/e2e/test_core_acceptance.py": "f59a66d33cf2986b0ed543902671c1f5b3b87259805df262e2478cc002402443",
+    "tests/e2e/test_restore_acceptance.py": "06460be9670fc2ca87fd56f5dd30871ae2f471a933274e7855350931891642ff"
+  },
+  "git_diff_sha256": "f34a19d418ca7b183fbc236bb08586ac75ac7ebd39854e42fd08e50552d15314",
+  "commands": [
+    {
+      "schema_version": "1.0",
+      "command_id": "T01LOAD_JOB",
+      "target_id": "Line",
+      "execution_id": "run-A",
+      "command": {
+        "kind": "LOAD_JOB",
+        "args": {
+          "work_order_id": "order-A",
+          "recipe_version": "recipe-A",
+          "target_quantity": 4,
+          "parameters": {
+            "temperature_c": 150.0,
+            "speed_m_per_min": 6.0
+          }
+        }
+      },
+      "requested_by": "network-operator",
+      "requested_at": "2026-10-23T08:19:18.632756Z",
+      "expires_at": "2026-10-23T08:19:23.632756Z",
+      "expected_control_version": "2"
+    },
+    {
+      "schema_version": "1.0",
+      "command_id": "T01START",
+      "target_id": "Line",
+      "execution_id": "run-A",
+      "command": {
+        "kind": "START",
+        "args": {}
+      },
+      "requested_by": "network-operator",
+      "requested_at": "2026-10-23T08:19:18.733608Z",
+      "expires_at": "2026-10-23T08:19:23.733608Z",
+      "expected_control_version": "3"
+    },
+    {
+      "schema_version": "1.0",
+      "command_id": "T01END_RUN",
+      "target_id": "Line",
+      "execution_id": "run-A",
+      "command": {
+        "kind": "END_RUN",
+        "args": {}
+      },
+      "requested_by": "network-operator",
+      "requested_at": "2026-10-23T08:19:18.830823Z",
+      "expires_at": "2026-10-23T08:19:23.830823Z",
+      "expected_control_version": "4"
+    }
+  ],
+  "executions": [
+    {
+      "schema_version": "1.0",
+      "source_id": "5a621440-6359-4e56-858d-66759cafbb6c",
+      "stream_id": "02c572ac-92d6-43e9-b924-006435b3b808",
+      "execution_id": "run-A",
+      "state": "ENDED",
+      "as_of": "2026-10-23T08:19:18.875903Z",
+      "counter_epoch": "fc4273f6-2663-4c2c-97f9-833b34e6ff22",
+      "recipe_version": "recipe-A",
+      "parameters": {
+        "temperature_c": 150.0,
+        "speed_m_per_min": 6.0
+      },
+      "input_quantity": "5",
+      "good_quantity": "4",
+      "reject_quantity": "1",
+      "scrap_quantity": "0",
+      "wip_quantity": 0,
+      "last_event_seq": "10",
+      "final": true,
+      "ended_at": "2026-10-23T08:19:18.875903Z"
+    }
+  ],
+  "events": [
+    {
+      "event_id": "ae77b603-36d7-45c3-b8c7-25bad4c03418",
+      "seq": "1",
+      "execution_id": null,
+      "kind": "STATE_CHANGED",
+      "body": {
+        "seq": "1",
+        "kind": "STATE_CHANGED",
+        "payload": {
+          "state": "STOPPED",
+          "previous_state": "RECOVERY_REQUIRED",
+          "control_version": "1"
+        },
+        "event_id": "ae77b603-36d7-45c3-b8c7-25bad4c03418",
+        "source_id": "5a621440-6359-4e56-858d-66759cafbb6c",
+        "stream_id": "02c572ac-92d6-43e9-b924-006435b3b808",
+        "occurred_at": "2026-10-23T08:19:17.033298Z",
+        "equipment_id": "Line",
+        "execution_id": null,
+        "schema_version": "1.0"
+      },
+      "content_sha256": "e380f33ab358e2753f27e60fb1d2a5b0de77c08f0b8a6aab26cff636ffcb871a"
+    },
+    {
+      "event_id": "fddc51fc-65df-40a2-9f40-8c7cb946f29f",
+      "seq": "2",
+      "execution_id": "run-A",
+      "kind": "STATE_CHANGED",
+      "body": {
+        "seq": "2",
+        "kind": "STATE_CHANGED",
+        "payload": {
+          "state": "READY",
+          "previous_state": "STOPPED",
+          "control_version": "3"
+        },
+        "event_id": "fddc51fc-65df-40a2-9f40-8c7cb946f29f",
+        "source_id": "5a621440-6359-4e56-858d-66759cafbb6c",
+        "stream_id": "02c572ac-92d6-43e9-b924-006435b3b808",
+        "occurred_at": "2026-10-23T08:19:18.701314Z",
+        "equipment_id": "Line",
+        "execution_id": "run-A",
+        "schema_version": "1.0"
+      },
+      "content_sha256": "0c740d02ec2dac7bb2c97b7e7ce126da05a43603315d463a8d5b2751be264ece"
+    },
+    {
+      "event_id": "35370484-bff7-4d01-ba66-b0a983f32ac4",
+      "seq": "3",
+      "execution_id": "run-A",
+      "kind": "STATE_CHANGED",
+      "body": {
+        "seq": "3",
+        "kind": "STATE_CHANGED",
+        "payload": {
+          "state": "RUNNING",
+          "previous_state": "READY",
+          "control_version": "4"
+        },
+        "event_id": "35370484-bff7-4d01-ba66-b0a983f32ac4",
+        "source_id": "5a621440-6359-4e56-858d-66759cafbb6c",
+        "stream_id": "02c572ac-92d6-43e9-b924-006435b3b808",
+        "occurred_at": "2026-10-23T08:19:18.773389Z",
+        "equipment_id": "Line",
+        "execution_id": "run-A",
+        "schema_version": "1.0"
+      },
+      "content_sha256": "ba847c0955fd0c9428b74b5a4e74786cfcf412044d5a91812a8d80c1ee8de81d"
+    },
+    {
+      "event_id": "39dbe2b5-8d00-4f0f-98a5-601cd5472502",
+      "seq": "4",
+      "execution_id": "run-A",
+      "kind": "PRODUCTION_GOOD",
+      "body": {
+        "seq": "4",
+        "kind": "PRODUCTION_GOOD",
+        "payload": {
+          "quantity": "1",
+          "counter_epoch": "fc4273f6-2663-4c2c-97f9-833b34e6ff22"
+        },
+        "event_id": "39dbe2b5-8d00-4f0f-98a5-601cd5472502",
+        "source_id": "5a621440-6359-4e56-858d-66759cafbb6c",
+        "stream_id": "02c572ac-92d6-43e9-b924-006435b3b808",
+        "occurred_at": "2026-10-23T08:19:18.783383Z",
+        "equipment_id": "Outfeed",
+        "execution_id": "run-A",
+        "schema_version": "1.0"
+      },
+      "content_sha256": "12b90846161233f86e81b7c1a70caa597df561a839d7ef63dc7e60cd7a2a0662"
+    },
+    {
+      "event_id": "bea9f690-f531-4557-9695-fa79b4b277a8",
+      "seq": "5",
+      "execution_id": "run-A",
+      "kind": "PRODUCTION_GOOD",
+      "body": {
+        "seq": "5",
+        "kind": "PRODUCTION_GOOD",
+        "payload": {
+          "quantity": "1",
+          "counter_epoch": "fc4273f6-2663-4c2c-97f9-833b34e6ff22"
+        },
+        "event_id": "bea9f690-f531-4557-9695-fa79b4b277a8",
+        "source_id": "5a621440-6359-4e56-858d-66759cafbb6c",
+        "stream_id": "02c572ac-92d6-43e9-b924-006435b3b808",
+        "occurred_at": "2026-10-23T08:19:18.786821Z",
+        "equipment_id": "Outfeed",
+        "execution_id": "run-A",
+        "schema_version": "1.0"
+      },
+      "content_sha256": "3ce50d246883f6931395c4a80dbd2d8868efd602b5eecd0747927567fef6e06b"
+    },
+    {
+      "event_id": "6d614d87-095d-4236-99b7-eeccd429ad91",
+      "seq": "6",
+      "execution_id": "run-A",
+      "kind": "PRODUCTION_REJECT",
+      "body": {
+        "seq": "6",
+        "kind": "PRODUCTION_REJECT",
+        "payload": {
+          "quantity": "1",
+          "counter_epoch": "fc4273f6-2663-4c2c-97f9-833b34e6ff22"
+        },
+        "event_id": "6d614d87-095d-4236-99b7-eeccd429ad91",
+        "source_id": "5a621440-6359-4e56-858d-66759cafbb6c",
+        "stream_id": "02c572ac-92d6-43e9-b924-006435b3b808",
+        "occurred_at": "2026-10-23T08:19:18.790905Z",
+        "equipment_id": "Outfeed",
+        "execution_id": "run-A",
+        "schema_version": "1.0"
+      },
+      "content_sha256": "b94790251ddf0a951bf868c66e53dccf34b654bf267d6af97046026a64425fb1"
+    },
+    {
+      "event_id": "839833c9-8588-436a-803a-de671e5a90ca",
+      "seq": "7",
+      "execution_id": "run-A",
+      "kind": "PRODUCTION_GOOD",
+      "body": {
+        "seq": "7",
+        "kind": "PRODUCTION_GOOD",
+        "payload": {
+          "quantity": "1",
+          "counter_epoch": "fc4273f6-2663-4c2c-97f9-833b34e6ff22"
+        },
+        "event_id": "839833c9-8588-436a-803a-de671e5a90ca",
+        "source_id": "5a621440-6359-4e56-858d-66759cafbb6c",
+        "stream_id": "02c572ac-92d6-43e9-b924-006435b3b808",
+        "occurred_at": "2026-10-23T08:19:18.793168Z",
+        "equipment_id": "Outfeed",
+        "execution_id": "run-A",
+        "schema_version": "1.0"
+      },
+      "content_sha256": "53cc94f14b4a83a4baf15bdb3f081de3d4cfe24e8c8e24f4248d80b575cc7e53"
+    },
+    {
+      "event_id": "b4236c6f-33a3-40dc-a4e7-4186965c0262",
+      "seq": "8",
+      "execution_id": "run-A",
+      "kind": "PRODUCTION_GOOD",
+      "body": {
+        "seq": "8",
+        "kind": "PRODUCTION_GOOD",
+        "payload": {
+          "quantity": "1",
+          "counter_epoch": "fc4273f6-2663-4c2c-97f9-833b34e6ff22"
+        },
+        "event_id": "b4236c6f-33a3-40dc-a4e7-4186965c0262",
+        "source_id": "5a621440-6359-4e56-858d-66759cafbb6c",
+        "stream_id": "02c572ac-92d6-43e9-b924-006435b3b808",
+        "occurred_at": "2026-10-23T08:19:18.800731Z",
+        "equipment_id": "Outfeed",
+        "execution_id": "run-A",
+        "schema_version": "1.0"
+      },
+      "content_sha256": "50c047c91ad9278e74b7932b473e9b38081eabd5cca40e41dfbfb3626806baa5"
+    },
+    {
+      "event_id": "29528d24-8bee-425e-a7c4-7903e1802ad1",
+      "seq": "9",
+      "execution_id": "run-A",
+      "kind": "STATE_CHANGED",
+      "body": {
+        "seq": "9",
+        "kind": "STATE_CHANGED",
+        "payload": {
+          "state": "STOPPING",
+          "previous_state": "RUNNING",
+          "control_version": "5"
+        },
+        "event_id": "29528d24-8bee-425e-a7c4-7903e1802ad1",
+        "source_id": "5a621440-6359-4e56-858d-66759cafbb6c",
+        "stream_id": "02c572ac-92d6-43e9-b924-006435b3b808",
+        "occurred_at": "2026-10-23T08:19:18.875903Z",
+        "equipment_id": "Line",
+        "execution_id": "run-A",
+        "schema_version": "1.0"
+      },
+      "content_sha256": "0c94f58267712dbc57a97fbce3111f427fe3ba73a810816bb000049b9718f121"
+    },
+    {
+      "event_id": "c60e083e-292d-4a71-bf2b-30909a8ef8a1",
+      "seq": "10",
+      "execution_id": "run-A",
+      "kind": "STATE_CHANGED",
+      "body": {
+        "seq": "10",
+        "kind": "STATE_CHANGED",
+        "payload": {
+          "state": "STOPPED",
+          "previous_state": "STOPPING",
+          "control_version": "5"
+        },
+        "event_id": "c60e083e-292d-4a71-bf2b-30909a8ef8a1",
+        "source_id": "5a621440-6359-4e56-858d-66759cafbb6c",
+        "stream_id": "02c572ac-92d6-43e9-b924-006435b3b808",
+        "occurred_at": "2026-10-23T08:19:18.875903Z",
+        "equipment_id": "Line",
+        "execution_id": "run-A",
+        "schema_version": "1.0"
+      },
+      "content_sha256": "3bb473c712cc59a73169a18c4d9409288e58c67cbf13388ff23b3e97c3772acd"
+    }
+  ],
+  "final_sequences": {
+    "run-A": 10
+  },
+  "reports": {
+    "items": [
+      {
+        "execution_id": "run-A",
+        "source_id": "5a621440-6359-4e56-858d-66759cafbb6c",
+        "stream_id": "02c572ac-92d6-43e9-b924-006435b3b808",
+        "work_order_id": "order-A",
+        "item_id": null,
+        "recipe_version": "recipe-A",
+        "target_quantity": null,
+        "registered_at": "2026-10-23T08:19:18.615137Z",
+        "started_at": "2026-10-23T08:19:18.773389Z",
+        "ended_at": "2026-10-23T08:19:18.875903Z",
+        "totals": {
+          "good": "4",
+          "reject": "1",
+          "scrap": "0"
+        },
+        "yield_ratio": 0.8,
+        "settlement_status": "SETTLED",
+        "provisional": true,
+        "provisional_reasons": [
+          "UNKNOWN_TIME"
+        ],
+        "durations_seconds": {
+          "running": 0.0,
+          "stopped": 0.0,
+          "unknown": 0.260766,
+          "total": 0.260766
+        },
+        "stopped_by_state": {}
+      }
+    ],
+    "next_cursor": null
+  },
+  "assertions": [
+    {
+      "name": "LOAD_JOB dispatched original ID",
+      "passed": true
+    },
+    {
+      "name": "LOAD_JOB resolved original ID",
+      "passed": true
+    },
+    {
+      "name": "START dispatched original ID",
+      "passed": true
+    },
+    {
+      "name": "START resolved original ID",
+      "passed": true
+    },
+    {
+      "name": "END_RUN dispatched original ID",
+      "passed": true
+    },
+    {
+      "name": "END_RUN resolved original ID",
+      "passed": true
+    },
+    {
+      "name": "exactly one OPC submission per command",
+      "passed": true,
+      "submissions": [
+        "T01LOAD_JOB",
+        "T01START",
+        "T01END_RUN"
+      ]
+    },
+    {
+      "name": "48 actual OPC tags captured",
+      "passed": true
+    },
+    {
+      "name": "actual HTTP batch committed",
+      "passed": true
+    },
+    {
+      "name": "PLC final summary reported over HTTP",
+      "passed": true
+    },
+    {
+      "name": "source and ingestion three quantities match",
+      "passed": true,
+      "totals": {
+        "good_quantity": 4,
+        "reject_quantity": 1,
+        "scrap_quantity": 0
+      }
+    },
+    {
+      "name": "final sequence verified",
+      "passed": true
+    },
+    {
+      "name": "settled",
+      "passed": true
+    },
+    {
+      "name": "report quantities equal final PLC",
+      "passed": true
+    },
+    {
+      "name": "all three equipment captured over OPC",
+      "passed": true,
+      "equipment": [
+        "Infeed",
+        "Line",
+        "Outfeed",
+        "Sealer"
+      ]
+    },
+    {
+      "name": "pinned recipe and final quantities",
+      "passed": true
+    }
+  ],
+  "scope": "real OPC/HTTP/PostgreSQL; accelerated small physical geometry; no browser assertion",
+  "sample_tags": [
+    "Line.State",
+    "Line.ControlMode",
+    "Line.OperationMode",
+    "Line.EStop",
+    "Line.GuardClosed",
+    "Line.Permissive",
+    "Line.FaultCode",
+    "Line.ActiveExecutionId",
+    "Line.RecipeVersion",
+    "Line.CounterEpoch",
+    "Line.TargetQuantity",
+    "Line.WipCount",
+    "Line.GoodTotal",
+    "Line.RejectTotal",
+    "Line.ScrapTotal",
+    "Line.Heartbeat",
+    "Line.ControlVersion",
+    "Line.EventSeq",
+    "Infeed.State",
+    "Infeed.RunFeedback",
+    "Infeed.FaultCode",
+    "Infeed.MotorCurrent",
+    "Infeed.ActualSpeed",
+    "Infeed.EntrySensor",
+    "Infeed.BufferCount",
+    "Infeed.LinkHeartbeat",
+    "Sealer.State",
+    "Sealer.RunFeedback",
+    "Sealer.FaultCode",
+    "Sealer.MotorCurrent",
+    "Sealer.ActualSpeed",
+    "Sealer.TemperaturePV",
+    "Sealer.TemperatureSP",
+    "Sealer.AirPressure",
+    "Sealer.HeaterOn",
+    "Sealer.GuardClosed",
+    "Sealer.Ready",
+    "Sealer.LinkHeartbeat",
+    "Outfeed.State",
+    "Outfeed.RunFeedback",
+    "Outfeed.FaultCode",
+    "Outfeed.MotorCurrent",
+    "Outfeed.ActualSpeed",
+    "Outfeed.ExitSensor",
+    "Outfeed.CheckResult",
+    "Outfeed.GoodCounter",
+    "Outfeed.RejectCounter",
+    "Outfeed.LinkHeartbeat"
+  ],
+  "pytest_phases": {
+    "setup": "passed",
+    "call": "passed",
+    "teardown": "passed"
+  },
+  "outcome": "passed",
+  "exit_code": 0,
+  "ended_at_utc": "2026-10-23T08:19:19.691274+00:00",
+  "failure": null
+}

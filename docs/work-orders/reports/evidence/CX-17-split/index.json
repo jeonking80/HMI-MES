@@ -1,0 +1,192 @@
+{
+  "kind": "separate executions; not a single bundle",
+  "cases": [
+    {
+      "case_id": "T01",
+      "requirement_id": "T01",
+      "acceptance_id": "T01-14e4b6da88c8441d9e183bf4cf11c374",
+      "file": "T01-14e4b6da88c8441d9e183bf4cf11c374.json",
+      "original_path": "/tmp/hmi-v3-cx17-core-third/T01-14e4b6da88c8441d9e183bf4cf11c374.json",
+      "target_sha": "4490a4cbef7c46e5dff9017d059ddc6b312df161",
+      "dirty": true,
+      "assertions": 16
+    },
+    {
+      "case_id": "T03",
+      "requirement_id": "T03",
+      "acceptance_id": "T03-fbeae8ac79f74ed7b7f511925a8fa1e9",
+      "file": "T03-fbeae8ac79f74ed7b7f511925a8fa1e9.json",
+      "original_path": "/tmp/hmi-v3-cx17-core-third/T03-fbeae8ac79f74ed7b7f511925a8fa1e9.json",
+      "target_sha": "4490a4cbef7c46e5dff9017d059ddc6b312df161",
+      "dirty": true,
+      "assertions": 19
+    },
+    {
+      "case_id": "T07",
+      "requirement_id": "T07",
+      "acceptance_id": "T07-e5da47ce92d749099700e14f4e54eb31",
+      "file": "T07-e5da47ce92d749099700e14f4e54eb31.json",
+      "original_path": "/tmp/hmi-v3-cx17-core-third/T07-e5da47ce92d749099700e14f4e54eb31.json",
+      "target_sha": "4490a4cbef7c46e5dff9017d059ddc6b312df161",
+      "dirty": true,
+      "assertions": 17
+    },
+    {
+      "case_id": "T08",
+      "requirement_id": "T08",
+      "acceptance_id": "T08-ab08740f80414dc5b67bffa1a23c0ed6",
+      "file": "T08-ab08740f80414dc5b67bffa1a23c0ed6.json",
+      "original_path": "/tmp/hmi-v3-cx17-core-third/T08-ab08740f80414dc5b67bffa1a23c0ed6.json",
+      "target_sha": "4490a4cbef7c46e5dff9017d059ddc6b312df161",
+      "dirty": true,
+      "assertions": 7
+    },
+    {
+      "case_id": "T11",
+      "requirement_id": "T11",
+      "acceptance_id": "T11-d8b5e3ebebf94ae0ab1aeebb9be65021",
+      "file": "T11-d8b5e3ebebf94ae0ab1aeebb9be65021.json",
+      "original_path": "/tmp/hmi-v3-cx17-core-third/T11-d8b5e3ebebf94ae0ab1aeebb9be65021.json",
+      "target_sha": "4490a4cbef7c46e5dff9017d059ddc6b312df161",
+      "dirty": true,
+      "assertions": 34
+    },
+    {
+      "case_id": "T10",
+      "requirement_id": "T10",
+      "acceptance_id": "T10-f8510ce18d5f4ddba5d21cdff8e4c286",
+      "file": "T10-f8510ce18d5f4ddba5d21cdff8e4c286.json",
+      "original_path": "/tmp/hmi-v3-cx17-core-third/T10-f8510ce18d5f4ddba5d21cdff8e4c286.json",
+      "target_sha": "4490a4cbef7c46e5dff9017d059ddc6b312df161",
+      "dirty": true,
+      "assertions": 5
+    },
+    {
+      "case_id": "T02-guard_open",
+      "requirement_id": "T02",
+      "acceptance_id": "T02-guard_open-6e72dfa33a9b4ec09476af5245bda278",
+      "file": "T02-guard_open-6e72dfa33a9b4ec09476af5245bda278.json",
+      "original_path": "/tmp/hmi-cx17-browser-evidence/T02-guard_open-6e72dfa33a9b4ec09476af5245bda278.json",
+      "target_sha": "a5d9d1931b6ed68ea88147fe00dae3c337f188b3",
+      "dirty": true,
+      "assertions": 6
+    },
+    {
+      "case_id": "T02-LOCAL",
+      "requirement_id": "T02",
+      "acceptance_id": "T02-LOCAL-a1fcedc6b5a24072ad18e26214ffc79b",
+      "file": "T02-LOCAL-a1fcedc6b5a24072ad18e26214ffc79b.json",
+      "original_path": "/tmp/hmi-cx17-browser-evidence/T02-LOCAL-a1fcedc6b5a24072ad18e26214ffc79b.json",
+      "target_sha": "a5d9d1931b6ed68ea88147fe00dae3c337f188b3",
+      "dirty": true,
+      "assertions": 7
+    },
+    {
+      "case_id": "T02-not_preheated",
+      "requirement_id": "T02",
+      "acceptance_id": "T02-not_preheated-ccd55ebb95874178ab93d82895609072",
+      "file": "T02-not_preheated-ccd55ebb95874178ab93d82895609072.json",
+      "original_path": "/tmp/hmi-cx17-browser-evidence/T02-not_preheated-ccd55ebb95874178ab93d82895609072.json",
+      "target_sha": "a5d9d1931b6ed68ea88147fe00dae3c337f188b3",
+      "dirty": true,
+      "assertions": 6
+    },
+    {
+      "case_id": "T03-browser",
+      "requirement_id": "T03",
+      "acceptance_id": "T03-browser-6bea1061128b409fa0cb4b9c054f9421",
+      "file": "T03-browser-6bea1061128b409fa0cb4b9c054f9421.json",
+      "original_path": "/tmp/hmi-cx17-browser-evidence/T03-browser-6bea1061128b409fa0cb4b9c054f9421.json",
+      "target_sha": "a5d9d1931b6ed68ea88147fe00dae3c337f188b3",
+      "dirty": true,
+      "assertions": 5
+    },
+    {
+      "case_id": "T04-ack_first",
+      "requirement_id": "T04",
+      "acceptance_id": "T04-ack_first-824bd2784cb249d7815953f25ec2fbdb",
+      "file": "T04-ack_first-824bd2784cb249d7815953f25ec2fbdb.json",
+      "original_path": "/tmp/hmi-cx17-browser-evidence/T04-ack_first-824bd2784cb249d7815953f25ec2fbdb.json",
+      "target_sha": "a5d9d1931b6ed68ea88147fe00dae3c337f188b3",
+      "dirty": true,
+      "assertions": 6
+    },
+    {
+      "case_id": "T04-return_first",
+      "requirement_id": "T04",
+      "acceptance_id": "T04-return_first-32894a9ad115403ea18404e56cd910a2",
+      "file": "T04-return_first-32894a9ad115403ea18404e56cd910a2.json",
+      "original_path": "/tmp/hmi-cx17-browser-evidence/T04-return_first-32894a9ad115403ea18404e56cd910a2.json",
+      "target_sha": "a5d9d1931b6ed68ea88147fe00dae3c337f188b3",
+      "dirty": true,
+      "assertions": 6
+    },
+    {
+      "case_id": "T05",
+      "requirement_id": "T05",
+      "acceptance_id": "T05-a039d5253494499c8df071f4db771145",
+      "file": "T05-a039d5253494499c8df071f4db771145.json",
+      "original_path": "/tmp/hmi-cx17-browser-evidence/T05-a039d5253494499c8df071f4db771145.json",
+      "target_sha": "a5d9d1931b6ed68ea88147fe00dae3c337f188b3",
+      "dirty": true,
+      "assertions": 8
+    },
+    {
+      "case_id": "T06-field",
+      "requirement_id": "T06",
+      "acceptance_id": "T06-field-35f36af53cea4922a23613569c2b03ae",
+      "file": "T06-field-35f36af53cea4922a23613569c2b03ae.json",
+      "original_path": "/tmp/hmi-cx17-browser-evidence/T06-field-35f36af53cea4922a23613569c2b03ae.json",
+      "target_sha": "a5d9d1931b6ed68ea88147fe00dae3c337f188b3",
+      "dirty": true,
+      "assertions": 8
+    },
+    {
+      "case_id": "T06-OPC",
+      "requirement_id": "T06",
+      "acceptance_id": "T06-OPC-c1bb44794a804b16ad2ad9aa1d1d1423",
+      "file": "T06-OPC-c1bb44794a804b16ad2ad9aa1d1d1423.json",
+      "original_path": "/tmp/hmi-cx17-browser-evidence/T06-OPC-c1bb44794a804b16ad2ad9aa1d1d1423.json",
+      "target_sha": "a5d9d1931b6ed68ea88147fe00dae3c337f188b3",
+      "dirty": true,
+      "assertions": 8
+    },
+    {
+      "case_id": "T09",
+      "requirement_id": "T09",
+      "acceptance_id": "T09-78cb1ad59ca743c8bd997c34ee0ab95c",
+      "file": "T09-78cb1ad59ca743c8bd997c34ee0ab95c.json",
+      "original_path": "/tmp/v3-backup-evidence-durable/T09-78cb1ad59ca743c8bd997c34ee0ab95c.json",
+      "target_sha": "a5d9d1931b6ed68ea88147fe00dae3c337f188b3",
+      "dirty": true,
+      "assertions": 16
+    },
+    {
+      "case_id": "T12",
+      "requirement_id": "T12",
+      "acceptance_id": "T12-cd75ca5242cb48be816cb0aabc1617ec",
+      "file": "T12-cd75ca5242cb48be816cb0aabc1617ec.json",
+      "original_path": "/tmp/v3-backup-evidence-durable/T12-cd75ca5242cb48be816cb0aabc1617ec.json",
+      "target_sha": "a5d9d1931b6ed68ea88147fe00dae3c337f188b3",
+      "dirty": true,
+      "assertions": 16
+    }
+  ],
+  "junit": [
+    {
+      "group": "core",
+      "file": "core.xml",
+      "original_path": "/tmp/hmi-v3-cx17-core-third.xml"
+    },
+    {
+      "group": "browser",
+      "file": "browser.xml",
+      "original_path": "/tmp/hmi-cx17-browser-final.xml"
+    },
+    {
+      "group": "restore",
+      "file": "restore.xml",
+      "original_path": "/tmp/v3-backup-durable-regression-junit.xml"
+    }
+  ]
+}
