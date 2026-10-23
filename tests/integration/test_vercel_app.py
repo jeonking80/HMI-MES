@@ -408,3 +408,44 @@ async def test_readiness_connect_time_authentication_without_sqlstate(caplog):
     }
     assert response.headers["cache-control"] == "no-store"
     assert private not in response.text + caplog.text
+
+
+async def test_kuls_contract_routes_are_mounted_in_serverless_factory(runtime):
+    params = {
+        "line_id": LINE_ID,
+        "source_id": "simulator-1",
+        "stream_id": "stream-1",
+    }
+    start = "2026-10-23T00:00:00Z"
+    end = "2026-10-23T00:01:00Z"
+    queries = {
+        "/api/v1/trends": params | {"tag": "Sealer.TemperaturePV", "from": start, "to": end},
+        "/api/v1/reports/executions": {"line_id": LINE_ID, "from": start, "to": end},
+        "/api/v1/reports/executions.csv": {"line_id": LINE_ID, "from": start, "to": end},
+        "/api/v1/reports/executions/run-A/timeline": params,
+        "/api/v1/reports/daily": {"line_id": LINE_ID, "date": "2026-10-23"},
+        "/api/v1/reports/daily.csv": {"line_id": LINE_ID, "date": "2026-10-23"},
+        "/api/v1/spc/xbar-r": params | {"tag": "Sealer.TemperaturePV", "execution_id": "run-A"},
+        "/api/v1/dashboard": params | {"date": "2026-10-23"},
+        "/api/v1/downtime-reasons/history": {"execution_id": "run-A", "segment_from": start},
+    }
+    application = serverless.create_vercel_app(runtime.config, engine=runtime.engine)
+    # The outer ASGI router owns ingress; inspect the exact composed user app too.
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=application), base_url=ORIGIN
+    ) as client:
+        for path, query in queries.items():
+            response = await client.get(path, params=query)
+            assert response.status_code == 401, path
+            assert response.headers["cache-control"] == "no-store"
+        response = await client.get("/auth/config")
+        assert response.status_code == 200
+        assert response.json() == {"guest_viewer": False}
+        assert (
+            await client.post("/auth/guest", headers={"Origin": ORIGIN}, json={})
+        ).status_code in {403, 404}
+        response = await client.post(
+            "/api/v1/downtime-reasons", headers={"Origin": ORIGIN}, json={}
+        )
+        assert response.status_code == 403
+        assert response.headers["cache-control"] == "no-store"
