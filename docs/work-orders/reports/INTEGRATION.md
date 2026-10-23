@@ -88,3 +88,27 @@ UI·README·AGENTS·원본 작업지시서·Claude 소유 브라우저 스크립
 - 최종 Python 정적 검사·형식 검사는 **292 files** 통과했다. 위 전체 실행·브라우저·Compose를 새 SPC 조회 보강 뒤 다시 실행한 것으로 표시하지 않는다. SPC 조회만 바뀐 후에는 해당 API의 집중19개와 정적 검사로 검증했다.
 
 원문 로그·`.local` 증거는 로컬 검증 산출물이며 비밀값과 함께 Git에 넣지 않는다. 커밋된 시험과 이 보고서의 명령으로 재현한다.
+# 2차 백엔드 통합 기록 (2026-10-23)
+
+기준은 Claude `3f7592c`(main `68e1f7c` 이후), 작업 브랜치는 `codex/kuls-backend-v2`다. 아래 기존 1차 결과와 구분한다. 이전 시간 근거 구현을 `69f3755`로 결합했고 UI·README·AGENTS·Claude 소유 원본 지시서/브라우저 검사 소스는 수정하지 않았다. 공개 head17·게스트 활성 상태는 OPS-01을 따르며 공개 DB·환경변수·runtime은 이번 작업에서 변경하지 않는다.
+
+| 변경 | 집중 검증 |
+|---|---|
+| retained minute 역행 처리와 schema18 canonical 시간 결합 | 실제 PG27개, 21.69초 |
+| 통신 장애·실행 종료 범위·보고 출처와 canonical 시간 결합 | 실제 PG28개, 51.52초 |
+| CX-10 앱별5초 availability 캐시 | 실제 PG/단위23개, 11.25초 |
+| CX-13 조회 도구·시간 초과·게스트 제한·로그 | 단위/실제 PG·ASGI38개, 17.57초. 공급자 모의 응답 |
+| CX-14 read-only 용량 도구 | 실제 PG2개, 5.12초 |
+| 로컬 supervisor 원격 측정 인자 opt-in | 단위11개, 3.11초 |
+
+중간 일반 검증: `.venv/bin/pytest -q tests/unit tests/contract --junitxml=/tmp/hmi-v2-unit-contracts.xml` → **770 passed, 156 subtests passed, 23.42초**. 최초 명령은 경로를 `tests/contracts`로 잘못 지정해 exit4(`file or directory not found`, 시험0개)였으며 실제 경로 `tests/contract`로 바로잡았다. 이 중간 결과는 뒤이은 경계 오류 수정 뒤 전체 검사 통과를 대신하지 않는다.
+
+새 독립 high의 최초 적대적 재현은 **2 failed, 6 passed, 15.18초**였다. 부분 raw 삭제 후 분 집계의 UNKNOWN→PARTIAL 복구, 미확정 시각의 sampleless 통신 장애를 놓치는 보고서가 재현됐다. 추가 동시성 재현에서는 **1 passed, 1 failed, 5.41초**였고 보고서의 요청 내부 캐시가 동시 커밋된 더 이른 reversal cutoff를 놓쳤다. 오류와 수정 후 결과를 따로 남기며, 이전 high signoff를 새 병합 검토로 간주하지 않는다.
+
+추가 측정 시각 재현은 보고서1실패(5.36초)·SPC1실패(5.18초)였다. 역행 후 과거 GOOD의 canonical 좌표를 원본 시각으로 되돌리는 바람에 이전 정상 근거가 재등장했다. 정확한 바인딩의 과거 GOOD 좌표를 UNKNOWN 차단에만 보존하도록 수정했으며 조회 창 이전 차단도 유지한다. 원본 sample·proof·생산 사건의 시각은 변경하지 않는다.
+
+수정 후 독립 high는 실제PG **21 passed, 27.99초**, 남은 확인된 차단 문제 없음으로 종료했다. 제품 회귀는 raw 일부 삭제 후 second/minute의 정상 값 재등장, 수신 시각의 통신 장애 차단/복구, 동시 커밋 cutoff, 측정 좌표 무효화의 보고/SPC, head14 호환성을 포함한다. 소유자 검증은 retained 기존27개27.77초+신규4개6.64초, reports/SPC 결합7개11.79초 및 최종 경계5개8.26초였다. 신규4개는 최초에 제품 경로 진입 전 fixture의 `AttributeError: 'tuple' object has no attribute 'append'`로 실패해 list로 바로잡은 뒤 통과했다. 편집 중 SQL 두 줄의 E501도 수정하고 전체 검사 시작 시 Ruff/format을 통과했다.
+
+HTTP migration 재생/기존 이관/권한20개18.27초·독립 high5개6.36초 통과. 공개 Neon 전송은 하지 않았다. 실제 CLI 수락은 GOOD141점·RUNNING4.461093초·UNKNOWN1.033524초(NO_EVIDENCE만)·SETTLED 양품5/불량2/폐기0으로 설비 원본과 일치했다. 현재 소스·실제 Chromium·API/PG·암호화 OPC UA 경로이며 기존 웹 소스와 원본 검사 스크립트는 수정하지 않았다. 상세는 [CX-09](CX-09.md)·[CX-11](CX-11.md)를 따른다.
+
+최종 전체 로컬 검사와 현재 소스 Compose runtime 검사는 진행 중이다. T01~T12와 대형 성능·8시간·전체 복원 시험의 미완료 범위는 [CX-15](CX-15.md)를 따른다.

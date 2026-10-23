@@ -390,6 +390,96 @@ def record_capture_clock(
     return decision
 
 
+def fence_incomplete_reversal_minutes(connection, body, epoch, *, buckets=None):
+    """Do not rebuild an affected minute from an incomplete raw selection history.
+
+    Run after raw insertion and after bounded cleanup of explicit buckets.
+    Missing latest captures
+    can otherwise let older GOOD observations win an already superseded second.
+    Only derived time quality in the exact pending tag/minute/scope is fenced;
+    original samples and immutable capture decisions remain unchanged.
+    """
+    binding = dict(
+        source=body.source_id,
+        stream=body.stream_id,
+        gateway=body.gateway_id,
+        generation=body.capture_generation,
+        epoch=epoch,
+    )
+    cutoff = connection.execute(
+        sa.text("""SELECT reversal_seq FROM analog_history_clock_state
+        WHERE source_id=:source AND stream_id=:stream AND gateway_id=:gateway
+        AND capture_generation=:generation AND clock_epoch=:epoch"""),
+        binding,
+    ).scalar_one_or_none()
+    if cutoff is None:
+        return
+    modern = clock_evidence_available(connection)
+    raw_at = "COALESCE(canonical_utc,acquired_at)" if modern else "acquired_at"
+    remaining_at = (
+        "COALESCE(remaining.canonical_utc,remaining.acquired_at)"
+        if modern
+        else "remaining.acquired_at"
+    )
+    sample_at = "(sample->>'acquired_at')::timestamptz"
+    proof_join = ""
+    if modern:
+        proof_join = """LEFT JOIN capture_clock_evidence evidence
+            ON evidence.gateway_id=b.gateway_id AND evidence.batch_id=b.batch_id
+            AND evidence.source_id=b.source_id AND evidence.stream_id=b.stream_id
+            AND evidence.capture_generation=b.capture_generation
+            AND evidence.capture_seq=b.capture_seq
+            AND evidence.clock_epoch=b.body->'capture_time'->>'clock_epoch'
+            AND evidence.batch_sha256=b.content_sha256
+            AND evidence.original_capture_utc=(b.body->>'captured_at')::timestamptz"""
+        sample_at = (
+            f"COALESCE(evidence.canonical_api_utc+"
+            f"({sample_at}-evidence.original_capture_utc),{sample_at})"
+        )
+    candidate_filter = "AND NOT aggregated"
+    bucket_parameters = {}
+    if buckets is not None:
+        candidate_filter = f"""AND (tag_id,date_trunc('minute',{raw_at})) IN (
+            SELECT * FROM unnest(CAST(:tags AS text[]),CAST(:minutes AS timestamptz[])))"""
+        bucket_parameters = dict(
+            tags=[tag for tag, _ in buckets], minutes=[minute for _, minute in buckets]
+        )
+    connection.execute(
+        sa.text(f"""WITH pending AS MATERIALIZED (
+        SELECT DISTINCT tag_id,date_trunc('minute',{raw_at}) AS minute
+        FROM analog_history_raw WHERE source_id=:source AND stream_id=:stream
+          AND gateway_id=:gateway AND capture_generation=:generation
+          AND observation->'scope'->>'clock_epoch'=:epoch {candidate_filter}
+    ), incomplete AS (
+        SELECT DISTINCT pending.tag_id,pending.minute
+        FROM ingest_batches b {proof_join}
+        CROSS JOIN LATERAL jsonb_array_elements(b.body->'samples') sample
+        JOIN pending ON pending.tag_id=sample->>'tag_id'
+          AND pending.minute=date_trunc('minute',{sample_at})
+        LEFT JOIN analog_history_raw retained
+          ON retained.source_id=b.source_id AND retained.stream_id=b.stream_id
+          AND retained.gateway_id=b.gateway_id AND retained.capture_generation=b.capture_generation
+          AND retained.capture_seq=b.capture_seq AND retained.batch_id=b.batch_id
+          AND retained.tag_id=sample->>'tag_id' AND retained.sample_id=sample->>'sample_id'
+        WHERE b.source_id=:source AND b.stream_id=:stream AND b.gateway_id=:gateway
+          AND b.capture_generation=:generation AND b.capture_seq>=:cutoff
+          AND b.body->'capture_time'->>'clock_epoch'=:epoch AND retained.sample_id IS NULL
+    ), fenced AS (UPDATE analog_history_raw remaining SET
+        observation=jsonb_set(remaining.observation,'{{time_quality}}','"UNKNOWN"'),aggregated=false
+        FROM incomplete WHERE remaining.source_id=:source AND remaining.stream_id=:stream
+          AND remaining.gateway_id=:gateway AND remaining.capture_generation=:generation
+          AND remaining.observation->'scope'->>'clock_epoch'=:epoch
+          AND remaining.tag_id=incomplete.tag_id
+          AND date_trunc('minute',{remaining_at})=incomplete.minute
+          RETURNING remaining.tag_id
+    ) UPDATE analog_history_minutes cached
+        SET point=cached.point || CAST(:unknown AS jsonb)
+        FROM incomplete WHERE cached.source_id=:source AND cached.stream_id=:stream
+          AND cached.tag_id=incomplete.tag_id AND cached.minute=incomplete.minute"""),
+        dict(binding, cutoff=cutoff, unknown=UNKNOWN_MINUTE, **bucket_parameters),
+    )
+
+
 def capture_clock_valid(connection, body, epoch):
     """Remember clock reversal across minute/retention boundaries under the source lock."""
     binding = dict(

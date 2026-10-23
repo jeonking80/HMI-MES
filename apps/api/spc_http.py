@@ -198,6 +198,19 @@ def read_spc(connection, query: SPCQuery, *, now=None):
                 and original_acquired == datetime.fromisoformat(original["captured_at"])
             )
             coordinate = row["canonical_utc"] if valid else original_acquired
+            if not valid and decision.reason_code == "CLOCK_REVERSAL":
+                accepted = effective_capture_clock(
+                    row["clock_evidence"], body=original, batch_sha256=row["content_sha256"]
+                )
+                if (
+                    accepted.status == "GOOD"
+                    and row["clock_evidence"]["line_id"] == query.line_id
+                    and row["canonical_utc"] == accepted.canonical_api_utc
+                    and original_acquired == datetime.fromisoformat(original["captured_at"])
+                ):
+                    # Keep the invalidated latest capture in its accepted slot
+                    # as UNKNOWN so an older GOOD sample cannot reappear there.
+                    coordinate = row["canonical_utc"]
             obs = obs.model_copy(
                 update={
                     "sample": obs.sample.model_copy(update={"acquired_at": coordinate}),

@@ -26,6 +26,10 @@ schema18의 `capture_clock_evidence`는 analog 유무와 무관하게 접수한 
 
 보고서·SPC 소비자는 같은 영속 근거를 사용해야 한다. `effective_capture_clock`는 원본 바인딩·digest·epoch·정규화 좌표를 검사하고 현재 reversal cutoff를 적용한다. 행이 없는 경우만 legacy fallback을 허용하며, 저장된 UNKNOWN이나 바인딩 실패를 현재 정책 또는 알람 근거로 덮지 않는다. SPC의 execution identity 동시성 검사는 원본 시각으로 수행한 후 분석 UTC로 부분군을 만든다. PLC에서 생성한 `production_events.occurred_at`에 gateway 오프셋을 무조건 적용하지 않는다.
 
+v2 결합에서는 이미 받아들인 GOOD 좌표가 뒤늦은 역행으로 무효화될 때 그 좌표에 **UNKNOWN 차단 근거**를 남긴다. 이를 오프셋 전 원본 시각으로 옮겨 이전 가동 구간이나 같은 SPC 슬롯의 오래된 GOOD 표본이 다시 나타나게 하지 않는다. 원래 바인딩이 검증된 과거 GOOD 증명에만 적용하며 새 GOOD이나 사건 발생 시각을 주장하지 않는다. 보고서의 요청 내부 역행 캐시는 실제 캡처 조회문과 같은 DB snapshot의 영속 reversal cutoff로 보완한다.
+
+시간 근거 없는 sampleless 통신 장애는 API 저장 시각부터 이전 가동 근거를 차단한다. `unknown_time_basis: API_RECEIPT_FENCE`는 장애가 실제 발생한 gateway/PLC 시각이 아니라 안전하게 확인한 수신 경계다. 이전 날짜에 받은 차단 근거도 새 창에서 유지하며, 그 이후에 실제로 확인된 더 높은 capture 순번의 GOOD 근거만 해제할 수 있다. 유효한 과거 canonical 좌표를 무효화하는 경우는 `INVALIDATED_CANONICAL_COVERAGE`로 구분한다. 이 추가 메타데이터는 불명 구간에만 붙인다.
+
 ## 측정 방식의 저장 준비
 
 0018은 `capture_clock_probes`도 함께 만든다. nonce 해시, 서비스 key ID와 전체 scope/generation/epoch, API 수신 UTC, gateway 전송 UTC·monotonic 좌표, 60초 이하 만료, 단일 소비 배치와 입력 digest를 저장할 수 있다. 이 core 변경 자체는 nonce를 발급하거나 측정 기능을 활성화하지 않는다. 프로브 행은 독립적인 제한 정리 대상이고, immutable 결정에는 측정 사실을 복사해 프로브 정리 이후에도 근거가 남도록 한다.

@@ -13,6 +13,7 @@ from apps.api.alarm_consumer import assess_capture_clock
 from apps.api.capture_clock import (
     capture_clock_valid,
     clock_evidence_available,
+    fence_incomplete_reversal_minutes,
     record_capture_clock,
     schema_revision,
 )
@@ -260,6 +261,7 @@ def capture_trends(
                 canonical=canonical,
             ),
         )
+    fence_incomplete_reversal_minutes(connection, body, epoch)
     at = "COALESCE(canonical_utc,acquired_at)" if modern else "acquired_at"
     # One unfinished bucket per tag normally; the bound also limits delayed backlogs.
     pending = connection.execute(
@@ -306,13 +308,39 @@ def cleanup_trends(connection, *, now, retention):
         ),
         ("analog_history_minutes", "minute", now - timedelta(days=retention.minute_days), ""),
     ):
+        returning = (
+            f""" RETURNING source_id,stream_id,gateway_id,capture_generation,
+                observation->'scope'->>'clock_epoch' AS epoch,
+                tag_id,date_trunc('minute',{raw_time}) AS minute"""
+            if table == "analog_history_raw"
+            else ""
+        )
         result = connection.execute(
             sa.text(f"""DELETE FROM {table} WHERE ctid IN
             (SELECT ctid FROM {table} WHERE {column}<:cutoff {predicate}
-             ORDER BY {column} LIMIT :bound FOR UPDATE SKIP LOCKED)"""),
+             ORDER BY {column} LIMIT :bound FOR UPDATE SKIP LOCKED){returning}"""),
             dict(cutoff=cutoff, bound=retention.delete_limit),
         )
-        counts.append(result.rowcount)
+        if table == "analog_history_raw":
+            removed = result.fetchall()
+            counts.append(len(removed))
+            touched = {}
+            for row in removed:
+                scope_key = (
+                    row.source_id,
+                    row.stream_id,
+                    row.gateway_id,
+                    row.capture_generation,
+                    row.epoch,
+                )
+                representative, buckets = touched.setdefault(scope_key, (row, set()))
+                buckets.add((row.tag_id, row.minute))
+            for representative, buckets in touched.values():
+                fence_incomplete_reversal_minutes(
+                    connection, representative, representative.epoch, buckets=buckets
+                )
+        else:
+            counts.append(result.rowcount)
     return tuple(counts)
 
 
