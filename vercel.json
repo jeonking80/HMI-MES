@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
+  "regions": ["sin1"],
   "buildCommand": "npm --prefix apps/web ci && VITE_SCREEN_TRANSPORT=polling npm --prefix apps/web run build",
   "outputDirectory": "apps/web/dist",
   "functions": {

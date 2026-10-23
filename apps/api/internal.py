@@ -44,7 +44,7 @@ from apps.api.ingestion import (
     SourceBindingError,
 )
 from apps.api.settlement_http import mount_settlement_routes
-from contracts.models import CommandNotFound, CommandResult, CommandSubmission, Identifier
+from contracts.models import CommandNotFound, CommandResult, CommandSubmission, Identifier, UInt64
 from contracts.transport import GatewayBatch
 
 _IDENTIFIER = TypeAdapter(Identifier)
@@ -143,6 +143,42 @@ class ServiceCredential:
 
 
 @dataclass(frozen=True)
+class SourceBindingPolicy:
+    """Trusted deployment capability; never constructed from an HTTP request."""
+
+    credential: ServiceCredential
+    line_id: str
+    capture_generation: int
+
+    def __post_init__(self):
+        if not isinstance(self.credential, ServiceCredential):
+            raise ValueError("Explicit service credential required")
+        _IDENTIFIER.validate_python(self.line_id)
+        # Normalize canonical UInt64 strings from trusted JSON, preserving exact range.
+        object.__setattr__(
+            self, "capture_generation", TypeAdapter(UInt64).validate_python(self.capture_generation)
+        )
+
+    def permits(self, selected: ServiceCredential) -> bool:
+        expected = self.credential
+        return (
+            selected.key_id,
+            selected.gateway_id,
+            selected.source_id,
+            selected.stream_id,
+            selected.expires_at,
+            selected.revoked,
+        ) == (
+            expected.key_id,
+            expected.gateway_id,
+            expected.source_id,
+            expected.stream_id,
+            expected.expires_at,
+            expected.revoked,
+        ) and secrets.compare_digest(selected.token_digest, expected.token_digest)
+
+
+@dataclass(frozen=True)
 class InternalConfig:
     allow_insecure_loopback: bool = False
     max_body_bytes: int = 4 * 1024 * 1024
@@ -169,6 +205,7 @@ def create_internal_app(
     credential_bindings: Sequence[ServiceCredential],
     *,
     config: InternalConfig | None = None,
+    source_binding_policy: SourceBindingPolicy | None = None,
 ) -> FastAPI:
     """Use pre-migrated PostgreSQL and explicitly provisioned service bindings."""
     config = config or InternalConfig()
@@ -290,6 +327,55 @@ def create_internal_app(
             )
         # No dispatch ticket or receipt leaves this function before COMMIT.
         return result
+
+    if source_binding_policy is not None:
+        if not isinstance(source_binding_policy, SourceBindingPolicy):
+            raise ValueError("Trusted source binding policy required")
+
+        @app.post("/internal/v1/source-binding")
+        async def configure_source_binding(request: Request):
+            selected = authenticate(request)
+            if not source_binding_policy.permits(selected):
+                raise HTTPException(403, "source binding capability is not allowed")
+            if request.query_params:
+                raise HTTPException(422, "source binding request must have no query")
+            async for chunk in request.stream():
+                if chunk:
+                    raise HTTPException(422, "source binding request must have no body")
+
+            # Canonical method owns one schema/gateway/line/source transaction.
+            # No registration occurs on startup or GET; never reset flags/cursors.
+            def register():
+                with ingestion_service._transaction() as connection:
+                    database = connection.execute(text("SELECT current_database()")).scalar_one()
+                    heads = (
+                        connection.execute(text("SELECT version_num FROM alembic_version"))
+                        .scalars()
+                        .all()
+                    )
+                    if database != "hmi_mes_demo" or heads != ["0014_mixed_alarm_runtime"]:
+                        raise IngestionUnavailable("Deployment binding database is unavailable")
+                    ingestion_service.configure_source_on_connection(
+                        connection,
+                        source_id=selected.source_id,
+                        stream_id=selected.stream_id,
+                        gateway_id=selected.gateway_id,
+                        line_id=source_binding_policy.line_id,
+                        capture_generation=source_binding_policy.capture_generation,
+                        now=now(),
+                    )
+                    progress = connection.execute(
+                        text(
+                            "SELECT 1 FROM stream_progress "
+                            "WHERE source_id=:source AND stream_id=:stream"
+                        ),
+                        {"source": selected.source_id, "stream": selected.stream_id},
+                    ).first()
+                    if progress is None:
+                        raise IngestConflict("Source progress must already be complete")
+
+            await run_in_threadpool(register)
+            return {"binding_registered": True}
 
     @app.post("/internal/v1/commands/claim")
     async def command_claim(request: Request):

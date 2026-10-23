@@ -8,6 +8,12 @@ Vercel Hobby의 웹·API와 Neon Free DB는 유지한다. 별도 설비 앱과 �
 
 ## 연결 파일 생성과 수동 적용
 
+현재 `hmi-mes.vercel.app` 전용 배포에는 `apps/api/cloud_plant.json`의 명시적 고정 정책을 사용한다. 정책은 source/stream/gateway/line/generation·만료·무작위 256비트 bearer의 SHA256 검증값만 포함하며 원문 토큰을 포함하지 않는다. `HMI_GATEWAY_CREDENTIALS_JSON` 환경변수 자체가 없을 때만 이 정책을 사용한다. 명시적 `[]`는 수집 비활성화를 유지하고 잘못된 환경변수는 정책으로 우회하지 않는다.
+
+운영자는 보호된 토큰으로 본문·query 없는 `POST /internal/v1/source-binding`을 명시적으로 호출한다. 요청자가 지정할 source/line/generation 필드는 없으며 정책의 고정 대상 하나만 등록한다. 같은 트랜잭션에서 전용 DB·승인 revision14·기존 binding·progress를 확인하고 기존 flags·커서는 보존한다. 앱 시작이나 GET 조회가 DB를 등록하지 않는다. 이 경로를 사용하면 아래 수동 SQL·환경변수 추가는 필요 없다. 원문 토큰과 기존 저장소·큐는 계속 이 클라우드의 보호 파일로 유지한다.
+
+다른 배포에서 명시적인 환경변수 설정을 사용하는 경우에는 아래 생성기와 수동 적용 절차를 사용한다.
+
 전용 런타임 `deploy/plant_runtime.py`가 사용하는 ID는 아래와 같다. 기존 preview 저장소는 사용하지 않는다.
 
 | 항목 | 값 |

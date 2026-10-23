@@ -405,48 +405,72 @@ class IngestionService:
         values["capture_generation"] = _UINT.validate_python(capture_generation)
         now = _TIME.validate_python(now)
         with self._transaction() as connection:
-            self._advisory(connection, "gateway", gateway_id)
-            line = connection.execute(
-                sa.select(Line.id)
+            self.configure_source_on_connection(connection, **values, now=now)
+
+    def configure_source_on_connection(
+        self,
+        connection: sa.Connection,
+        *,
+        source_id: str,
+        stream_id: str,
+        gateway_id: str,
+        line_id: str,
+        capture_generation: int,
+        now: datetime,
+    ) -> None:
+        values = {
+            name: _ID.validate_python(value)
+            for name, value in (
+                ("source_id", source_id),
+                ("stream_id", stream_id),
+                ("gateway_id", gateway_id),
+                ("line_id", line_id),
+            )
+        }
+        values["capture_generation"] = _UINT.validate_python(capture_generation)
+        now = _TIME.validate_python(now)
+        self._advisory(connection, "gateway", gateway_id)
+        line = connection.execute(
+            sa.select(Line.id)
+            .where(
+                Line.id == line_id,
+            )
+            .with_for_update()
+        ).first()
+        if line is None:
+            raise SourceBindingError("Source must bind to a registered line")
+        existing = (
+            connection.execute(
+                sa.select(source_streams)
                 .where(
-                    Line.id == line_id,
+                    _scope(source_id, stream_id),
                 )
                 .with_for_update()
-            ).first()
-            if line is None:
-                raise SourceBindingError("Source must bind to a registered line")
-            existing = (
-                connection.execute(
-                    sa.select(source_streams)
-                    .where(
-                        _scope(source_id, stream_id),
-                    )
-                    .with_for_update()
-                )
-                .mappings()
-                .first()
             )
-            if existing is not None:
-                if any(existing[key] != value for key, value in values.items()):
-                    raise IngestConflict("Source/capture registration is immutable")
-                return
-            connection.execute(
-                source_streams.insert().values(
-                    **values,
-                    conflicted=False,
-                    reconciliation_required=False,
-                    registered_at=now,
-                )
+            .mappings()
+            .first()
+        )
+        if existing is not None:
+            if any(existing[key] != value for key, value in values.items()):
+                raise IngestConflict("Source/capture registration is immutable")
+            return
+        connection.execute(
+            source_streams.insert().values(
+                **values,
+                conflicted=False,
+                reconciliation_required=False,
+                registered_at=now,
             )
-            connection.execute(
-                stream_progress.insert().values(
-                    source_id=source_id,
-                    stream_id=stream_id,
-                    verified_through_seq=0,
-                    latest_ingested_seq=0,
-                    updated_at=now,
-                )
+        )
+        connection.execute(
+            stream_progress.insert().values(
+                source_id=source_id,
+                stream_id=stream_id,
+                verified_through_seq=0,
+                latest_ingested_seq=0,
+                updated_at=now,
             )
+        )
 
     def register_execution(
         self,

@@ -2,10 +2,12 @@
 
 import json
 import os
+import re
 import ssl
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 
 import certifi
 import psycopg
@@ -19,8 +21,72 @@ from starlette.routing import Mount
 from apps.api.auth import UserAuth
 from apps.api.database import SUPPORTED_AUTH_REVISIONS
 from apps.api.ingestion import IngestionService
-from apps.api.internal import InternalConfig, ServiceCredential, create_internal_app
+from apps.api.internal import (
+    InternalConfig,
+    ServiceCredential,
+    SourceBindingPolicy,
+    create_internal_app,
+)
 from apps.api.user_http import UserHTTPConfig, create_user_app
+
+
+def _credential(item):
+    keys = {"key_id", "gateway_id", "source_id", "stream_id", "token_sha256", "expires_at"}
+    if not isinstance(item, dict) or set(item) != keys:
+        raise ValueError("Invalid service credential fields")
+    if not isinstance(item["token_sha256"], str) or not re.fullmatch(
+        r"[0-9a-fA-F]{64}", item["token_sha256"]
+    ):
+        raise ValueError("Invalid service credential digest")
+    return ServiceCredential(
+        key_id=item["key_id"],
+        gateway_id=item["gateway_id"],
+        source_id=item["source_id"],
+        stream_id=item["stream_id"],
+        token_digest=bytes.fromhex(item["token_sha256"]),
+        expires_at=datetime.fromisoformat(item["expires_at"]),
+    )
+
+
+def _packaged_binding(origin):
+    # Fixed application package path, never a request/env-specified file or URL.
+    with Path(__file__).with_name("cloud_plant.json").open("rb") as handle:
+        raw = handle.read(8193)
+    if len(raw) > 8192:
+        raise ValueError("Deployment policy exceeds its bound")
+
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("Duplicate deployment policy field")
+            result[key] = value
+        return result
+
+    values = json.loads(raw, object_pairs_hook=unique)
+    if not isinstance(values, dict) or set(values) != {
+        "schema_version",
+        "enabled",
+        "origin",
+        "binding",
+    }:
+        raise ValueError("Invalid deployment policy fields")
+    if type(values["schema_version"]) is not int or values["schema_version"] != 1:
+        raise ValueError("Unknown deployment policy version")
+    if values["enabled"] is not True or values["origin"] != origin:
+        raise ValueError("Deployment policy is not enabled for this origin")
+    binding = values["binding"]
+    if not isinstance(binding, dict) or set(binding) != {
+        "credential",
+        "line_id",
+        "capture_generation",
+    }:
+        raise ValueError("Invalid deployment binding fields")
+    return SourceBindingPolicy(
+        credential=_credential(binding["credential"]),
+        line_id=binding["line_id"],
+        capture_generation=binding["capture_generation"],
+    )
 
 
 @dataclass(frozen=True)
@@ -28,9 +94,15 @@ class VercelConfig:
     origin: str
     database_dsn: str = field(repr=False)
     credentials: tuple[ServiceCredential, ...] = field(default=(), repr=False)
+    source_binding_policy: SourceBindingPolicy | None = field(default=None, repr=False)
 
     def __post_init__(self):
         UserHTTPConfig(origin=self.origin, allow_insecure_loopback=False)
+        if self.source_binding_policy is not None and (
+            not isinstance(self.source_binding_policy, SourceBindingPolicy)
+            or self.source_binding_policy.credential not in self.credentials
+        ):
+            raise ValueError("Deployment binding must match its active credential")
         url = make_url(self.database_dsn)
         if (
             url.drivername not in {"postgresql", "postgresql+psycopg"}
@@ -53,31 +125,25 @@ class VercelConfig:
 
     @classmethod
     def from_environment(cls):
-        raw = os.environ.get("HMI_GATEWAY_CREDENTIALS_JSON", "[]")
-        if len(raw.encode()) > 65536:
-            raise ValueError("Service configuration exceeds its bound")
-        values = json.loads(raw)
-        if not isinstance(values, list) or len(values) > 128:
-            raise ValueError("Invalid service configuration")
-        credentials = []
-        keys = {"key_id", "gateway_id", "source_id", "stream_id", "token_sha256", "expires_at"}
-        for item in values:
-            if not isinstance(item, dict) or set(item) != keys:
-                raise ValueError("Invalid service credential fields")
-            credentials.append(
-                ServiceCredential(
-                    key_id=item["key_id"],
-                    gateway_id=item["gateway_id"],
-                    source_id=item["source_id"],
-                    stream_id=item["stream_id"],
-                    token_digest=bytes.fromhex(item["token_sha256"]),
-                    expires_at=datetime.fromisoformat(item["expires_at"]),
-                )
-            )
+        origin = os.environ["HMI_PUBLIC_ORIGIN"]
+        database_dsn = os.environ["HMI_DATABASE_DSN"]
+        policy = None
+        if "HMI_GATEWAY_CREDENTIALS_JSON" not in os.environ:
+            policy = _packaged_binding(origin)
+            credentials = (policy.credential,)
+        else:
+            raw = os.environ["HMI_GATEWAY_CREDENTIALS_JSON"]
+            if len(raw.encode()) > 65536:
+                raise ValueError("Service configuration exceeds its bound")
+            values = json.loads(raw)
+            if not isinstance(values, list) or len(values) > 128:
+                raise ValueError("Invalid service configuration")
+            credentials = tuple(_credential(item) for item in values)
         return cls(
-            origin=os.environ["HMI_PUBLIC_ORIGIN"],
-            database_dsn=os.environ["HMI_DATABASE_DSN"],
-            credentials=tuple(credentials),
+            origin=origin,
+            database_dsn=database_dsn,
+            credentials=credentials,
+            source_binding_policy=policy,
         )
 
 
@@ -153,6 +219,7 @@ def create_vercel_app(config: VercelConfig, *, engine=None):
             IngestionService(database),
             credential_bindings=config.credentials,
             config=InternalConfig(allow_insecure_loopback=False),
+            source_binding_policy=config.source_binding_policy,
         )
         if config.credentials
         else None

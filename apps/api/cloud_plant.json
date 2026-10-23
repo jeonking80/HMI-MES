@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "enabled": true,
+  "origin": "https://hmi-mes.vercel.app",
+  "binding": {
+    "credential": {
+      "key_id": "demo-plant-key-1",
+      "gateway_id": "demo-packaging-gateway-v1",
+      "source_id": "demo-packaging-source-v1",
+      "stream_id": "events-main",
+      "token_sha256": "9091c5294ff7cc547a0ce1d1b24df50a2356ef26c521bc14f79cac27796cdff6",
+      "expires_at": "2027-01-20T00:00:00+00:00"
+    },
+    "line_id": "packaging-line-1",
+    "capture_generation": 1
+  }
+}
