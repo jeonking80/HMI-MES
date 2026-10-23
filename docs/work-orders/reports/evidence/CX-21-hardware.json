@@ -1,0 +1,30 @@
+{
+  "observed_at_utc": "2026-10-23T08:21:51.837734+00:00",
+  "effective_cpu_cores": 4.0,
+  "effective_memory_bytes": 34359738368,
+  "ssd_proven": false,
+  "reason": "Workspace is overlay, exposed vda rotational=true; pmem0 is not mounted for this test; /tmp is tmpfs, not SSD. No provider evidence establishes SSD-backed workspace.",
+  "block_devices": {
+    "blockdevices": [
+      {
+        "name": "vda",
+        "rota": true,
+        "size": "32G",
+        "type": "disk"
+      },
+      {
+        "name": "pmem0",
+        "rota": false,
+        "size": "14.1G",
+        "type": "disk"
+      }
+    ]
+  },
+  "workspace_mount": "overlay[/workspace] overlay",
+  "temporary_mount": "none tmpfs\nnone tmpfs",
+  "criteria": {
+    "cpu_cores_min": 4,
+    "memory_bytes_min": 8589934592,
+    "storage": "SSD or better, positively established"
+  }
+}

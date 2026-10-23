@@ -1,0 +1,2 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuite name="CX-21" tests="1" failures="0" skipped="1"><testcase name="CX-21"><skipped message="PrerequisiteBlocked: CX-21: hardware_requirement_established: {'cpu_cores': 4.0, 'memory_bytes': 34359738368, 'ssd_proven': False}">PrerequisiteBlocked: CX-21: hardware_requirement_established: {'cpu_cores': 4.0, 'memory_bytes': 34359738368, 'ssd_proven': False}</skipped></testcase></testsuite>
