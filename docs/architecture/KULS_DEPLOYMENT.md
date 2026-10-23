@@ -1,6 +1,6 @@
 # KULS 확장 배포 준비
 
-공개 배포는 기존 head `0014_mixed_alarm_runtime` 상태를 유지한다. 이 문서와 SQL은 운영자가 검토할 수 있는 수동 배포 산출물이며 운영 DB에 적용하지 않았다. 기존 `deploy/neon-init.sql`은 canonical14 설치 증거로 유지한다.
+현재 공개 상태는 [OPS-01 결과](../work-orders/reports/OPS-01.md)에 기록한 `0017_guest_viewer`·게스트 활성·원시6시간/분14일 배포 프로필이다. 아래 canonical14→17 절차는 기존 설치 경로이며 이미 적용한 공개 DB에 반복하지 않는다. 기존 `deploy/neon-init.sql`은 canonical14 설치 증거로 유지한다. 아직 공개에 적용하지 않은 head18 시간 근거는 별도 [OPS-02 인계안](OPS-02_CLOCK_MIGRATION.md)을 따른다.
 
 새 기능을 배포하려면 운영자가 먼저 백업·용량·마이그레이션 변경과 아래 권한을 검토해야 한다. 현재 기본 원시값 7일·1분 집계 90일 보관을 Neon 용량에 맞춰 검토하고, 필요하면 명시적인 배포 보관 프로필을 선택한다. 기준을 조용히 줄이지 않는다. 구체적인 용량과 프로필은 [TREND_HISTORY.md](TREND_HISTORY.md)를 참조한다.
 
@@ -43,6 +43,6 @@ Compose의 `SAME_HOST_SHARED_KERNEL_UTC` 주장은 서로 다른 호스트인 �
 
 두 새 테이블과 trigger 함수의 PUBLIC 권한을 제거한다. 확정 시각 근거에는 UPDATE·DELETE·TRUNCATE를 주지 않고 불변 trigger도 유지한다. Probe는 소비 결과 세 열만 갱신할 수 있고, scope·발급/만료 시각·nonce 등 원본 측정 열은 갱신할 수 없다. 갱신·삭제는 1회용 사용 상태와 제한된 보관 정리를 위한 것이다. 두 테이블 모두 runtime TRUNCATE·DDL 권한은 없다. 원시 테이블의 새 `canonical_utc` 열은 기존 명시적 raw 테이블 권한에 포함되므로 별도 확대하지 않는다.
 
-이 파일은 계정·nonce·측정 근거를 만들거나 시간 측정을 활성화하지 않는다. 공개 적용은 이미 승인된 OPS-01의 선행 조건과 운영 접근이 갖춰진 환경에서 수행하며 이번 변경에서 실행하지 않았다. 실제 PostgreSQL 검증 명령은 `pytest -q tests/integration/test_clock_runtime_grants.py`다. 테스트는 disposable canonical14 초기화와 head17 권한을 거친 뒤 head18의 실제 `hmi_app` 내부 접수·근거 읽기·probe DML·금지 DML/DDL·실패 원자성을 확인한다. high 검토 결과는 별도 주 에이전트 보고를 따른다.
+이 파일은 계정·nonce·측정 근거를 만들거나 시간 측정을 활성화하지 않는다. head18 공개 적용은 OPS-02 운영 작업이며 이번 변경에서 실행하지 않았다. 실제 PostgreSQL 검증 명령은 `pytest -q tests/integration/test_clock_runtime_grants.py`다. 테스트는 disposable canonical14 초기화와 head17 권한을 거친 뒤 head18의 실제 `hmi_app` 내부 접수·근거 읽기·probe DML·금지 DML/DDL·실패 원자성을 확인한다. high 검토 결과는 별도 주 에이전트 보고를 따른다.
 
 검증 기록: head18 권한 시험과 기존 게스트·Vercel·분석 제공 여부 시험을 함께 실행해 실제 Docker PostgreSQL **54개 통과(32.70초)**를 확인했다. 새 권한 시험은 명시적 17→18 적용 순서, 재실행, 실제 runtime 접수/읽기, probe 소비 결과 열 갱신·삭제, 원본 만료 열 갱신 거절, 확정 근거 변경·삭제·TRUNCATE·DDL 거절, 기존 ACL 보존과 DB/head/소유자/임시 카탈로그 위장 거절을 확인한다. 별도 high 검토는 주 에이전트에서 결과를 통합한다.

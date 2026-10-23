@@ -84,6 +84,10 @@ def test_target_token_and_commands_have_no_start_or_recover(prepared):
     assert gateway[gateway.index("--api-url") + 1] == runtime.API
     assert "--enable-commands" in gateway and "--enable-settlement" in gateway
     assert "--allow-loopback-http" not in gateway
+    assert "--clock-measured-round-trip" not in gateway
+    measured = runtime.commands(prepared, runtime.validate(prepared), token, measured_clock=True)
+    assert measured["simulator"] == commands["simulator"]
+    assert measured["gateway"] == gateway + ["--clock-measured-round-trip"]
     assert not any(
         value in {"START", "LOAD_JOB", "commission", "recover"}
         for values in commands.values()
