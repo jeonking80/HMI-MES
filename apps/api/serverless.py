@@ -115,8 +115,11 @@ class VercelConfig:
     source_binding_policy: SourceBindingPolicy | None = field(default=None, repr=False)
     guest_viewer: bool = False
     trend_retention: TrendRetention = field(default_factory=TrendRetention)
+    measured_clock_enabled: bool = False
 
     def __post_init__(self):
+        if type(self.measured_clock_enabled) is not bool:
+            raise ValueError("Measured clock configuration must be boolean")
         if not isinstance(self.trend_retention, TrendRetention) or any(
             type(value) not in {int, float} or not math.isfinite(value)
             for value in (self.trend_retention.raw_days, self.trend_retention.minute_days)
@@ -159,6 +162,9 @@ class VercelConfig:
         except ValueError:
             raise ValueError("Invalid trend retention configuration") from None
         guest_setting = os.environ.get("HMI_GUEST_VIEWER_ENABLED", "false")
+        measured_setting = os.environ.get("HMI_CLOCK_MEASURED_ROUND_TRIP", "false")
+        if measured_setting not in {"true", "false"}:
+            raise ValueError("HMI_CLOCK_MEASURED_ROUND_TRIP must be true or false")
         if guest_setting not in {"true", "false"}:
             raise ValueError("HMI_GUEST_VIEWER_ENABLED must be true or false")
         origin = os.environ["HMI_PUBLIC_ORIGIN"]
@@ -182,6 +188,7 @@ class VercelConfig:
             credentials=credentials,
             source_binding_policy=policy,
             trend_retention=retention,
+            measured_clock_enabled=measured_setting == "true",
         )
 
 
@@ -256,7 +263,11 @@ def create_vercel_app(config: VercelConfig, *, engine=None):
     )
     internal = (
         create_internal_app(
-            IngestionService(database, trend_retention=config.trend_retention),
+            IngestionService(
+                database,
+                trend_retention=config.trend_retention,
+                measured_clock_enabled=config.measured_clock_enabled,
+            ),
             credential_bindings=config.credentials,
             config=InternalConfig(allow_insecure_loopback=False),
             source_binding_policy=config.source_binding_policy,

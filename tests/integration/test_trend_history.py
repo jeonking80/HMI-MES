@@ -282,6 +282,9 @@ def test_clock_registry_rebuild_preserves_immutable_reversal(
             action = command.downgrade if downgrade else command.upgrade
             action(migration_config(connection), revision)
 
+    # This exercises the disposable schema15 cache across 14<->17. Schema18
+    # adds authoritative immutable evidence whose used downgrade is prohibited.
+    migrate("0017_guest_viewer", downgrade=True)
     if preexisting_schema14:
         migrate("0014_mixed_alarm_runtime", downgrade=True)
     for seq, seconds in [(1, 59), (2, 58 if clock_kind == "utc" else 60), (3, 61)]:

@@ -10,6 +10,12 @@ from datetime import UTC, timedelta
 import sqlalchemy as sa
 
 from apps.api.alarm_consumer import assess_capture_clock
+from apps.api.capture_clock import (
+    capture_clock_valid,
+    clock_evidence_available,
+    record_capture_clock,
+    schema_revision,
+)
 from apps.api.minute_aggregation import (
     ANALOG_UNITS,
     MINUTE,
@@ -18,7 +24,9 @@ from apps.api.minute_aggregation import (
     aggregate_minutes,
 )
 
-TREND_REVISIONS = frozenset({"0015_analog_history", "0016_downtime_reasons", "0017_guest_viewer"})
+TREND_REVISIONS = frozenset(
+    {"0015_analog_history", "0016_downtime_reasons", "0017_guest_viewer", "0018_clock_evidence"}
+)
 
 
 @dataclass(frozen=True)
@@ -129,142 +137,85 @@ def raw_observations(connection, scope, tag, start, end, *, buckets=None):
     # deserializing seven days of raw evidence when minute projections exist.
     if buckets == []:
         return ()
+    modern = clock_evidence_available(connection)
+    at = "COALESCE(r.canonical_utc,r.acquired_at)" if modern else "r.acquired_at"
+    select = "observation,canonical_utc" if modern else "observation,NULL::timestamptz"
     source = "analog_history_raw r"
     if buckets is not None:
-        source = """unnest(CAST(:buckets AS timestamptz[])) b(minute)
-            JOIN analog_history_raw r ON r.acquired_at>=b.minute
-            AND r.acquired_at<b.minute+interval '1 minute'"""
+        source = f"""unnest(CAST(:buckets AS timestamptz[])) b(minute)
+            JOIN analog_history_raw r ON {at}>=b.minute
+            AND {at}<b.minute+interval '1 minute'"""
     rows = connection.execute(
         sa.text(
-            "SELECT observation FROM "
+            "SELECT "
+            + select
+            + " FROM "
             + source
-            + """
+            + f"""
         WHERE line_id=:line_id AND source_id=:source_id AND stream_id=:stream_id
-        AND tag_id=:tag AND acquired_at>=:start AND acquired_at<:end
+        AND tag_id=:tag AND {at}>=:start AND {at}<:end
         ORDER BY capture_seq"""
         ),
         dict(scope, tag=tag, start=start, end=end, buckets=buckets),
     )
-    return tuple(RawObservation.model_validate(row[0]) for row in rows)
-
-
-def capture_clock_valid(connection, body, epoch):
-    """Remember clock reversal across minute/retention boundaries under the source lock."""
-    binding = dict(
-        source_id=body.source_id,
-        stream_id=body.stream_id,
-        gateway=body.gateway_id,
-        generation=body.capture_generation,
-        epoch=epoch,
-    )
-    where = """source_id=:source_id AND stream_id=:stream_id AND gateway_id=:gateway
-        AND capture_generation=:generation AND clock_epoch=:epoch"""
-    state = (
-        connection.execute(
-            sa.text("SELECT * FROM analog_history_clock_state WHERE " + where), binding
-        )
-        .mappings()
-        .first()
-    )
-    reversal = int(state["reversal_seq"]) if state and state["reversal_seq"] is not None else None
-    if state is None and body.capture_time is not None:
-        # A first schema-15 capture or supported downgrade/upgrade can have
-        # immutable clock history without a projection registry. Rebuild once
-        # in SQL: nearest neighbors alone cannot recover an earlier reversal.
-        cutoff = connection.execute(
-            sa.text("""WITH captures AS (
-            SELECT capture_seq,(body->>'captured_at')::timestamptz AS at,
-                (body->'capture_time'->>'monotonic_seconds')::double precision AS mono
-            FROM ingest_batches WHERE source_id=:source_id AND stream_id=:stream_id
-                AND gateway_id=:gateway AND capture_generation=:generation
-                AND body->'capture_time'->>'clock_epoch'=:epoch
-        ), ordered AS (
-            SELECT capture_seq,at,mono,lag(at) OVER w AS previous_at,
-                lag(mono) OVER w AS previous_mono
-            FROM captures WINDOW w AS (ORDER BY capture_seq)
-        ) SELECT min(capture_seq) FROM ordered
-            WHERE at<previous_at OR mono<=previous_mono"""),
-            binding,
-        ).scalar_one()
-        reversal = int(cutoff) if cutoff is not None else None
-    # The immutable intake includes digital-only and expired analog captures.
-    # Those captures still constrain the clock, even without retained trend rows.
-    # The gateway/generation/sequence unique index supports both neighbor probes.
-    neighbors = connection.execute(
-        sa.text("""(SELECT capture_seq,(body->>'captured_at')::timestamptz,
-        (body->'capture_time'->>'monotonic_seconds')::double precision FROM
-        ingest_batches WHERE source_id=:source_id AND stream_id=:stream_id
-        AND gateway_id=:gateway AND capture_generation=:generation
-        AND body->'capture_time'->>'clock_epoch'=:epoch AND capture_seq<:seq
-        ORDER BY capture_seq DESC LIMIT 1) UNION ALL
-        (SELECT capture_seq,(body->>'captured_at')::timestamptz,
-        (body->'capture_time'->>'monotonic_seconds')::double precision FROM ingest_batches
-        WHERE source_id=:source_id AND stream_id=:stream_id AND gateway_id=:gateway
-        AND capture_generation=:generation AND body->'capture_time'->>'clock_epoch'=:epoch
-        AND capture_seq>:seq ORDER BY capture_seq LIMIT 1)"""),
-        dict(binding, seq=body.capture_seq),
-    ).all()
-    monotonic = body.capture_time.monotonic_seconds if body.capture_time else None
-    for seq, at, neighbor_monotonic in neighbors:
-        candidate = None
-        reversed_monotonic = (
-            monotonic is not None
-            and neighbor_monotonic is not None
-            and (
-                (seq < body.capture_seq and neighbor_monotonic >= monotonic)
-                or (seq > body.capture_seq and neighbor_monotonic <= monotonic)
+    results = []
+    for observation, canonical in rows:
+        original = RawObservation.model_validate(observation)
+        if canonical is not None:
+            # The persisted sample remains original; only the aggregation input
+            # receives the capture-specific analytical UTC projection.
+            original = original.model_copy(
+                update={"sample": original.sample.model_copy(update={"acquired_at": canonical})}
             )
-        )
-        if seq < body.capture_seq and (at > body.captured_at or reversed_monotonic):
-            candidate = body.capture_seq
-        elif seq > body.capture_seq and (at < body.captured_at or reversed_monotonic):
-            candidate = int(seq)
-        if candidate is not None:
-            reversal = min(reversal, candidate) if reversal is not None else candidate
-    if reversal is not None and (not state or state["reversal_seq"] != reversal):
-        # Invalidate retained evidence before any cached minute can be served as good.
-        connection.execute(
-            sa.text("""UPDATE analog_history_raw SET
-            observation=jsonb_set(observation,'{time_quality}','"UNKNOWN"'),aggregated=false
-            WHERE source_id=:source_id AND stream_id=:stream_id AND gateway_id=:gateway
-            AND capture_generation=:generation
-            AND observation->'scope'->>'clock_epoch'=:epoch AND capture_seq>=:reversal"""),
-            dict(binding, reversal=reversal),
-        )
-    connection.execute(
-        sa.text("""INSERT INTO analog_history_clock_state
-        (source_id,stream_id,gateway_id,capture_generation,clock_epoch,last_seq,last_at,reversal_seq)
-        VALUES (:source_id,:stream_id,:gateway,:generation,:epoch,:seq,:at,:reversal)
-        ON CONFLICT(source_id,stream_id,gateway_id,capture_generation,clock_epoch)
-        DO UPDATE SET last_seq=GREATEST(analog_history_clock_state.last_seq,EXCLUDED.last_seq),
-        last_at=CASE WHEN EXCLUDED.last_seq>analog_history_clock_state.last_seq
-            THEN EXCLUDED.last_at ELSE analog_history_clock_state.last_at END,
-        reversal_seq=EXCLUDED.reversal_seq"""),
-        dict(binding, seq=body.capture_seq, at=body.captured_at, reversal=reversal),
-    )
-    return reversal is None or body.capture_seq < reversal
+        results.append(original)
+    return tuple(results)
 
 
-def capture_trends(connection, body, *, source, now, clock_policy=None, retention=None):
+def capture_trends(
+    connection, body, *, source, now, clock_policy=None, retention=None, clock_decision=None
+):
     """Called only for a newly accepted batch under the source transaction lock."""
-    revision = connection.execute(sa.text("SELECT version_num FROM alembic_version")).scalar_one()
+    revision = schema_revision(connection)
     if revision not in TREND_REVISIONS:
         return
     retention = retention or TrendRetention()
     cutoff = floor_minute(now - timedelta(days=retention.raw_days))
     scope = dict(line_id=source["line_id"], source_id=body.source_id, stream_id=body.stream_id)
-    assessment, _, _ = assess_capture_clock(body, clock_policy, now)
+    modern = clock_evidence_available(connection)
+    if modern:
+        clock_decision = clock_decision or record_capture_clock(
+            connection, body, source=source, now=now, policy=clock_policy
+        )
+        assessment = clock_decision.assessment
+        clock_valid = clock_decision.status == "GOOD"
+    else:
+        assessment, _, _ = assess_capture_clock(body, clock_policy, now)
+        has_retained_analog = any(
+            sample.tag_id in ANALOG_UNITS and sample.acquired_at >= cutoff
+            for sample in body.samples
+        )
+        clock_valid = (
+            capture_clock_valid(connection, body, body.capture_time.clock_epoch)
+            if body.capture_time is not None or has_retained_analog
+            else False
+        )
     epoch = body.capture_time.clock_epoch if body.capture_time else "unproved-clock"
-    has_retained_analog = any(
-        sample.tag_id in ANALOG_UNITS and sample.acquired_at >= cutoff for sample in body.samples
-    )
-    clock_valid = (
-        capture_clock_valid(connection, body, epoch)
-        if body.capture_time is not None or has_retained_analog
-        else False
+    time_known = (
+        clock_valid
+        if modern
+        else (
+            assessment is not None
+            and clock_valid
+            and body.captured_at <= now + timedelta(seconds=2)
+        )
     )
     for sample in body.samples:
-        if sample.tag_id not in ANALOG_UNITS or sample.acquired_at < cutoff:
+        canonical = (
+            sample.acquired_at + (clock_decision.canonical_api_utc - body.captured_at)
+            if modern and time_known
+            else None
+        )
+        if sample.tag_id not in ANALOG_UNITS or (canonical or sample.acquired_at) < cutoff:
             continue
         observation = RawObservation.model_validate(
             dict(
@@ -277,18 +228,19 @@ def capture_trends(connection, body, *, source, now, clock_policy=None, retentio
                 ),
                 capture_seq=body.capture_seq,
                 sample=sample,
-                time_quality="GOOD"
-                if assessment and clock_valid and body.captured_at <= now + timedelta(seconds=2)
-                else "UNKNOWN",
+                time_quality="GOOD" if time_known else "UNKNOWN",
             )
         )
+        extra_column = ",canonical_utc" if modern else ""
+        extra_value = ",:canonical" if modern else ""
         connection.execute(
-            sa.text("""INSERT INTO analog_history_raw
+            sa.text(f"""INSERT INTO analog_history_raw
             (line_id,source_id,stream_id,gateway_id,capture_generation,capture_seq,
-             tag_id,sample_id,acquired_at,stored_at,batch_id,observation,clock_assessment,aggregated)
+             tag_id,sample_id,acquired_at,stored_at,batch_id,observation,clock_assessment,
+             aggregated{extra_column})
             VALUES (:line_id,:source_id,:stream_id,:gateway,:generation,:seq,
              :tag,:sample,:at,:stored,:batch,CAST(:obs AS jsonb),
-             CAST(:assessment AS jsonb),false)"""),
+             CAST(:assessment AS jsonb),false{extra_value})"""),
             dict(
                 scope,
                 gateway=body.gateway_id,
@@ -300,15 +252,21 @@ def capture_trends(connection, body, *, source, now, clock_policy=None, retentio
                 stored=now,
                 batch=body.batch_id,
                 obs=observation.model_dump_json(),
-                assessment=assessment.model_dump_json() if assessment else "null",
+                assessment=json.dumps(
+                    assessment.model_dump(mode="json")
+                    if hasattr(assessment, "model_dump")
+                    else assessment
+                ),
+                canonical=canonical,
             ),
         )
+    at = "COALESCE(canonical_utc,acquired_at)" if modern else "acquired_at"
     # One unfinished bucket per tag normally; the bound also limits delayed backlogs.
     pending = connection.execute(
-        sa.text("""SELECT DISTINCT tag_id,
-        date_trunc('minute',acquired_at) AS minute FROM analog_history_raw
+        sa.text(f"""SELECT DISTINCT tag_id,
+        date_trunc('minute',{at}) AS minute FROM analog_history_raw
         WHERE line_id=:line_id AND source_id=:source_id AND stream_id=:stream_id
-        AND NOT aggregated AND acquired_at<:complete
+        AND NOT aggregated AND {at}<:complete
         ORDER BY minute,tag_id LIMIT 32"""),
         dict(scope, complete=floor_minute(now)),
     ).all()
@@ -324,9 +282,9 @@ def capture_trends(connection, body, *, source, now, clock_policy=None, retentio
             dict(scope, tag=tag, minute=minute, policy=POLICY_VERSION, point=json.dumps(point)),
         )
         connection.execute(
-            sa.text("""UPDATE analog_history_raw SET aggregated=true
+            sa.text(f"""UPDATE analog_history_raw SET aggregated=true
             WHERE line_id=:line_id AND source_id=:source_id AND stream_id=:stream_id
-            AND tag_id=:tag AND acquired_at>=:minute AND acquired_at<:end"""),
+            AND tag_id=:tag AND {at}>=:minute AND {at}<:end"""),
             dict(scope, tag=tag, minute=minute, end=minute + MINUTE),
         )
     cleanup_trends(connection, now=now, retention=retention)
@@ -334,12 +292,17 @@ def capture_trends(connection, body, *, source, now, clock_policy=None, retentio
 
 def cleanup_trends(connection, *, now, retention):
     counts = []
+    raw_time = (
+        "COALESCE(canonical_utc,acquired_at)"
+        if clock_evidence_available(connection)
+        else "acquired_at"
+    )
     for table, column, cutoff, predicate in (
         (
             "analog_history_raw",
-            "LEAST(acquired_at,stored_at)",
+            f"LEAST({raw_time},stored_at)",
             floor_minute(now - timedelta(days=retention.raw_days)),
-            "AND (aggregated OR acquired_at>stored_at+interval '2 seconds')",
+            f"AND (aggregated OR {raw_time}>stored_at+interval '2 seconds')",
         ),
         ("analog_history_minutes", "minute", now - timedelta(days=retention.minute_days), ""),
     ):
@@ -354,6 +317,8 @@ def cleanup_trends(connection, *, now, retention):
 
 
 def read_trends(connection, *, scope, tags, start, end, resolution, now):
+    modern = clock_evidence_available(connection)
+    at = "COALESCE(canonical_utc,acquired_at)" if modern else "acquired_at"
     result = []
     for tag in tags:
         step = timedelta(seconds=1) if resolution == "second" else MINUTE
@@ -375,10 +340,10 @@ def read_trends(connection, *, scope, tags, start, end, resolution, now):
         if resolution == "minute":
             pending = set(
                 connection.execute(
-                    sa.text("""SELECT DISTINCT
-                date_trunc('minute',acquired_at) FROM analog_history_raw
+                    sa.text(f"""SELECT DISTINCT
+                date_trunc('minute',{at}) FROM analog_history_raw
                 WHERE line_id=:line_id AND source_id=:source_id AND stream_id=:stream_id
-                AND tag_id=:tag AND acquired_at>=:start AND acquired_at<:end
+                AND tag_id=:tag AND {at}>=:start AND {at}<:end
                 AND NOT aggregated"""),
                     dict(scope, tag=tag, start=start, end=end),
                 ).scalars()

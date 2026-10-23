@@ -96,3 +96,34 @@ class IntakeClient:
         except (httpx.HTTPError, ValueError):
             # Never include request headers, URL credentials or API error body in diagnostics.
             raise DeliveryUncertain("No valid durable receipt; retain original batch") from None
+
+    async def clock_probe(self, probe):
+        """A small bounded request using the same authenticated, TLS-verified intake."""
+        import asyncio
+
+        from contracts.clock_evidence import ClockProbeRequest, ClockProbeResponse
+
+        validated = ClockProbeRequest.model_validate_json(probe.model_dump_json())
+        try:
+            async with asyncio.timeout(min(2.0, self.config.timeout_seconds)):
+                async with self._client.stream(
+                    "POST",
+                    "/internal/v1/clock-probes",
+                    content=validated.model_dump_json(),
+                    headers={"Content-Type": "application/json"},
+                    timeout=min(2.0, self.config.timeout_seconds),
+                ) as response:
+                    if response.status_code in {400, 401, 403, 409, 413, 422}:
+                        raise DeliveryRejected("Clock probe was rejected")
+                    if response.status_code != 200:
+                        raise DeliveryUncertain("Clock probe response unavailable")
+                    body = bytearray()
+                    async for chunk in response.aiter_bytes():
+                        if len(body) + len(chunk) > min(8192, self.config.max_response_bytes):
+                            raise DeliveryUncertain("Clock probe response exceeds bound")
+                        body.extend(chunk)
+            return ClockProbeResponse.model_validate_json(bytes(body))
+        except (DeliveryRejected, DeliveryUncertain):
+            raise
+        except (httpx.HTTPError, ValueError, TimeoutError):
+            raise DeliveryUncertain("No valid clock probe response") from None

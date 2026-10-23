@@ -57,6 +57,8 @@ def analytics_available(app, auth) -> bool:
                 "downtime_reason_history",
             ):
                 db.execute(sa.text(f"SELECT 1 FROM {table} LIMIT 0"))
+            if revisions[0] == "0018_clock_evidence":
+                db.execute(sa.text("SELECT 1 FROM capture_clock_evidence LIMIT 0"))
         return True
     except SQLAlchemyError:
         return False

@@ -28,3 +28,21 @@
 현재 유효한 clock policy는 `SAME_HOST_SHARED_KERNEL_UTC` 증거다. Compose의 같은 호스트 공유 커널 주장은 서로 다른 호스트에서 실행하는 공개 Vercel API와 클라우드 gateway에 재사용할 수 없다. 승인되고 유효한 별도 시각 증거가 없으면 트렌드·보고서의 `TIME_UNKNOWN`은 의도한 결과이며, 공개 기능 수락 검증은 대기 상태다. 이 권한 파일은 시간 정책이나 환경 설정 기능을 추가하지 않는다.
 
 로컬 검증은 `pytest -q tests/integration/test_kuls_runtime_grants.py`로 수행한다. 고정 PostgreSQL 컨테이너의 disposable DB에서 canonical14 초기화 → migrator 명시적 업그레이드 → 검토용 권한 파일 → runtime 동작과 권한 거절을 확인한다. 운영 DSN은 사용하지 않는다.
+
+## head18 시각 근거의 추가 runtime 권한
+
+`0018_clock_evidence` 배포에는 [neon-clock-grants.sql](../../deploy/neon-clock-grants.sql)이 별도로 필요하다. 기존 head17 절차를 대체하지 않는다. 적용 순서는 **canonical14 → migrator로 head17 업그레이드 → 기존 neon-kuls-grants.sql 전체 실행 → migrator로 head18 업그레이드 → neon-clock-grants.sql 전체 실행**이다. 각 단계는 검토한 운영자의 명시적 작업이며 앱 시작이나 runtime 요청에서 실행하지 않는다. head17 권한 파일은 정확한 head17만 받으므로 head18 업그레이드 전에 적용해야 한다.
+
+새 파일은 트랜잭션과 스키마 독점 잠금 `843001` 아래 정확한 `hmi_mes_demo`·head18·`hmi_migrator` 소유자·격리된 비특권/비소유 runtime 역할을 검증한다. `pg_temp`를 search_path 끝에 명시하여 임시 객체가 카탈로그 점검을 가리지 못하게 한다. 잘못된 DB/head/소유자/역할이면 전체를 거절하며 재실행 가능하다. 기존 head17 파일·기존 테이블 ACL·역할/DDL 권한·default privileges는 바꾸지 않는다.
+
+| head18 새 객체 | `hmi_app` 권한 |
+|---|---|
+| `capture_clock_evidence` | SELECT, INSERT |
+| `capture_clock_probes` | SELECT, INSERT, DELETE; UPDATE(consumed_batch_id, consumed_input_sha256, consumed_at) |
+| `immutable_capture_clock_evidence()` | EXECUTE |
+
+두 새 테이블과 trigger 함수의 PUBLIC 권한을 제거한다. 확정 시각 근거에는 UPDATE·DELETE·TRUNCATE를 주지 않고 불변 trigger도 유지한다. Probe는 소비 결과 세 열만 갱신할 수 있고, scope·발급/만료 시각·nonce 등 원본 측정 열은 갱신할 수 없다. 갱신·삭제는 1회용 사용 상태와 제한된 보관 정리를 위한 것이다. 두 테이블 모두 runtime TRUNCATE·DDL 권한은 없다. 원시 테이블의 새 `canonical_utc` 열은 기존 명시적 raw 테이블 권한에 포함되므로 별도 확대하지 않는다.
+
+이 파일은 계정·nonce·측정 근거를 만들거나 시간 측정을 활성화하지 않는다. 공개 적용·환경 설정은 별도 운영 승인/절차이며 이번 변경에서 실행하지 않았다. 실제 PostgreSQL 검증 명령은 `pytest -q tests/integration/test_clock_runtime_grants.py`다. 테스트는 disposable canonical14 초기화와 head17 권한을 거친 뒤 head18의 실제 `hmi_app` 내부 접수·근거 읽기·probe DML·금지 DML/DDL·실패 원자성을 확인한다. high 검토 결과는 별도 주 에이전트 보고를 따른다.
+
+검증 기록: head18 권한 시험과 기존 게스트·Vercel·분석 제공 여부 시험을 함께 실행해 실제 Docker PostgreSQL **54개 통과(32.70초)**를 확인했다. 새 권한 시험은 명시적 17→18 적용 순서, 재실행, 실제 runtime 접수/읽기, probe 소비 결과 열 갱신·삭제, 원본 만료 열 갱신 거절, 확정 근거 변경·삭제·TRUNCATE·DDL 거절, 기존 ACL 보존과 DB/head/소유자/임시 카탈로그 위장 거절을 확인한다. 별도 high 검토는 주 에이전트에서 결과를 통합한다.

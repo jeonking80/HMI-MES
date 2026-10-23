@@ -43,7 +43,14 @@ from apps.api.ingestion import (
     IngestionUnavailable,
     SourceBindingError,
 )
+from apps.api.measured_clock import (
+    MeasuredClockConflict,
+    ProbeCapacityError,
+    ProbeScopeError,
+    issue_probe,
+)
 from apps.api.settlement_http import mount_settlement_routes
+from contracts.clock_evidence import ClockProbeRequest
 from contracts.models import CommandNotFound, CommandResult, CommandSubmission, Identifier, UInt64
 from contracts.transport import GatewayBatch
 
@@ -248,6 +255,7 @@ def create_internal_app(
 
     @app.middleware("http")
     async def transport(request: Request, call_next):
+        request.state.clock_received_at = now()
         if (
             request.url.path != "/health/live"
             and request.url.scheme != "https"
@@ -285,6 +293,20 @@ def create_internal_app(
     @app.exception_handler(SQLAlchemyError)
     async def database_error(request: Request, error: SQLAlchemyError):
         return JSONResponse({"detail": "ingestion unavailable"}, status_code=503)
+
+    @app.exception_handler(MeasuredClockConflict)
+    async def measured_conflict(request: Request, error):
+        return JSONResponse(
+            {"detail": "clock evidence conflicts with stored proof"}, status_code=409
+        )
+
+    @app.exception_handler(ProbeScopeError)
+    async def probe_scope(request: Request, error):
+        return JSONResponse({"detail": "clock probe scope is not allowed"}, status_code=403)
+
+    @app.exception_handler(ProbeCapacityError)
+    async def probe_capacity(request: Request, error):
+        return JSONResponse({"detail": "clock probe capacity unavailable"}, status_code=429)
 
     @app.exception_handler(CommandConflict)
     async def command_conflict(request: Request, error: CommandConflict):
@@ -376,6 +398,49 @@ def create_internal_app(
 
             await run_in_threadpool(register)
             return {"binding_registered": True}
+
+    @app.post("/internal/v1/clock-probes")
+    async def clock_probe(request: Request):
+        selected = authenticate(request)
+        if not ingestion_service.measured_clock_enabled:
+            raise HTTPException(404, "clock probes are disabled")
+        if request.query_params:
+            raise HTTPException(422, "clock probe query is not allowed")
+        payload = await command_body(request, TypeAdapter(ClockProbeRequest))
+        if (payload.gateway_id, payload.source_id, payload.stream_id) != (
+            selected.gateway_id,
+            selected.source_id,
+            selected.stream_id,
+        ):
+            raise ProbeScopeError("credential scope mismatch")
+
+        def issue():
+            with ingestion_service._transaction() as connection:
+                heads = connection.execute(text("SELECT version_num FROM alembic_version"))
+                if heads.scalars().all() != ["0018_clock_evidence"]:
+                    raise IngestionUnavailable("clock probe schema unavailable")
+                ingestion_service._advisory(connection, "gateway", payload.gateway_id)
+                source = ingestion_service._lock_stream(
+                    connection, payload.source_id, payload.stream_id
+                )
+                if (
+                    source["gateway_id"] != payload.gateway_id
+                    or int(source["capture_generation"]) != payload.capture_generation
+                    or source["conflicted"]
+                    or source["reconciliation_required"]
+                ):
+                    raise ProbeScopeError("persisted source scope mismatch")
+                response = issue_probe(
+                    connection,
+                    payload,
+                    credential_key_id=selected.key_id,
+                    api_received_at=request.state.clock_received_at,
+                    now=now(),
+                )
+            return response
+
+        result = await run_in_threadpool(issue)
+        return result.model_dump(mode="json")
 
     @app.post("/internal/v1/commands/claim")
     async def command_claim(request: Request):
@@ -510,7 +575,8 @@ def create_internal_app(
             authenticated_gateway_id=binding.gateway_id,
             authenticated_source_id=binding.source_id,
             authenticated_stream_id=binding.stream_id,
-            now=now(),
+            authenticated_key_id=binding.key_id,
+            now=request.state.clock_received_at,
         )
         return JSONResponse(ack.model_dump(mode="json"))
 

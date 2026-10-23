@@ -38,6 +38,7 @@ async def config(app):
         ("0015_analog_history", False),
         ("0016_downtime_reasons", True),
         ("0017_guest_viewer", True),
+        ("0018_clock_evidence", True),
     ],
 )
 async def test_prelogin_supported_revision_and_existing_guest_flag(engine, revision, expected):
@@ -109,6 +110,12 @@ async def test_read_only_runtime_can_advertise_available_and_missing_grant_canno
     )
     try:
         readonly_app = application(reader)
+        assert (await config(readonly_app))["analytics"] is True
+        with migrated.begin() as db:
+            db.execute(sa.text("REVOKE SELECT ON capture_clock_evidence FROM analytics_reader"))
+        assert (await config(readonly_app))["analytics"] is False
+        with migrated.begin() as db:
+            db.execute(sa.text("GRANT SELECT ON capture_clock_evidence TO analytics_reader"))
         assert (await config(readonly_app))["analytics"] is True
         with reader.connect() as db:
             assert db.execute(sa.text("SELECT current_user")).scalar_one() == "analytics_reader"

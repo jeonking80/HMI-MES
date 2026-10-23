@@ -173,6 +173,13 @@ class GatewayOPCUAClient:
             raise ValueError("Monotonic clock regressed; capture continuity reset")
         return value
 
+    def clock_reading(self) -> tuple[str, datetime, float]:
+        """Read the same injected clocks and epoch used by OPC capture, without I/O."""
+        self._monotonic()
+        utc = _TIME.validate_python(self._utc_clock())
+        monotonic = self._monotonic()
+        return self._clock_epoch, utc, monotonic
+
     def _owning_loop(self) -> None:
         loop = asyncio.get_running_loop()
         if self._loop is None:

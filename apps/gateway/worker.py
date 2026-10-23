@@ -9,6 +9,7 @@ from pydantic import TypeAdapter
 from apps.gateway.buffer import GatewayBuffer
 from apps.gateway.http_client import DeliveryRejected, DeliveryUncertain, IntakeClient
 from apps.gateway.opcua_client import GatewayMethodUncertain, GatewayOPCUAClient
+from contracts.clock_evidence import ClockProbeRequest, MeasuredClockEvidence
 from contracts.models import UINT64_MAX, EventReadError, Identifier, ReadEventsRequest
 from contracts.transport import (
     BatchBody,
@@ -48,10 +49,14 @@ class GatewayPump:
         opc: GatewayOPCUAClient,
         buffer: GatewayBuffer,
         intake: IntakeClient,
+        measured_clock: bool = False,
     ):
         self.source_id = TypeAdapter(Identifier).validate_python(source_id)
         self.stream_id = TypeAdapter(Identifier).validate_python(stream_id)
         self.opc, self.buffer, self.intake = opc, buffer, intake
+        self.measured_clock = measured_clock
+        self._pending_clock_evidence = None
+        self._probe_lock = asyncio.Lock()
         self._capture_lock = asyncio.Lock()
         self._delivery_lock = asyncio.Lock()
 
@@ -61,6 +66,7 @@ class GatewayPump:
         captured_at,
         communication,
         capture_time=None,
+        clock_evidence=None,
         samples=(),
         events=(),
         gaps=(),
@@ -84,12 +90,29 @@ class GatewayPump:
             events=events,
             gaps=gaps,
         )
-        batch = GatewayBatch(body=body, content_sha256=batch_digest(body))
+        if clock_evidence is not None and not (
+            capture_time is not None
+            and clock_evidence.clock_epoch == capture_time.clock_epoch
+            and clock_evidence.capture_generation == generation
+            and 0 <= (captured_at - clock_evidence.t1_utc).total_seconds() <= 60
+            and 0
+            <= capture_time.monotonic_seconds
+            - capture_time.utc_read_span_seconds
+            - clock_evidence.t1_monotonic_seconds
+            <= 60
+        ):
+            clock_evidence = None
+        batch = GatewayBatch(
+            body=body, content_sha256=batch_digest(body), clock_evidence=clock_evidence
+        )
         self.buffer.enqueue(batch, now=captured_at, latest_read_seq=latest_read_seq)
         return batch
 
     async def capture_once(self) -> CaptureResult:
         async with self._capture_lock:
+            # Take once before capture begins. A probe finishing during read_tags is
+            # reserved for the next capture and can never decorate an older batch.
+            proof, self._pending_clock_evidence = self._pending_clock_evidence, None
             observation = await self.opc.read_tags()
             communication = GatewayCommunication(
                 state=observation.health.state,
@@ -105,6 +128,7 @@ class GatewayPump:
                     captured_at=observation.acquired_at,
                     communication=communication,
                     capture_time=observation.capture_time,
+                    clock_evidence=proof,
                     samples=observation.samples,
                     gaps=pending,
                     latest_read_seq=progress.latest_read_seq,
@@ -153,6 +177,7 @@ class GatewayPump:
                 captured_at=observation.acquired_at,
                 communication=communication,
                 capture_time=observation.capture_time,
+                clock_evidence=proof,
                 samples=observation.samples,
                 events=events,
                 gaps=gaps,
@@ -161,6 +186,41 @@ class GatewayPump:
             return CaptureResult(
                 batch.body.batch_id, len(observation.samples), len(events), len(gaps), uncertain
             )
+
+    async def probe_once(self) -> bool:
+        """Cache a single-use proof for the next capture; never await from collection."""
+        if not self.measured_clock:
+            return False
+        async with self._probe_lock:
+            if self._pending_clock_evidence is not None:
+                return False
+            generation, _ = self.buffer.capture_position
+            epoch, utc, mono = self.opc.clock_reading()
+            request = ClockProbeRequest(
+                gateway_id=self.buffer.gateway_id,
+                source_id=self.source_id,
+                stream_id=self.stream_id,
+                capture_generation=generation,
+                clock_epoch=epoch,
+                t0_utc=utc,
+                t0_monotonic_seconds=float(mono),
+            )
+            response = await self.intake.clock_probe(request)
+            received_epoch, received_utc, received_mono = self.opc.clock_reading()
+            if (
+                received_epoch != epoch
+                or self.buffer.capture_position[0] != generation
+                or not 0 <= received_mono - mono <= 2
+                or not 0 <= (received_utc - utc).total_seconds() <= 2
+            ):
+                return False
+            self._pending_clock_evidence = MeasuredClockEvidence(
+                **request.model_dump(),
+                **response.model_dump(),
+                t1_utc=received_utc,
+                t1_monotonic_seconds=float(received_mono),
+            )
+            return True
 
     async def deliver_once(self) -> bool:
         async with self._delivery_lock:
@@ -237,11 +297,21 @@ class GatewayPump:
                     report("delivery", "blocked", error)
                     await pause(min(5, 2**failures))
 
+        async def probe():
+            while not stop_event.is_set():
+                try:
+                    await self.probe_once()
+                except (DeliveryUncertain, DeliveryRejected, ValueError, OSError) as error:
+                    report("clock-probe", "unavailable", error)
+                await pause(0.2)
+
         tasks = [
             asyncio.create_task(collect()),
             asyncio.create_task(deliver()),
             asyncio.create_task(stop_event.wait()),
         ]
+        if self.measured_clock:
+            tasks.append(asyncio.create_task(probe()))
         try:
             completed, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
             for task in completed:
