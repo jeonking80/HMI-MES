@@ -140,7 +140,9 @@ export default function CommandPanel({ source, session, blockedReason, newIntent
   const reasons = kinds.map(kind => disabledReason(kind))
   // One shared line when every button has the same reason; per-button text stays for assistive tech.
   const sharedReason = kinds.length > 1 && reasons.every(reason => reason === reasons[0]) ? reasons[0] : null
-  return <section id="command-panel" className="command-panel" aria-labelledby="command-heading">
+  // The control version a new request would carry; acceptance runs wait on it before clicking.
+  const shownVersion = uint64String(values['Line.ControlVersion']) ? String(values['Line.ControlVersion']) : undefined
+  return <section id="command-panel" className="command-panel" aria-labelledby="command-heading" data-control-version={shownVersion}>
     <div className="monitor-heading"><div><p className="section-kicker">COMMAND REQUEST</p><h2 id="command-heading">현재 실행 제어 요청</h2></div><span className="read-only-tag">서버 · PLC 재검증</span></div>
     <p className="form-help">요청 저장과 PLC 접수는 실행 완료가 아닙니다. 현재 실행에 대한 요청만 제공합니다. 작업지시 화면에서 배포 후 실행 연결을 준비할 수 있습니다.</p>
     {kinds.length ? <><div className="command-actions">{kinds.map(kind => {
