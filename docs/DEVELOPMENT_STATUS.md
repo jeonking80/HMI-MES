@@ -422,6 +422,8 @@ M1의 주요 독립 운전·권한·실제 생산 경로는 확인했지만, 원
 - CX-22 운영 설비 CLI 사전 검증: 생성기·prepare 초기화·기존 prepare·serve·commission의 실제 진입점5개, 보존·48태그 미ACK 큐·명시 commission/no START·SIGTERM 자식 정리 시험 **1개10.91초 통과**. 첫 시험의 gateway 로그 접두어 parser 오류와 원실패를 보존하고 수정했다. 닫힌 로컬 API에 대한 delivery blocked 검증이며 공개 적용/API commit으로 표시하지 않는다. clean release의 단일 수락 묶음에도 포함한다.
 
 - CX-22 실제 재개: BuildKit의 session proxy DNS EAI_AGAIN을 확인하고 같은 proxy endpoint의 해석된 IP를 build child 환경에만 전달해 clean no-cache build를 통과했다. console 준비 전 commission race를 보완한 `cc566f6` clean clone에서 build·Compose 운전/GOOD/SETTLED·데이터 보존 재시작·독립 CLI/분석 화면까지 통과했으나 전체 수락은17/19였다. T02 LOCAL의 DOM polling 대기와 T06 OPC의 fixture transport/capture 직렬화를 보완해 동일 release 웹의 집중2개37.84초 통과. 기존 실패원문과 정확한 범위를 보존하고 최종 커밋 전체 묶음을 다시 실행한다. 제품/UI/통신 시간 기준은 바꾸지 않았다.
+
+- **2026-10-23 최종 중단:** 사용자의 “이제 또 실패하면 보고서만 작성하고 멈춰” 지시 후, 이미 시작된 집중 묶음에서 T05의 두 번째 RESET_FAULT 실제 UI POST가409로 거절돼 실패했다(묶음1실패/1통과37.621초, 세부 reason 미수집·원인 미확정). 지시 수신 후 새 실행0회이며 추가 수정·재시도·전체9개·다음 릴리스/supplemental Compose CLI를 시작하지 않았다. 직전 `31c8e14` clean release는 build/전체 구성/재시작/독립은 통과했으나 전체 수락17/19여서 릴리스 미통과다. 현재 시험2파일은 미완료 상태로 동결하고 patch·원본·SHA를 보존했으며 보고서만 작성한다. [중단 보고서](work-orders/reports/KULS-v3-STOP.md). CX-21 제외와 OPS-02 공개 권한 부재 인계는 유지하고 프로젝트 완료로 표시하지 않는다.
 - 전체backup/restore/resume 운영CLI 진입점도실제프로세스로 **1개10.452초통과**(6assertions,동일fixture PG17 Docker도구),nativehost도구검증과구분한다. 소유PG/복원DB정리완료. 현재polling웹빌드·고정커밋후실제30분검증을이어간다.
 
 ### Claude UI/UX 보강
