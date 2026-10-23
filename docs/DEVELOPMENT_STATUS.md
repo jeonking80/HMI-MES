@@ -339,3 +339,15 @@ M1의 주요 독립 운전·권한·실제 생산 경로는 확인했지만, 원
 - `6f06cb1` 공개 배포 후 원래 query 보존을 확인했다. 본문·query 없는 source 등록 POST와 인증된 서비스 health는 각각200, 익명 정확 scope 화면 요청은401, 여분 query 요청은422다. 공개 루트·실제 JS/CSS도200이다. 전용 클라우드 supervisor를 재개하고 실제 원격/자동·복구 확인을 수행했다. simulator→암호화 OPC UA→게이트웨이→Vercel→Neon 경로에서 capture711의48개 GOOD 관측과 capture710의COMMITTED ACK를 확인했다. 오래된 오프라인 배치453개는 보관기한을 지나 태그 관측이 유실됐다. 해당 배치에 사건 범위는 없고 ACK의 미해결 사건 gap은 비어 있다. 큐를 삭제하거나 유실을0으로 재설정하지 않았다.
 - 공개 viewer 브라우저 조회 검증이 **정상 종료**했다(2026-10-23 01:10 UTC). 정상 로그인·최초 암호 변경 후 정확한 source/stream/line을 선택했고, 최소3개 실제 batch에 걸친4회 연속48개 fresh/GOOD·heartbeatGOOD·CAPTURE_FRESH·화면 usable48개를 확인했다. WS0·페이지 오류0·비인증 업무 변경0·브라우저 저장소0, viewer 운전 변경 불가도 확인했다. `demo`의 사용자가 변경한 암호는 접근·재설정하지 않았다. 실제 설비는 정지·현재 실행 없음·양품0이며 공개 생산 명령은 제출하지 않았다.
 - 위 공개 브라우저 검증은 Chromium JavaScript/UI를 실행하되, 이 환경의 Chromium 직접 TLS 신뢰 실패로 Playwright route에서 정상 CA 검증·상속 프록시를 사용하는 httpx로 실제 공개 응답을 전달했다. 모의 응답·TLS 검증 해제·프록시 우회는 사용하지 않았다. 직접 Chromium TLS 검증 통과로 표시하지 않는다. 보호 증거 `.local/commissioning/public-screen-evidence.json`, 암호가 없는 화면 `.local/commissioning/public-screen.png`, 로그 `/tmp/hmi-public-screen-bridge.log`에 기록했다. 현재 클라우드 프로세스의 생존을 사용량 소진 후 또는 환경 중단 후의 상시 실행 보장으로 확대하지 않는다. 전체 기획 수락과 별개다.
+
+## KULS 지원용 보강 (2026-10-23 착수)
+
+목적과 범위는 [작업지시서](work-orders/CODEX_KULS_보강_v1.md)를 따른다. 백엔드·데이터·실행 환경(CX-01~CX-07)은 Codex, 화면(UX-01~UX-08)은 Claude가 맡는다. CX-08 운영 챗봇은 LLM 비용 승인 전까지 보류한다. 아래 두 절은 각 담당자만 추가한다.
+
+### Codex 백엔드 보강
+
+- 미착수.
+
+### Claude UI/UX 보강
+
+- 착수 전 확인: `scripts/check-operable-system.py` 로컬 실행 PASS(브라우저→API→PostgreSQL→게이트웨이→암호화 OPC UA→최종 SETTLED 대조). 현재 화면은 세로 약 7,000px의 단일 페이지이며 트렌드·보고서·대시보드 화면이 없다.
