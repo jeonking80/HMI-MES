@@ -57,7 +57,9 @@ def read_dashboard(db, *, line_id: str, source_id: str, stream_id: str, day: dat
         freshness = "NO_DATA"
     elif snapshot.health.state == "CAPTURE_FRESH" and snapshot.health.heartbeat == "GOOD":
         freshness = "LIVE"
-    active = _active_execution(db, scope, snapshot)
+    # Only fresh evidence may name the running execution; stale or absent capture
+    # must not keep showing the last observed one as if it were still active.
+    active = _active_execution(db, scope, snapshot) if freshness == "LIVE" else None
     alarms = _alarms(db, scope)
     good, reject = int(daily["totals"]["good"]), int(daily["totals"]["reject"])
     quality = good / (good + reject) if good + reject else None

@@ -195,8 +195,12 @@ def _clock_reversal_cutoffs(db, line_id, scope):
     }
 
 
-def load_report_evidence(db, line_id, start, end, *, scope=None, execution_id=None):
-    """Read retained capture evidence without changing ingestion or alarm decisions."""
+def load_report_evidence(db, line_id, start, end, *, scope=None, execution_id=None, reversals=None):
+    """Read retained capture evidence without changing ingestion or alarm decisions.
+
+    ``reversals`` lets a caller reuse one stream-wide clock history scan across
+    several reports of the same scope; it must come from ``_clock_reversal_cutoffs``.
+    """
     params = {"line": line_id, "start": start - timedelta(seconds=3), "end": end}
     where = (
         "s.line_id=:line AND (b.body->>'captured_at')::timestamptz>=:start "
@@ -221,7 +225,8 @@ def load_report_evidence(db, line_id, start, end, *, scope=None, execution_id=No
         .mappings()
         .all()
     )
-    reversals = _clock_reversal_cutoffs(db, line_id, scope)
+    if reversals is None:
+        reversals = _clock_reversal_cutoffs(db, line_id, scope)
     evidence = []
     for row in rows:
         body = row["body"]
@@ -234,8 +239,16 @@ def load_report_evidence(db, line_id, start, end, *, scope=None, execution_id=No
             (body.get("capture_time") or {}).get("clock_epoch"),
         )
         reversed_clock = int(row["capture_seq"]) >= reversals.get(key, float("inf"))
+        communication = body.get("communication") or {}
+        communication_lost = communication.get("state") != "GOOD" or not communication.get(
+            "connected"
+        )
         if not body.get("samples"):
-            if reversed_clock:
+            # A sample-less batch that reports a link failure is evidence of lost
+            # communication, never a gap to be bridged by the previous state. Event-only
+            # batches without a communication block (schema 1.0) say nothing about it.
+            reported_lost = body.get("communication") is not None and communication_lost
+            if reported_lost or reversed_clock:
                 evidence.append(
                     {
                         "from": at,
@@ -246,7 +259,7 @@ def load_report_evidence(db, line_id, start, end, *, scope=None, execution_id=No
                         "state": None,
                         "fault_code": None,
                         "stop_reason": None,
-                        "unknown_reason": "TIME_UNKNOWN",
+                        "unknown_reason": "COMMUNICATION_LOST" if reported_lost else "TIME_UNKNOWN",
                         "source_id": row["source_id"],
                         "stream_id": row["stream_id"],
                         "execution_id": execution_id,
@@ -280,8 +293,7 @@ def load_report_evidence(db, line_id, start, end, *, scope=None, execution_id=No
         state_sample = samples.get("Line.State", {})
         state = STATES.get(str(state_sample.get("reading", {}).get("value")))
         reason = None
-        communication = body.get("communication") or {}
-        if communication.get("state") != "GOOD" or not communication.get("connected"):
+        if communication_lost:
             reason = "COMMUNICATION_LOST"
         elif not _clock_known(row) or reversed_clock:
             reason = "TIME_UNKNOWN"
@@ -420,7 +432,9 @@ def execution_state_bounds(db, execution_id):
     return started, ended
 
 
-def read_execution_timeline(db, execution_id, line_id, source_id, stream_id, *, now, annotate=None):
+def read_execution_timeline(
+    db, execution_id, line_id, source_id, stream_id, *, now, annotate=None, reversals=None
+):
     scope = dict(line_id=line_id, source_id=source_id, stream_id=stream_id)
     row = _execution(db, execution_id, line_id, scope)
     _, ended = execution_state_bounds(db, execution_id)
@@ -428,7 +442,9 @@ def read_execution_timeline(db, execution_id, line_id, source_id, stream_id, *, 
     segments = build_timeline(
         start,
         end,
-        load_report_evidence(db, line_id, start, end, scope=scope, execution_id=execution_id),
+        load_report_evidence(
+            db, line_id, start, end, scope=scope, execution_id=execution_id, reversals=reversals
+        ),
     )
     if annotate:
         segments = annotate(db, segments, scope, now=now)
@@ -475,9 +491,18 @@ def read_execution_reports(db, line_id, start, end, *, now, limit=50, cursor=Non
         .all()
     )
     items = []
+    # Clock history is stream-wide: scan it once per stream, not once per execution.
+    reversal_cache = {}
     for execution_id in ids[:limit]:
         row = _execution(db, execution_id, line_id)
         started, ended = execution_state_bounds(db, execution_id)
+        stream = (row["source_id"], row["stream_id"])
+        if stream not in reversal_cache:
+            reversal_cache[stream] = _clock_reversal_cutoffs(
+                db,
+                line_id,
+                dict(line_id=line_id, source_id=stream[0], stream_id=stream[1]),
+            )
         timeline = read_execution_timeline(
             db,
             execution_id,
@@ -486,6 +511,7 @@ def read_execution_reports(db, line_id, start, end, *, now, limit=50, cursor=Non
             row["stream_id"],
             now=now,
             annotate=annotate,
+            reversals=reversal_cache[stream],
         )
         status = row["settlement_status"] or "PENDING"
         totals = {k: str(int(row[k + "_quantity"] or 0)) for k in ("good", "reject", "scrap")}

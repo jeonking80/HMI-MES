@@ -423,6 +423,7 @@ async def test_kuls_contract_routes_are_mounted_in_serverless_factory(runtime):
         "/api/v1/reports/executions": {"line_id": LINE_ID, "from": start, "to": end},
         "/api/v1/reports/executions.csv": {"line_id": LINE_ID, "from": start, "to": end},
         "/api/v1/reports/executions/run-A/timeline": params,
+        "/api/v1/reports/execution-timeline": params | {"execution_id": "run-A"},
         "/api/v1/reports/daily": {"line_id": LINE_ID, "date": "2026-10-23"},
         "/api/v1/reports/daily.csv": {"line_id": LINE_ID, "date": "2026-10-23"},
         "/api/v1/spc/xbar-r": params | {"tag": "Sealer.TemperaturePV", "execution_id": "run-A"},

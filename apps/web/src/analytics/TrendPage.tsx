@@ -4,7 +4,7 @@ import type { PointQuality, Trend, TrendSeries } from './api'
 import { Legend, TimeSeriesChart } from './charts'
 import { SERIES_COLORS } from './scale'
 import type { ChartSeries } from './charts'
-import { analogTags, clock, dateTime, MISSING, tagLabels } from './format'
+import { alignedEnd, analogTags, clock, dateTime, MISSING, tagLabels } from './format'
 import { useResource, useSources } from './hooks'
 import type { Source } from './hooks'
 import { Card, ChartOrTable, EmptyState, PageNotice, RefreshStatus, ScopePicker } from './ui'
@@ -59,7 +59,9 @@ export default function TrendPage({ scope, onScope, onSessionInvalid }: { scope:
   const [range, setRange] = useState<(typeof ranges)[number]['id']>('1h')
   const [anchor, setAnchor] = useState(() => Date.now())
   const span = ranges.find(item => item.id === range)!.ms
-  const to = Math.floor(anchor / 1000) * 1000
+  // The server resolves spans over one hour to minute buckets and counts them from the floored
+  // start, so a minute-resolution request must sit on minute boundaries or 7 days becomes 10081.
+  const to = alignedEnd(anchor, span)
   const from = to - span
   const path = scope && tags.length ? query('/api/v1/trends', {
     line_id: scope.line_id, source_id: scope.source_id, stream_id: scope.stream_id, tag: tags,

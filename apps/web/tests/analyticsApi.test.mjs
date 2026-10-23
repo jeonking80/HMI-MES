@@ -155,3 +155,15 @@ test('formatting shows a dash for missing values instead of zero', () => {
   assert.equal(format.duration(3720), '1시간 2분')
   assert.equal(format.seoulToday(Date.parse('2026-10-22T15:00:00Z')), '2026-10-23')
 })
+
+test('trend request ends on the boundary the server buckets by', () => {
+  const anchor = Date.parse('2026-10-23T03:04:05.678Z')
+  // Up to one hour the server uses second buckets.
+  assert.equal(new Date(format.alignedEnd(anchor, 3600e3)).toISOString(), '2026-10-23T03:04:05.000Z')
+  // Beyond one hour it counts minute buckets from the floored start: 7 days must be exactly 10080.
+  const week = 7 * 86400e3
+  const end = format.alignedEnd(anchor, week)
+  assert.equal(new Date(end).toISOString(), '2026-10-23T03:04:00.000Z')
+  const start = end - week
+  assert.equal((end - Math.floor(start / 60e3) * 60e3) / 60e3, 10080)
+})

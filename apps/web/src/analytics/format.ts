@@ -83,3 +83,9 @@ export const tagLabels: Record<string, string> = {
 }
 
 export const analogTags = Object.keys(tagLabels)
+
+/** Request end for a span: whole seconds up to one hour, whole minutes beyond (server `auto` rule). */
+export function alignedEnd(anchor: number, span: number) {
+  const step = span <= 3600e3 ? 1000 : 60e3
+  return Math.floor(anchor / step) * step
+}

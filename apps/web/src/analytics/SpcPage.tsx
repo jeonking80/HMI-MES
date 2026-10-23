@@ -74,6 +74,8 @@ export default function SpcPage({ scope, onScope, onSessionInvalid }: { scope: S
       </PageNotice>
       {data.baseline_limitation === 'ORIGINAL_PREFIX_RAW_UNAVAILABLE'
         ? <PageNotice tone="unknown" title="이 실행의 기준선은 더 이상 증명할 수 없습니다.">실행 초기의 원시 기록이 보관 기간을 지나 삭제되었습니다. 이후 데이터가 쌓여도 처음 20개 부분군을 대신하지 않으므로 관리한계와 공정능력을 계산하지 않습니다.</PageNotice>
+        : data.baseline_limitation === 'EXECUTION_OUTSIDE_RAW_RETENTION'
+        ? <PageNotice tone="unknown" title="이 실행은 원시 기록 보관 기간이 지났습니다.">실행이 최근 7일 원시 기록 범위보다 먼저 끝나 관리도를 그릴 표본이 남아 있지 않습니다.</PageNotice>
         : data.baseline_limitation
           ? <PageNotice tone="unknown" title="기준선 계산에 제한이 있습니다.">사유: {data.baseline_limitation}</PageNotice>
           : data.status === 'INSUFFICIENT_DATA' && <PageNotice tone="unknown" title="관리한계를 계산할 데이터가 부족합니다.">기준선 부분군이 20개 이상 쌓이면 관리한계를 표시합니다. 현재 완전한 부분군 {data.subgroups.length}개.</PageNotice>}

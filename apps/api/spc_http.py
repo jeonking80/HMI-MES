@@ -190,17 +190,20 @@ def read_spc(connection, query: SPCQuery, *, now=None):
                     raw[0].scope.model_dump_json(),
                 )
             )
+    # An execution that ended before the 7-day raw window has no retained window left.
+    # Report that limitation instead of handing calculate_spc an inverted interval.
+    expired = until <= start
     result = calculate_spc(
         slots=slots,
         start=start,
-        end=until,
+        end=max(start, until),
         now=now,
         tag_id=query.tag,
         unit="°C" if query.tag == "Sealer.TemperaturePV" else ANALOG_UNITS[query.tag],
         spec=historical_spec(rows[0]["parameters"], query.tag, configs),
     )
     result["baseline_basis"] = "first-20-complete-execution-subgroups-prefix-certified"
-    result["baseline_limitation"] = None
+    result["baseline_limitation"] = "EXECUTION_OUTSIDE_RAW_RETENTION" if expired else None
     missing_prefix = rows[0]["missing_prefix_at"]
     if (
         result["baseline"]

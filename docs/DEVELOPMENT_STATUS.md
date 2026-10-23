@@ -386,3 +386,12 @@ M1의 주요 독립 운전·권한·실제 생산 경로는 확인했지만, 원
   - 수정하지 않은 2건:
     - CSP 인라인 style 차단 주장: React style 속성은 CSSOM으로 적용되어 `style-src 'self'`에서도 동작한다. 실제 서버 CSP 헤더 아래 색상 적용 확인을 `check-operable-system.py --analytics-dir`에 추가해 PASS.
     - 시간대별 생산량이 2^53을 넘는 정밀도 문제: 현실적 경로가 없다(시간당 9천조 개).
+- PR #1 Codex 2차 리뷰 7건 처리(2026-10-23, 7건 모두 수정):
+  - (P1) 실행 보고 목록이 항목마다 수집원 전체 시계 이력을 다시 스캔하던 문제 → 수집원 단위로 한 번만 계산해 공유
+  - (P1) 7일 트렌드 요청이 분 경계에 맞지 않아 서버 버킷 한도(10080)를 넘던 문제 → 1시간 초과 조회는 끝 시각을 분 경계로 정렬
+  - 표본 없는 배치가 통신 장애를 보고해도 근거에서 빠지던 문제 → `communication` 블록이 있고 장애를 알리면 COMMUNICATION_LOST로 기록. 블록이 없는 1.0 이벤트 전용 배치는 판단하지 않는다(수정 전 실패 재현 확인).
+  - `/`·`..`가 든 실행 ID를 경로 세그먼트로 받을 수 없는 문제 → `GET /api/v1/reports/execution-timeline?execution_id=…` 추가, 화면은 이 경로를 쓴다(기존 경로 유지)
+  - 대시보드가 STALE·NO_DATA에서도 진행 작업을 보이던 경로 → LIVE일 때만 표시
+  - 7일 원시 범위 이전에 끝난 실행의 SPC 요청이 500이던 문제 → `INSUFFICIENT_DATA`와 `baseline_limitation: EXECUTION_OUTSIDE_RAW_RETENTION` 반환, 화면 안내 추가
+  - 보고 기간을 바꾸면 이전 선택 실행 상세가 남던 문제 → 선택 해제
+  - 검증: 관련 통합 시험(`test_reports`·`test_spc_http`·`test_dashboard`·`test_vercel_app`·`test_trend_history`) 69개 통과, Ruff 통과, 웹 typecheck·lint·화면 시험 89개 통과. 전체 `./scripts/check-local.sh`와 브라우저 결합 검사(`check-operable-system.py --analytics-dir`)는 이번 수정 후 **아직 실행하지 않았다.**

@@ -172,3 +172,17 @@ def test_samples_after_confirmed_end_are_not_attributed(spc_state, monkeypatch):
     assert len(result["subgroups"]) == 10
     assert result["status"] == "INSUFFICIENT_DATA"
     assert result["limits"] is None
+
+
+def test_execution_ended_before_raw_retention_reports_limitation(spc_state, monkeypatch):
+    import apps.api.spc_http as module
+
+    monkeypatch.setattr(
+        module, "execution_state_bounds", lambda db, execution_id: (AT, AT + timedelta(minutes=10))
+    )
+    with spc_state.engine.connect() as db:
+        result = read_spc(db, query(), now=AT + timedelta(days=8))
+    assert result["status"] == "INSUFFICIENT_DATA"
+    assert result["subgroups"] == []
+    assert result["limits"] is None
+    assert result["baseline_limitation"] == "EXECUTION_OUTSIDE_RAW_RETENTION"

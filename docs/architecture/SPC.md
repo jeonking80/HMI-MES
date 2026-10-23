@@ -28,6 +28,6 @@ Xbar의 WE1은 3σ 초과, WE2는 같은 쪽 3점 중 2점이 2σ 초과, WE3는
 
 기준선은 영구 동결 저장물이 아니다. 한 SQL 문장 스냅샷을 사용하므로 지연 배치가 앞부분에 추가되면 처음 20개가 바뀔 수 있다. 보관 정리가 실행 앞부분의 원시값을 지우면 기준선을 뒤쪽의 20개로 이동하지 않고 원본 대조 실패로 불충분 처리한다. `baseline_basis`와 `history_limitation`이 이를 명시한다. 원시 기본 보관은 CX-01의 7일이며 배포 프로필에서 줄일 수 있다. SPC 조회는 최대 최근 7일 원시값으로 제한한다. 원시값이 정리된 과거 실행을 90일 분 집계로 복원할 수 없다. 1분 집계에는 오프셋 5개와 실행 귀속 증명이 없어 SPC에 대체 사용하지 않는다. 원시 이력이 충분히 남지 않으면 보관된 부분군은 표시하되 실행의 첫 20개임을 증명하지 못하는 관리한계·기준선·공정능력은 null이다.
 
-추가 응답 필드: `baseline_basis`, `baseline_limitation`, `history_limitation`, `execution_id`, `scope`. `baseline_basis`는 `first-20-complete-execution-subgroups-prefix-certified`다. 기존 계약 필드는 유지한다.
+추가 응답 필드: `baseline_basis`, `baseline_limitation`, `history_limitation`, `execution_id`, `scope`. 실행이 7일 원시 조회 범위가 시작되기 전에 이미 종료됐으면 계산 창이 비므로 `INSUFFICIENT_DATA`와 `baseline_limitation: EXECUTION_OUTSIDE_RAW_RETENTION`을 반환한다(오류 500 대신). `baseline_basis`는 `first-20-complete-execution-subgroups-prefix-certified`다. 기존 계약 필드는 유지한다.
 
 검증: `.venv/bin/python -m pytest tests/unit/test_spc.py tests/integration/test_spc_http.py -q`.

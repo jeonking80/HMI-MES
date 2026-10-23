@@ -81,6 +81,8 @@ def register_report_routes(app, auth):
             if kind == "daily"
             else {"line_id", "source_id", "stream_id"}
             if kind == "timeline"
+            else {"execution_id", "line_id", "source_id", "stream_id"}
+            if kind == "timeline_query"
             else {"line_id", "from", "to"}
         )
         optional = {"limit", "cursor"} if kind == "executions" else set()
@@ -93,6 +95,11 @@ def register_report_routes(app, auth):
             raise HTTPException(422, "invalid report query")
         try:
             values = {k: ID.validate_python(query[k]) for k in required if k.endswith("_id")}
+            if kind == "timeline_query":
+                # Execution IDs may contain '/' or '..'; a query value carries them
+                # verbatim where a path segment would be split or normalized.
+                execution_id = values.pop("execution_id")
+                kind = "timeline"
             if execution_id is not None:
                 ID.validate_python(execution_id)
             if kind == "daily":
@@ -161,6 +168,10 @@ def register_report_routes(app, auth):
     @app.get("/api/v1/reports/executions")
     async def executions(request: Request):
         return await handle(request, "executions")
+
+    @app.get("/api/v1/reports/execution-timeline")
+    async def timeline_by_query(request: Request):
+        return await handle(request, "timeline_query")
 
     @app.get("/api/v1/reports/executions/{execution_id}/timeline")
     async def timeline(execution_id: str, request: Request):

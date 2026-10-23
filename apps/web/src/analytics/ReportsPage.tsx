@@ -64,8 +64,8 @@ function ExecutionReports({ session, scope, onScope, onSessionInvalid }: Props) 
   return <>
     <div className="filter-row">
       <ScopePicker id="report-scope" sources={sources.data} value={scope} onChange={value => { onScope(value); setSelected(null) }} />
-      <div className="filter-field"><label className="filter-label" htmlFor="report-from">시작일</label><input id="report-from" type="date" value={fromDay} max={toDay} onChange={event => event.target.value && setFromDay(event.target.value)} /></div>
-      <div className="filter-field"><label className="filter-label" htmlFor="report-to">종료일</label><input id="report-to" type="date" value={toDay} min={fromDay} max={today} onChange={event => event.target.value && setToDay(event.target.value)} /></div>
+      <div className="filter-field"><label className="filter-label" htmlFor="report-from">시작일</label><input id="report-from" type="date" value={fromDay} max={toDay} onChange={event => { if (event.target.value) { setFromDay(event.target.value); setSelected(null) } }} /></div>
+      <div className="filter-field"><label className="filter-label" htmlFor="report-to">종료일</label><input id="report-to" type="date" value={toDay} min={fromDay} max={today} onChange={event => { if (event.target.value) { setToDay(event.target.value); setSelected(null) } }} /></div>
       <RefreshStatus loading={reports.loading} updatedAt={reports.updatedAt} onRefresh={reports.refresh} />
       {params && <a className="button secondary compact download" href={query('/api/v1/reports/executions.csv', params)} download>CSV 내려받기</a>}
     </div>
@@ -95,7 +95,7 @@ function ExecutionReports({ session, scope, onScope, onSessionInvalid }: Props) 
 function ExecutionDetail({ report, scope: selectedScope, session, onSessionInvalid }: { report: ExecutionReport; scope: Source; session: Session; onSessionInvalid: () => void }) {
   // A line-wide list can hold runs from other sources; detail requests use the run's own scope.
   const scope: Source = report.source_id && report.stream_id ? { ...selectedScope, source_id: report.source_id, stream_id: report.stream_id } : selectedScope
-  const path = query(`/api/v1/reports/executions/${encodeURIComponent(report.execution_id)}/timeline`, { line_id: scope.line_id, source_id: scope.source_id, stream_id: scope.stream_id })
+  const path = query('/api/v1/reports/execution-timeline', { execution_id: report.execution_id, line_id: scope.line_id, source_id: scope.source_id, stream_id: scope.stream_id })
   const timeline = useResource(path, parseTimeline, onSessionInvalid)
   const [segmentKey, setSegmentKey] = useState<string | null>(null)
   const canAnnotate = session.roles.some(role => role === 'operator' || role === 'production_manager')

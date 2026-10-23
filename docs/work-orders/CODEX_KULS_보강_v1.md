@@ -199,6 +199,7 @@ GET /api/v1/reports/executions?line_id=&from=&to=&limit=50&cursor=
 
 ```
 GET /api/v1/reports/executions/{execution_id}/timeline?line_id=&source_id=&stream_id=
+GET /api/v1/reports/execution-timeline?execution_id=&line_id=&source_id=&stream_id=   # 2026-10-23 추가: '/'·'..'가 든 실행 ID용. 화면은 이 경로를 쓴다.
 ```
 
 ```json

@@ -526,3 +526,56 @@ def test_changed_active_execution_cuts_off_prior_owner_immediately(state):
     assert value["segments"][-1]["unknown_reason"] == "NO_EVIDENCE"
     assert value["segments"][-1]["execution_id"] is None
     assert value["segments"][-1]["observed_execution_id"] == "other"
+
+
+def test_sample_less_batch_reporting_link_failure_is_communication_lost(state):
+    ingest(state, capture(1, seconds=0))
+    body = capture(2, seconds=1, communication_age=5).body.model_dump(mode="python")
+    # Event-only capture: no samples to judge, but the link block reports ALARM.
+    body["samples"] = []
+    body["events"] = [
+        dict(
+            kind="PRODUCTION_GOOD",
+            event_id="event-link",
+            seq=1,
+            equipment_id="Outfeed",
+            execution_id="run",
+            source_id="source",
+            stream_id="stream",
+            occurred_at=body["captured_at"],
+            payload=dict(quantity=1, counter_epoch="epoch"),
+        )
+    ]
+    body = BatchBody.model_validate(body)
+    ingest(state, GatewayBatch(body=body, content_sha256=batch_digest(body)))
+    with state.engine.begin() as db:
+        value = read_execution_timeline(
+            db, "run", LINE_ID, "source", "stream", now=AT + timedelta(seconds=3)
+        )
+    assert value["durations_seconds"] == dict(running=1, stopped=0, unknown=2, total=3)
+    assert value["segments"][-1]["unknown_reason"] == "COMMUNICATION_LOST"
+
+
+async def test_timeline_query_route_carries_execution_ids_with_slashes(state):
+    state.service.register_execution(
+        execution_id="lot/../7",
+        source_id="source",
+        stream_id="stream",
+        work_order_id="slash",
+        recipe_version="recipe",
+        parameters=PARAMETERS,
+        counter_epoch="epoch-slash",
+        now=AT,
+    )
+    scope = {"line_id": LINE_ID, "source_id": "source", "stream_id": "stream"}
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=state.app), base_url=ORIGIN
+    ) as client:
+        client.cookies.set("hmi_session", state.session.token)
+        path = "/api/v1/reports/execution-timeline"
+        response = await client.get(path, params=scope | {"execution_id": "lot/../7"})
+        assert response.status_code == 200
+        assert response.json()["execution_id"] == "lot/../7"
+        assert (await client.get(path, params=scope)).status_code == 422
+        missing = await client.get(path, params=scope | {"execution_id": "absent"})
+        assert missing.status_code == 404

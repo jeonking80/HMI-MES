@@ -24,7 +24,7 @@ ROUTES = {
     "/api/v1/sources": "sources",
     "/api/v1/dashboard": "dashboard",
     "/api/v1/trends": "trend",
-    "/api/v1/reports/executions/": "timeline",
+    "/api/v1/reports/execution-timeline": "timeline",
     "/api/v1/reports/executions": "executions",
     "/api/v1/reports/daily": "daily",
     "/api/v1/spc/xbar-r": "spc",
