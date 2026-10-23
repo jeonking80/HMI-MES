@@ -1,0 +1,74 @@
+name: hmi-mes-local
+x-plant: &plant
+  image: ${COMPOSE_PROJECT_NAME:-hmi-mes-local}-plant:local
+  build:
+    context: .
+    dockerfile: deploy/plant-service.Dockerfile
+  working_dir: /app
+  entrypoint: [python, /app/deploy/compose_runtime.py]
+  volumes:
+    - runtime:/var/lib/hmi
+    - ./deploy/compose_runtime.py:/app/deploy/compose_runtime.py:ro
+    - ./alembic.ini:/app/alembic.ini:ro
+  environment:
+    PYTHONPATH: /app
+    HMI_COMPOSE_PORT: ${HMI_COMPOSE_PORT:-8002}
+services:
+  secrets:
+    <<: *plant
+    command: [secrets]
+  postgres:
+    image: postgres:17-bookworm@sha256:3645570cccdfa447589da9f57dd740faa29b30938e861289a5574b6ca6b03826
+    environment:
+      POSTGRES_DB: hmi_compose
+      POSTGRES_PASSWORD_FILE: /var/lib/hmi/postgres-password
+    volumes:
+      - postgres:/var/lib/postgresql/data
+      - runtime:/var/lib/hmi:ro
+    depends_on:
+      secrets: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U postgres -d hmi_compose]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  init:
+    <<: *plant
+    command: [init]
+    depends_on:
+      postgres: {condition: service_healthy}
+  api:
+    <<: *plant
+    image: ${COMPOSE_PROJECT_NAME:-hmi-mes-local}-web:local
+    build:
+      context: .
+      dockerfile: deploy/compose.Dockerfile
+      additional_contexts:
+        plant: service:init
+    command: [api]
+    ports:
+      - 127.0.0.1:${HMI_COMPOSE_PORT:-8002}:8080
+    depends_on:
+      init: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, python, -c, "import os,urllib.request; urllib.request.build_opener(urllib.request.ProxyHandler({})).open('http://127.0.0.1:'+os.environ['HMI_COMPOSE_PORT']+'/auth/config', timeout=2)"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  simulator:
+    <<: *plant
+    command: [simulator]
+    network_mode: service:api
+    depends_on:
+      api: {condition: service_healthy}
+  gateway:
+    <<: *plant
+    command: [gateway]
+    restart: on-failure
+    network_mode: service:api
+    depends_on:
+      api: {condition: service_healthy}
+      simulator: {condition: service_started}
+volumes:
+  runtime:
+  postgres:
