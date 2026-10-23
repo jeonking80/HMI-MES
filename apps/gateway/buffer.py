@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import fcntl
+import hashlib
 import json
 import os
 import sqlite3
@@ -21,6 +22,7 @@ from contracts.transport import (
     GatewayBatch,
     StreamGap,
     StreamProgress,
+    gateway_batch_digest,
     validate_ack,
 )
 
@@ -200,6 +202,7 @@ class GatewayBuffer:
             self._db.execute("PRAGMA busy_timeout=5000")
             self._initialize()
             with self._transaction():
+                self._upgrade_envelope_ledger()
                 row = self._db.execute(
                     "SELECT * FROM gateway_identity WHERE singleton=1"
                 ).fetchone()
@@ -247,6 +250,7 @@ class GatewayBuffer:
             CREATE TABLE batch_ledger (
                 ordinal INTEGER PRIMARY KEY AUTOINCREMENT, batch_id TEXT NOT NULL UNIQUE,
                 content_sha256 TEXT NOT NULL CHECK(length(content_sha256)=64),
+                envelope_sha256 TEXT NOT NULL CHECK(length(envelope_sha256)=64),
                 capture_generation TEXT NOT NULL, capture_seq TEXT NOT NULL,
                 source_id TEXT NOT NULL, stream_id TEXT NOT NULL,
                 state TEXT NOT NULL CHECK(state IN ('QUEUED','ACKNOWLEDGED','EVICTED')),
@@ -284,6 +288,25 @@ class GatewayBuffer:
             COMMIT;
             """
         )
+
+    def _upgrade_envelope_ledger(self):
+        """Only a known legacy schema proves absent optional evidence; never guess nulls."""
+        columns = {row["name"] for row in self._db.execute("PRAGMA table_info(batch_ledger)")}
+        if "envelope_sha256" in columns:
+            return
+        for row in self._db.execute("SELECT body FROM outbound_batches"):
+            legacy = GatewayBatch.model_validate_json(row["body"])
+            if legacy.clock_evidence is not None:
+                raise BufferCorruption("Legacy ledger cannot certify measured evidence")
+        self._db.execute("ALTER TABLE batch_ledger ADD COLUMN envelope_sha256 TEXT")
+        for row in self._db.execute("SELECT batch_id,content_sha256 FROM batch_ledger").fetchall():
+            digest = hashlib.sha256(
+                _json({"content_sha256": row["content_sha256"]}).encode("utf-8")
+            ).hexdigest()
+            self._db.execute(
+                "UPDATE batch_ledger SET envelope_sha256=? WHERE batch_id=?",
+                (digest, row["batch_id"]),
+            )
 
     @contextmanager
     def _transaction(self):
@@ -338,6 +361,7 @@ class GatewayBuffer:
                 or batch.body.batch_id != row["batch_id"]
                 or batch.body.gateway_id != self.gateway_id
                 or batch.content_sha256 != ledger["content_sha256"]
+                or gateway_batch_digest(batch) != ledger["envelope_sha256"]
                 or _uint(batch.body.capture_generation) != ledger["capture_generation"]
                 or _uint(batch.body.capture_seq) != ledger["capture_seq"]
                 or batch.body.source_id != ledger["source_id"]
@@ -546,7 +570,9 @@ class GatewayBuffer:
                 "SELECT * FROM batch_ledger WHERE batch_id=?", (body.batch_id,)
             ).fetchone()
             if existing is not None:
-                if existing["content_sha256"] != batch.content_sha256:
+                if existing["content_sha256"] != batch.content_sha256 or existing[
+                    "envelope_sha256"
+                ] != gateway_batch_digest(batch):
                     raise BatchConflict("Same batch ID has different immutable content")
                 return EnqueueResult(body.batch_id, existing["state"], True)
             if size > self.limits.max_bytes:
@@ -581,11 +607,13 @@ class GatewayBuffer:
                     )
                 )
             self._db.execute(
-                "INSERT INTO batch_ledger (batch_id,content_sha256,capture_generation,capture_seq,"
-                "source_id,stream_id,state,metadata_bytes) VALUES (?,?,?,?,?,?,'QUEUED',?)",
+                "INSERT INTO batch_ledger (batch_id,content_sha256,envelope_sha256,"
+                "capture_generation,capture_seq,"
+                "source_id,stream_id,state,metadata_bytes) VALUES (?,?,?,?,?,?,?,'QUEUED',?)",
                 (
                     body.batch_id,
                     batch.content_sha256,
+                    gateway_batch_digest(batch),
                     _uint(body.capture_generation),
                     _uint(body.capture_seq),
                     body.source_id,
@@ -884,6 +912,13 @@ class GatewayBuffer:
                 _IDENTIFIER.validate_python(row["source_id"])
                 _IDENTIFIER.validate_python(row["stream_id"])
                 digest = row["content_sha256"]
+                envelope = row["envelope_sha256"]
+                if (
+                    not isinstance(envelope, str)
+                    or len(envelope) != 64
+                    or any(char not in "0123456789abcdef" for char in envelope)
+                ):
+                    raise BufferCorruption("Invalid immutable envelope digest")
                 if len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
                     raise BufferCorruption("Invalid immutable digest")
                 queued = self._db.execute(

@@ -73,6 +73,7 @@ def parser() -> argparse.ArgumentParser:
         serve.add_argument("--" + name, required=True, type=Path)
     serve.add_argument("--poll-interval", type=float, default=1.0)
     serve.add_argument("--allow-loopback-http", action="store_true")
+    serve.add_argument("--clock-measured-round-trip", action="store_true")
     serve.add_argument("--enable-commands", action="store_true")
     serve.add_argument("--enable-settlement", action="store_true")
     return result
@@ -146,7 +147,14 @@ async def _serve(args) -> None:
         buffer = GatewayBuffer(args.queue_file, gateway_id=args.gateway_id)
         opc = GatewayOPCUAClient(config)
         intake = IntakeClient(intake_config)
-        pump = GatewayPump(args.source_id, args.stream_id, opc=opc, buffer=buffer, intake=intake)
+        pump = GatewayPump(
+            args.source_id,
+            args.stream_id,
+            opc=opc,
+            buffer=buffer,
+            intake=intake,
+            measured_clock=args.clock_measured_round_trip,
+        )
         command_worker = None
         if args.enable_commands:
             commands = CommandTransport(intake_config)

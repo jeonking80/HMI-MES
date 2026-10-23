@@ -86,6 +86,13 @@ def parser() -> argparse.ArgumentParser:
     serve.add_argument("--host", default="127.0.0.1", choices=("127.0.0.1", "::1"))
     serve.add_argument("--port", default=8000, type=int)
     serve.add_argument("--alarm-config-file", type=Path)
+    clocks = serve.add_mutually_exclusive_group()
+    clocks.add_argument(
+        "--trend-clock-policy",
+        choices=("same-host",),
+        help="Explicit operator assertion: API and gateway share the host kernel UTC clock",
+    )
+    clocks.add_argument("--clock-measured-round-trip", action="store_true")
     return result
 
 
@@ -297,9 +304,27 @@ def main(argv=None) -> int:
             )
         else:
             _verify_binding(engine, args)
+            trend_clock_policy = None
+            if args.trend_clock_policy == "same-host":
+                from apps.api.capture_clock import SameHostClockPolicy
+
+                trend_clock_policy = SameHostClockPolicy(
+                    gateway_id=args.gateway_id,
+                    source_id=args.source_id,
+                    stream_id=args.stream_id,
+                    capture_generation=args.capture_generation,
+                    valid_from_api_utc=datetime.now(UTC),
+                    valid_until_api_utc=expiry,
+                )
+            consumer = None
             if alarm_config is not None:
                 consumer = start_alarm_runtime(engine, alarm_config, args=args)
-                service = IngestionService(engine, alarm_consumer=consumer)
+            service = IngestionService(
+                engine,
+                alarm_consumer=consumer,
+                trend_clock_policy=trend_clock_policy,
+                measured_clock_enabled=args.clock_measured_round_trip,
+            )
             app = create_internal_app(
                 service,
                 credential_bindings=[credential],

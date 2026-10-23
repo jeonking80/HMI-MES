@@ -56,7 +56,12 @@ def account(auth, name, role):
 
 
 @pytest.fixture
-def state(migrated):
+def state(migrated, request):
+    if getattr(request, "param", None) == "legacy17":
+        # Exercise the workflow's own downgrade barrier, before schema18 adds
+        # independent immutable clock evidence for the fixture's initial capture.
+        with migrated.connect() as db:
+            command.downgrade(migration_config(db), "0017_guest_viewer")
     bootstrap_reference_data(migrated)
     clock = [AT]
     auth = UserAuth(migrated, allowed_origins={ORIGIN}, clock=lambda: clock[0])
@@ -490,6 +495,7 @@ def test_reservation_blocks_other_legacy_load_and_start_but_not_safety_end(state
                 )
 
 
+@pytest.mark.parametrize("state", ["legacy17"], indirect=True)
 def test_used_workflow_downgrade_refuses_and_preserves_receipt(state):
     initial_revision = scalar(state, "SELECT version_num FROM alembic_version")
     receipt = release(state)
@@ -499,6 +505,7 @@ def test_used_workflow_downgrade_refuses_and_preserves_receipt(state):
     assert scalar(state, "SELECT version_num FROM alembic_version") == initial_revision
 
 
+@pytest.mark.parametrize("state", ["legacy17"], indirect=True)
 def test_unused_workflow_downgrade_and_upgrade_preserve_original_draft_definitions(state):
     with state.engine.connect() as db:
         command.downgrade(migration_config(db), "0008_work_orders")

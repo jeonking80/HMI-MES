@@ -48,7 +48,7 @@ def user(auth, login="operator", role="operator"):
 
 
 @pytest.fixture
-def state(migrated):
+def state(migrated, request):
     bootstrap_reference_data(migrated)
     service = IngestionService(migrated)
     for suffix in ("1", "foreign"):
@@ -84,7 +84,10 @@ def state(migrated):
         app=app,
         capture_seq=0,
     )
-    capture(result)
+    # Missing-tag cases must start without that tag. Immutable clock evidence
+    # prevents deleting the original intake later to manufacture missing data.
+    missing = getattr(request, "param", None) == "missing-temperature"
+    capture(result, omit="Sealer.TemperaturePV" if missing else None)
     return result
 
 
@@ -266,7 +269,6 @@ async def test_roles_do_not_inherit_operator_control_and_all_can_read(state, cli
         "unknown_health",
         "epoch",
         "execution",
-        "missing",
         "source_conflict",
         "reconciliation",
         "gap",
@@ -291,10 +293,6 @@ async def test_durable_evidence_failures_restrict_control(state, client, mutatio
         capture(state, communication_state="UNKNOWN")
     elif mutation == "epoch":
         capture(state, values={"Line.CounterEpoch": "different-epoch"})
-    elif mutation == "missing":
-        with state.engine.begin() as connection:
-            connection.execute(sa.text("DELETE FROM ingest_batches"))
-        capture(state, omit="Sealer.TemperaturePV")
     elif mutation == "source_conflict":
         with state.engine.begin() as connection:
             connection.execute(
@@ -334,6 +332,13 @@ async def test_durable_evidence_failures_restrict_control(state, client, mutatio
     else:
         capture(state, values={"Line.ActiveExecutionId": "another-execution"})
     response = await client.post("/api/v1/commands", headers=headers(state), json=request)
+    assert response.status_code == 409
+    assert counts(state) == (0, 0)
+
+
+@pytest.mark.parametrize("state", ["missing-temperature"], indirect=True)
+async def test_missing_required_tag_restricts_control(state, client):
+    response = await client.post("/api/v1/commands", headers=headers(state), json=body(state))
     assert response.status_code == 409
     assert counts(state) == (0, 0)
 

@@ -130,6 +130,25 @@ def build_timeline(start, end, evidence):
     return result
 
 
+def canonical_clock_available(db):
+    """Old analytical schemas remain readable without querying absent columns."""
+    return db.execute(
+        text("SELECT to_regclass('public.capture_clock_evidence') IS NOT NULL")
+    ).scalar_one()
+
+
+def clock_binding_sql(batch, proof, line):
+    """SQL prefilter only; the shared pure clock reader remains authoritative."""
+    return f"""{proof}.gateway_id={batch}.gateway_id AND {proof}.batch_id={batch}.batch_id
+      AND {proof}.line_id={line} AND {proof}.source_id={batch}.source_id
+      AND {proof}.stream_id={batch}.stream_id
+      AND {proof}.capture_generation={batch}.capture_generation
+      AND {proof}.capture_seq={batch}.capture_seq
+      AND {proof}.batch_sha256={batch}.content_sha256
+      AND {proof}.clock_epoch={batch}.body->'capture_time'->>'clock_epoch'
+      AND {proof}.original_capture_utc=({batch}.body->>'captured_at')::timestamptz"""
+
+
 def _clock_known(row):
     body = row["body"]
     raw = body.get("capture_time") or {}
@@ -202,21 +221,36 @@ def load_report_evidence(db, line_id, start, end, *, scope=None, execution_id=No
     several reports of the same scope; it must come from ``_clock_reversal_cutoffs``.
     """
     params = {"line": line_id, "start": start - timedelta(seconds=3), "end": end}
-    where = (
-        "s.line_id=:line AND (b.body->>'captured_at')::timestamptz>=:start "
-        "AND (b.body->>'captured_at')::timestamptz<:end"
-    )
+    canonical = canonical_clock_available(db)
+    join = ""
+    proof = "NULL::jsonb AS clock_evidence"
+    at_sql = "(b.body->>'captured_at')::timestamptz"
+    if canonical:
+        join = (
+            " LEFT JOIN capture_clock_evidence clock ON "
+            "clock.gateway_id=b.gateway_id AND clock.batch_id=b.batch_id "
+        )
+        proof = "to_jsonb(clock) AS clock_evidence"
+        at_sql = (
+            "CASE WHEN "
+            + clock_binding_sql("b", "clock", "s.line_id")
+            + " AND clock.status='GOOD' THEN clock.canonical_api_utc ELSE "
+            + at_sql
+            + " END"
+        )
+    where = "s.line_id=:line AND " + at_sql + ">=:start AND " + at_sql + "<:end"
     if scope:
         params.update(source=scope["source_id"], stream=scope["stream_id"])
         where += " AND s.source_id=:source AND s.stream_id=:stream"
     rows = (
         db.execute(
             text(
-                """SELECT b.*,s.conflicted,s.reconciliation_required,
-        ARRAY(SELECT d.context FROM alarm_capture_decisions d
-          WHERE d.gateway_id=b.gateway_id AND d.batch_id=b.batch_id) AS contexts
-        FROM ingest_batches b JOIN source_streams s USING(source_id,stream_id)
-        WHERE """
+                "SELECT b.*,s.conflicted,s.reconciliation_required," + proof + ","
+                "ARRAY(SELECT d.context FROM alarm_capture_decisions d "
+                "WHERE d.gateway_id=b.gateway_id AND d.batch_id=b.batch_id) AS contexts "
+                "FROM ingest_batches b JOIN source_streams s USING(source_id,stream_id) "
+                + join
+                + " WHERE "
                 + where
                 + " ORDER BY b.capture_generation,b.capture_seq"
             ),
@@ -243,6 +277,23 @@ def load_report_evidence(db, line_id, start, end, *, scope=None, execution_id=No
         communication_lost = communication.get("state") != "GOOD" or not communication.get(
             "connected"
         )
+
+        known_clock = _clock_known(row)
+        if row["clock_evidence"] is not None:
+            from apps.api.capture_clock import effective_capture_clock
+
+            decision = effective_capture_clock(
+                row["clock_evidence"],
+                body=body,
+                batch_sha256=row["content_sha256"],
+                reversal_seq=reversals.get(key),
+            )
+            known_clock = decision.status == "GOOD" and row["clock_evidence"]["line_id"] == line_id
+            if known_clock:
+                at = decision.canonical_api_utc
+        if at >= end or at + timedelta(seconds=FRESHNESS_SECONDS) <= start:
+            continue
+
         if not body.get("samples"):
             # A sample-less batch that reports a link failure is evidence of lost
             # communication, never a gap to be bridged by the previous state. Event-only
@@ -267,7 +318,10 @@ def load_report_evidence(db, line_id, start, end, *, scope=None, execution_id=No
                 )
             continue
         samples = {s["tag_id"]: s for s in body.get("samples", [])}
-        active = samples.get("Line.ActiveExecutionId", {}).get("reading", {}).get("value")
+        active_sample = samples.get("Line.ActiveExecutionId", {})
+        active = active_sample.get("reading", {}).get("value")
+        if active_sample.get("status_code", 2**31) >> 30:
+            active = None
         if execution_id and active != execution_id:
             # A capture for another execution (or absent ownership tag) cuts off
             # earlier ownership evidence. Clock continuity is stream-wide, even
@@ -295,7 +349,14 @@ def load_report_evidence(db, line_id, start, end, *, scope=None, execution_id=No
         reason = None
         if communication_lost:
             reason = "COMMUNICATION_LOST"
-        elif not _clock_known(row) or reversed_clock:
+        elif (
+            not known_clock
+            or reversed_clock
+            or (
+                state_sample.get("acquired_at")
+                and timestamp(state_sample["acquired_at"]) != timestamp(body["captured_at"])
+            )
+        ):
             reason = "TIME_UNKNOWN"
         elif row["conflicted"] or not state or state_sample.get("status_code", 2**31) >> 30:
             reason = "NO_EVIDENCE"

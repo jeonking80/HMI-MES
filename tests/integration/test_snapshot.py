@@ -164,7 +164,11 @@ def test_binding_and_caller_transaction_are_respected(service):
                 stream_id="stream-1",
                 now=AT,
             )
-        connection.execute(sa.text("DELETE FROM ingest_batches"))
+        # Observe this transaction's new binding without erasing immutable
+        # intake/proof. Generation 2 has never supplied a capture.
+        connection.execute(
+            sa.text("UPDATE source_streams SET capture_generation=2 WHERE source_id='source-1'")
+        )
         result = read_snapshot(
             connection, line_id=LINE_ID, source_id="source-1", stream_id="stream-1", now=AT
         )

@@ -597,6 +597,108 @@
       "title": "LineState",
       "type": "string"
     },
+    "MeasuredClockEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "gateway_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Gateway Id",
+          "type": "string"
+        },
+        "source_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Source Id",
+          "type": "string"
+        },
+        "stream_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Stream Id",
+          "type": "string"
+        },
+        "capture_generation": {
+          "description": "UInt64 canonical decimal string; use BigInt in JavaScript.",
+          "pattern": "^(?:0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|1844674407370955[0-0][0-9]{3}|18446744073709551[0-5][0-9]{2}|184467440737095516[0-0][0-9]{1}|1844674407370955161[0-4][0-9]{0}|18446744073709551615)$(?![\\s\\S])",
+          "title": "Capture Generation",
+          "type": "string"
+        },
+        "clock_epoch": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Clock Epoch",
+          "type": "string"
+        },
+        "t0_utc": {
+          "format": "date-time",
+          "title": "T0 Utc",
+          "type": "string"
+        },
+        "t0_monotonic_seconds": {
+          "minimum": 0,
+          "title": "T0 Monotonic Seconds",
+          "type": "number"
+        },
+        "method": {
+          "const": "MEASURED_ROUND_TRIP",
+          "default": "MEASURED_ROUND_TRIP",
+          "title": "Method",
+          "type": "string"
+        },
+        "nonce": {
+          "maxLength": 128,
+          "minLength": 1,
+          "not": {
+            "pattern": "\\s"
+          },
+          "title": "Nonce",
+          "type": "string"
+        },
+        "api_utc": {
+          "format": "date-time",
+          "title": "Api Utc",
+          "type": "string"
+        },
+        "t1_utc": {
+          "format": "date-time",
+          "title": "T1 Utc",
+          "type": "string"
+        },
+        "t1_monotonic_seconds": {
+          "minimum": 0,
+          "title": "T1 Monotonic Seconds",
+          "type": "number"
+        }
+      },
+      "required": [
+        "gateway_id",
+        "source_id",
+        "stream_id",
+        "capture_generation",
+        "clock_epoch",
+        "t0_utc",
+        "t0_monotonic_seconds",
+        "nonce",
+        "api_utc",
+        "t1_utc",
+        "t1_monotonic_seconds"
+      ],
+      "title": "MeasuredClockEvidence",
+      "type": "object"
+    },
     "ProductionEvent": {
       "additionalProperties": false,
       "properties": {
@@ -1232,6 +1334,17 @@
       "pattern": "^[0-9a-f]{64}$",
       "title": "Content Sha256",
       "type": "string"
+    },
+    "clock_evidence": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MeasuredClockEvidence"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

@@ -14,6 +14,7 @@ from pydantic import (
     model_validator,
 )
 
+from contracts.clock_evidence import MeasuredClockEvidence
 from contracts.models import (
     ContractModel,
     Event,
@@ -280,12 +281,31 @@ def batch_digest(body: BatchBody) -> str:
 class GatewayBatch(ContractModel):
     body: BatchBody
     content_sha256: Digest
+    clock_evidence: MeasuredClockEvidence | None = None
+
+    @model_serializer(mode="wrap")
+    def preserve_legacy_envelope(self, handler: SerializerFunctionWrapHandler):
+        value = handler(self)
+        if self.clock_evidence is None:
+            value.pop("clock_evidence", None)
+        return value
 
     @model_validator(mode="after")
     def validate_digest(self) -> Self:
         if self.content_sha256 != batch_digest(self.body):
             raise ValueError("batch content digest mismatch")
         return self
+
+
+def gateway_batch_digest(batch: GatewayBatch) -> str:
+    """Commit the unchanged body digest and optional proof to immutable envelope identity."""
+    value = {"content_sha256": batch.content_sha256}
+    if batch.clock_evidence is not None:
+        value["clock_evidence"] = batch.clock_evidence.model_dump(mode="json")
+    canonical = json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 class EventReceipt(ContractModel):

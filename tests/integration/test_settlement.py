@@ -319,6 +319,10 @@ def test_caller_rollback_discards_summary_conflict_and_status_together(service):
 
 
 def test_migration_roundtrip_preserves_original_ingestion_and_commands(service):
+    # Exercise the historical reconciliation-cache roundtrip before creating
+    # immutable schema18 clock proof. Used schema18 downgrade is tested separately.
+    with service.engine.connect() as connection:
+        command.downgrade(migration_config(connection), "0017_guest_viewer")
     ingest(service, 1, 2)
     record(service)
     with service.engine.connect() as connection:

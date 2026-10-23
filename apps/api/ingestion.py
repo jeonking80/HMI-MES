@@ -37,6 +37,7 @@ from contracts.transport import (
     StreamGap,
     StreamProgress,
     canonical_batch_body,
+    gateway_batch_digest,
     validate_ack,
 )
 
@@ -324,6 +325,7 @@ class IngestionService:
         alarm_consumer=None,
         trend_clock_policy=None,
         trend_retention=None,
+        measured_clock_enabled=False,
     ) -> None:
         if engine.dialect.name != "postgresql":
             raise ValueError("Ingestion requires PostgreSQL")
@@ -333,6 +335,11 @@ class IngestionService:
         self.alarm_consumer = alarm_consumer
         self.trend_clock_policy = trend_clock_policy
         self.trend_retention = trend_retention
+        if type(measured_clock_enabled) is not bool:
+            raise ValueError("Measured clock configuration must be boolean")
+        if measured_clock_enabled and trend_clock_policy is not None:
+            raise ValueError("Choose one explicit analytical clock mode")
+        self.measured_clock_enabled = measured_clock_enabled
 
     @contextmanager
     def _transaction(self):
@@ -936,6 +943,7 @@ class IngestionService:
         authenticated_source_id: str,
         authenticated_stream_id: str,
         now: datetime,
+        authenticated_key_id: str | None = None,
     ) -> DurableAck:
         # Revalidate models too: model_construct/model_copy cannot bypass the wire boundary.
         batch = GatewayBatch.model_validate_json(batch.model_dump_json())
@@ -965,6 +973,28 @@ class IngestionService:
                 self._advisory(connection, "event", event_id)
             collision = self._collision(connection, batch)
             if isinstance(collision, DurableAck):
+                # The original body hash remains wire-compatible. The separate
+                # envelope binding also prevents changing measurement proof on retry.
+                revision = connection.execute(
+                    sa.text("SELECT version_num FROM alembic_version")
+                ).scalar_one()
+                original_input = None
+                if revision == "0018_clock_evidence":
+                    original_clock = (
+                        connection.execute(
+                            sa.text("""SELECT input_evidence_sha256 FROM capture_clock_evidence
+                        WHERE gateway_id=:gateway AND batch_id=:batch"""),
+                            {"gateway": body.gateway_id, "batch": body.batch_id},
+                        )
+                        .mappings()
+                        .first()
+                    )
+                    if original_clock is not None:
+                        original_input = original_clock["input_evidence_sha256"]
+                if (original_input and original_input != gateway_batch_digest(batch)) or (
+                    not original_input and batch.clock_evidence is not None
+                ):
+                    raise IngestConflict("Immutable capture clock input differs")
                 ack = collision
             elif collision is not None:
                 code, incoming, original = collision
@@ -1064,6 +1094,36 @@ class IngestionService:
                         stored_at=now,
                     )
                 )
+                measured = None
+                if batch.clock_evidence is not None:
+                    if not self.measured_clock_enabled:
+                        raise IngestionUnavailable("Measured clock evidence is not enabled")
+                    from apps.api.measured_clock import (
+                        MeasuredClockConflict,
+                        assess_measured_clock,
+                    )
+
+                    try:
+                        measured = assess_measured_clock(
+                            connection,
+                            batch,
+                            credential_key_id=authenticated_key_id,
+                            api_received_at=now,
+                        )
+                    except MeasuredClockConflict:
+                        raise IngestConflict("Capture clock measurement conflicts") from None
+                from apps.api.capture_clock import record_capture_clock
+
+                clock_decision = record_capture_clock(
+                    connection,
+                    body,
+                    source=source,
+                    now=now,
+                    policy=self.trend_clock_policy,
+                    batch_digest=batch.content_sha256,
+                    measured=measured,
+                    input_evidence_sha256=gateway_batch_digest(batch),
+                )
                 if self.alarm_consumer is not None:
                     self.alarm_consumer.consume(connection, body, source=source, now=now)
                 from apps.api.trend_history import capture_trends
@@ -1075,6 +1135,7 @@ class IngestionService:
                     now=now,
                     clock_policy=self.trend_clock_policy,
                     retention=self.trend_retention,
+                    clock_decision=clock_decision,
                 )
                 self._before_commit(connection)
         if conflict is not None:

@@ -79,7 +79,11 @@ def definition(identity):
 
 
 @pytest.fixture
-def state(migrated):
+def state(migrated, request):
+    if getattr(request, "param", None) == "legacy17":
+        # The legacy cancellation roundtrip must not first create schema18 proof.
+        with migrated.connect() as db:
+            command.downgrade(migration_config(db), "0017_guest_viewer")
     bootstrap_reference_data(migrated)
     auth = UserAuth(migrated, allowed_origins={ORIGIN}, clock=lambda: AT)
     session = account(auth, "manager", {"production_manager", "operator"})
@@ -589,6 +593,7 @@ def test_cancellation_receipt_is_append_only_even_for_direct_database_mutation(s
     assert cancel(state) == receipt
 
 
+@pytest.mark.parametrize("state", ["legacy17"], indirect=True)
 def test_used_downgrade_refuses_and_unused_roundtrip_preserves_original_definitions(state):
     before = rows(state, "work_orders"), rows(state, "mes_management_audit")
     with state.engine.connect() as db:

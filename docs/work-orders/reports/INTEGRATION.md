@@ -1,5 +1,46 @@
 # KULS 백엔드 통합 보고
 
+## v1.2 추가 작업 — CX-12 → CX-10 → CX-09 → CX-11
+
+기준 통합본 `a07e91d`를 기존 `codex/kuls-backend` 체크아웃에 fast-forward한 뒤 진행했다. medium이 구현·검증·문서를 맡았고 high는 DB/시간 근거/인증의 독립 검토에만 사용했다. UI·README·AGENTS·Claude 소유 브라우저 스크립트는 수정하지 않았다.
+
+| 작업 | 커밋 | 결과 |
+|---|---|---|
+| CX-12 서버리스 보관 프로필 | `490faed` | 기본 7일/90일 유지, 배포 설정·오류·실제 retention 확인 |
+| CX-10 분석 기능 제공 여부 | `c88f991`, `626e8c6` | 경로·스키마·읽기 권한 확인, head14 false/head17·18 true |
+| CX-09 같은 호스트·CX-11 원격 측정 | `626e8c6` | 공통 0018 영속 증거·정규화·nonce·gateway·최소 권한, high 통과 |
+| Compose 실제 생산/분석 수락 | `d8df053` | 현재 소스로 실제 START/생산/PAUSE/END/SETTLED·GOOD·가동 시간 확인 |
+
+선택적 envelope `clock_evidence`, 서비스 인증 `POST /internal/v1/clock-probes`, `/auth/config.analytics`만 계약에 추가했다. 기존 1.2 body/digest와 공개 분석 응답 필드·PLC 사건 시각·알람 판정은 유지한다. 시간 정책은 명시적 opt-in이며 Vercel에 같은 커널 주장을 넣지 않는다. 0018은 원시 6시간 정리와 독립된 배치별 불변 근거를 보관하고 사용한 스키마의 근거 손실 downgrade를 거절한다.
+
+검증 근거:
+
+- core·기존 트렌드/보고/SPC 집중49개 통과. gate/grant/guest/Vercel 집중54개 통과. gateway·wire·buffer159개 통과.
+- 독립 high: DB/권한/분석 PostgreSQL13개, signed±7시간 보관2개 통과. 인증/nonce 동시성/실제 서비스 회귀22개 통과. 시간 중간값 불일치와 만료 정리 정체는 수정 후 통과했으며 남은 차단 사항은 없다.
+- 실제 CLI/Chromium: GOOD132점·RUNNING4.043357초·관측 이전 NO_EVIDENCE만, 실제 생산 정산과 네 분석 화면 통과. Claude 검사 원본 대신 `/tmp` 복사본의 internal API `serve`에 `--trend-clock-policy same-host`를 추가했다. 반영할 인자는 [CX-09](CX-09.md)에 있다.
+- 실제 Compose: GOOD44점·RUNNING6.86994초·NO_EVIDENCE만·SETTLED, 게스트/48freshGOOD/웹/init 재실행 통과. 관리형 VFS의 새 이미지 build는 ENOSPC로 실패했다. 검토한 기존 이미지+현재 apps/contracts/dist 읽기 전용 마운트로 검증했고 임의 검사 프로젝트만 정리했다. clean build 통과로 표시하지 않는다. [재현](../../architecture/COMPOSE_RUN.md).
+- 전체 검사 최초 시도는 이미지 빌드와 겹친 PG 준비 오류로367통과/17오류에서 중단했다. 별도 분석 집중도18통과/6setup오류였다. 작업 전용 이미지/캐시를 정리하고 전체 `check-local.sh`를 단독 재실행 중이다.
+
+최종 검증 결과:
+
+- Python 수집 목록 **2,246개 전체 범위**를 선행22모듈534개 + 중간31모듈556개 + 마지막1,156개로 분할해 통과했다. 마지막 구간은 **1,156 passed / 355.99초**, 해당 `check-local.sh` 호출은 웹 단계까지 exit0이었다. 누락·중복·실패·오류·skip이 없음을 수집 목록과 JUnit으로 대조했다. 컬렉션마다 생성하는 무효 테스트 토큰 두 사례는 함수/케이스 식별을 유지하며 비교했다. `/tmp/hmi-kuls-clock-coverage.json`, `hmi-kuls-clock-middle.xml`, `hmi-kuls-clock-tail.xml` 참조.
+- 웹 화면 시험 **85 passed**, typecheck·ESLint·production build 통과. Python Ruff/format **318파일** 통과. 일반 전체 범위 재현 명령은 `./scripts/check-local.sh`다.
+- 단일 전체 명령이 처음부터 끝까지 무수정 exit0이었다고 표시하지 않는다. 공간 확보 뒤 전체 시도는547통과 후 과거 제어 시험의 원본 삭제가 새로운 proof FK에 거절되어 중단했다. 제어/snapshot을 원본 삭제 없이 준비하도록 수정해47개 집중 통과(`1ab9053`). 중간 구간도573통과 후 과거 정산 downgrade가 새18 보호에 거절되어 중단했다. 과거 이관 시험은 기존17에서 원래 보호 장치를 확인하도록 지정했고 정산24개 집중 통과했다.
+- 그 과정에서 wire1.0/1.1의 capture_time 없는 아날로그가 schema15/17에서 예외가 나던 실제 호환성 오류를 수정했다(`d375b8d`). 새4조합+이관3개 실제PG7개 집중 통과 후, 새4개·정산·취소·배포를 포함한 마지막1,156개를 다시 실행해 통과했다. 시간 근거 없는 값은 GOOD으로 바꾸지 않는다.
+- 원본 로그는 `/tmp/hmi-kuls-clock-check-local-interrupted.log`, `hmi-kuls-clock-check-local.log`, `hmi-kuls-clock-middle-local.log`, `hmi-kuls-clock-tail-local.log`에 남겼다. 앞선 실패·중단은 최종 통과와 구분한다.
+
+이 작업지시서의 추가 백엔드 범위 검증 결과다. 공개 배포 수락·기획서 전체 수락·8시간 운전·최대 보관 규모 성능 완료를 뜻하지 않는다.
+
+공개 운영 경계와 인계:
+
+- `main`은 확인 시 `3117ba9`, Claude 통합 브랜치는 `a07e91d`였다. 새 backend는 이 작업 브랜치에만 푸시한다. 병합은 작업지시서대로 Claude 담당이다.
+- 공개 DB 이관/게스트 활성화는 이미 승인된 [OPS-01](../OPS-01_공개배포_이관_활성화.md)을 따른다. main 병합 및 CX-12 배포 선행 조건이 아직 충족되지 않아 실행하지 않았다. 새 승인을 요청하지 않는다.
+- 공개에서는 먼저 CX-12의6시간/14일 프로필을 검토·배포하고17이관/기존권한을 적용한 뒤, 원격 시각을 켜려면18과별도 `neon-clock-grants.sql`을 적용한다. 정확한 단계는 [배포 문서](../../architecture/KULS_DEPLOYMENT.md)를 따른다. 무조건 `upgrade head`로17권한 단계를 건너뛰지 않는다.
+- Claude가 `/auth/config.analytics`로 메뉴를 연결하고 원본 검사 CLI 인자를 반영해야 한다. 공개 측정은 API env와 gateway 인자를 각각 명시해야 한다.
+- 유료 리소스·CI·LLM 비용을 추가하지 않았다. CX-08은 보류다. 0018 근거와 기존 원본 이력은 계속 누적되므로6시간/14일 프로필이 무료 DB 총용량이나 무기한 운전을 보장하지 않는다.
+
+## v1 작업 기록 (이하 당시 결과)
+
 기준: 작업지시서 v1, `claude/bold-feynman-rpbxfw`의 `31f07fd`.
 작업 브랜치: `codex/kuls-backend`. 작성일: 2026-10-23 (Asia/Seoul).
 현재 상태: 구현·개별 검증과 독립 검토를 마쳤다. 아래 전체 실행의 실패와 수정 후 집중 재검증을 구분한다. 프로젝트 전체 수락 완료를 뜻하지 않는다.

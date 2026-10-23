@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import secrets
 import socket
@@ -33,6 +34,9 @@ def good_snapshot(payload):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--compose-file", action="append", type=Path, default=[])
+    parser.add_argument(
+        "--no-build", action="store_true", help="Use explicit cached images supplied by an override"
+    )
     args = parser.parse_args()
     project = "cx07-check-" + secrets.token_hex(6)
     with socket.socket() as sock:
@@ -62,7 +66,7 @@ def main():
     for path in args.compose_file:
         command += ["-f", str(path.resolve())]
 
-    def compose(*arguments, timeout=600):
+    def compose(*arguments, timeout=600, input_text=None):
         result = subprocess.run(
             [*command, *arguments],
             cwd=ROOT,
@@ -70,13 +74,32 @@ def main():
             capture_output=True,
             text=True,
             timeout=timeout,
+            input=input_text,
         )
         if result.returncode:
+            if arguments[0] == "exec":
+                try:
+                    diagnostic = json.loads(result.stdout)
+                    phase = diagnostic["failed_stage"]
+                    kind = diagnostic["error_type"]
+                    if all(value.replace(" ", "").isalpha() for value in (phase, kind)):
+                        reason = diagnostic.get("reason", "operation failed")
+                        # The helper emits only its fixed RuntimeError messages here.
+                        if not isinstance(reason, str) or len(reason) > 200:
+                            reason = "operation failed"
+                        raise RuntimeError(
+                            f"Compose acceptance failed at {phase} ({kind}): {reason}"
+                        )
+                except (ValueError, KeyError, TypeError):
+                    pass
             # Raw tool output could contain a future accidentally logged secret.
             raise RuntimeError("Compose operation failed: " + arguments[0])
+        return result.stdout
 
     try:
-        compose("up", "-d", "--build")
+        compose("up", "-d", "--no-build" if args.no_build else "--build")
+        # Release completed one-shot root filesystems; their volume state remains.
+        compose("rm", "-f", "secrets", "init")
         origin = f"http://127.0.0.1:{port}"
         deadline = time.monotonic() + 90
         with httpx.Client(base_url=origin, trust_env=False, timeout=5) as client:
@@ -106,9 +129,22 @@ def main():
             web = client.get("/")
             if web.status_code != 200 or "/assets/" not in web.text:
                 raise RuntimeError("Built web entrypoint unavailable")
+        evidence = compose(
+            "exec",
+            "-T",
+            "api",
+            "python",
+            "-",
+            timeout=180,
+            input_text=(ROOT / "scripts/compose_acceptance.py").read_text(),
+        )
+        print("Actual Compose process evidence: " + evidence.strip())
         # Re-run init on persistent state; guest/certs/secrets/SQLite must survive.
-        compose("run", "--rm", "init")
-        print("PASS: guest login, 48 fresh GOOD tags, built web, repeat init")
+        compose("run", "--no-deps", "--rm", "init")
+        print(
+            "PASS: guest, analytics, 48 fresh GOOD tags, GOOD trends, "
+            "actual RUNNING and settlement, web, repeat init"
+        )
     finally:
         compose("down", "-v", "--remove-orphans", timeout=120)
         print("Cleaned isolated project " + project)

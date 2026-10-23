@@ -21,6 +21,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from starlette.concurrency import run_in_threadpool
 
 from apps.api.alarm_http import mount_alarm_routes
+from apps.api.analytics_availability import analytics_available
 from apps.api.assistant import AssistantConfig, register_assistant_routes
 from apps.api.auth import (
     ABSOLUTE_TIMEOUT,
@@ -178,6 +179,7 @@ def create_user_app(auth: UserAuth, config: UserHTTPConfig) -> FastAPI:
     if config.guest_viewer:
         validate_startup(auth)
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    app.state.analytics_routes_registered = False
     limiter = _Limiter(config)
 
     def origin(request: Request) -> None:
@@ -363,7 +365,11 @@ def create_user_app(auth: UserAuth, config: UserHTTPConfig) -> FastAPI:
 
     @app.get("/auth/config")
     async def auth_config():
-        return {"guest_viewer": config.guest_viewer, "assistant": config.assistant is not None}
+        return {
+            "guest_viewer": config.guest_viewer,
+            "assistant": config.assistant is not None,
+            "analytics": await run_in_threadpool(analytics_available, app, auth),
+        }
 
     @app.post("/auth/guest")
     async def guest(request: Request):
@@ -458,6 +464,7 @@ def create_user_app(auth: UserAuth, config: UserHTTPConfig) -> FastAPI:
     register_assistant_routes(
         app, auth, config.assistant, origin=config.origin, session_cookie=SESSION_COOKIE
     )
+    app.state.analytics_routes_registered = True
     mount_screen_ws(
         app,
         auth,
