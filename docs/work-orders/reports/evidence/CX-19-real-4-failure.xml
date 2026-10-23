@@ -1,0 +1,2 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuite name="CX-19" tests="1" failures="1" skipped="0"><testcase name="CX-19"><failure message="AssertionError: Original events/cursor/gaps, backlog and latest state did not recover in 300 real seconds">AssertionError: Original events/cursor/gaps, backlog and latest state did not recover in 300 real seconds</failure></testcase></testsuite>
