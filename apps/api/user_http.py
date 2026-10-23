@@ -7,7 +7,7 @@ import threading
 import time
 from collections import OrderedDict, deque
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Annotated
 from urllib.parse import urlsplit
@@ -21,6 +21,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from starlette.concurrency import run_in_threadpool
 
 from apps.api.alarm_http import mount_alarm_routes
+from apps.api.assistant import AssistantConfig, register_assistant_routes
 from apps.api.auth import (
     ABSOLUTE_TIMEOUT,
     LOGIN_TIMEOUT,
@@ -32,6 +33,7 @@ from apps.api.auth import (
 )
 from apps.api.control_http import mount_control_routes
 from apps.api.execution_http import mount_execution_routes
+from apps.api.guest import GUEST_TIMEOUT, GuestThrottled, issue_guest, validate_startup
 from apps.api.ingestion import source_streams
 from apps.api.models import Line
 from apps.api.screen_frames import APP_SCREEN_MAX_BYTES, ScreenScope, make_screen_frame
@@ -54,8 +56,13 @@ class UserHTTPConfig:
     max_throttle_keys: int = 2048
     max_body_bytes: int = 16_384
     monotonic: Callable[[], float] = time.monotonic
+    guest_viewer: bool = False
+    # None disables the read-only assistant; its key never leaves server memory.
+    assistant: AssistantConfig | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
+        if type(self.guest_viewer) is not bool:
+            raise ValueError("guest_viewer must be a boolean")
         try:
             parts = urlsplit(self.origin)
             valid = (
@@ -166,6 +173,10 @@ def create_user_app(auth: UserAuth, config: UserHTTPConfig) -> FastAPI:
     """
     if config.origin not in auth._origins:
         raise ValueError("HTTP origin must be allowed by the authentication service")
+    if config.guest_viewer != auth.guest_viewer:
+        raise ValueError("guest HTTP and authentication configuration must agree")
+    if config.guest_viewer:
+        validate_startup(auth)
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     limiter = _Limiter(config)
 
@@ -200,7 +211,8 @@ def create_user_app(auth: UserAuth, config: UserHTTPConfig) -> FastAPI:
                 "expires_at": session.expires_at.isoformat(),
             }
         )
-        cookie(response, SESSION_COOKIE, session.token, int(ABSOLUTE_TIMEOUT.total_seconds()))
+        timeout = GUEST_TIMEOUT if session.principal.login == "guest-viewer" else ABSOLUTE_TIMEOUT
+        cookie(response, SESSION_COOKIE, session.token, int(timeout.total_seconds()))
         clear_cookie(response, PREAUTH_COOKIE)
         return response
 
@@ -217,6 +229,10 @@ def create_user_app(auth: UserAuth, config: UserHTTPConfig) -> FastAPI:
     @app.exception_handler(AuthorizationError)
     async def authorization_error(request: Request, error: AuthorizationError):
         return rejected(403)
+
+    @app.exception_handler(GuestThrottled)
+    async def guest_throttle_error(request: Request, error: GuestThrottled):
+        return rejected(429)
 
     @app.exception_handler(_Throttled)
     async def throttle_error(request: Request, error: _Throttled):
@@ -345,6 +361,21 @@ def create_user_app(auth: UserAuth, config: UserHTTPConfig) -> FastAPI:
             payload, media_type="application/json", headers={"Cache-Control": "no-store"}
         )
 
+    @app.get("/auth/config")
+    async def auth_config():
+        return {"guest_viewer": config.guest_viewer, "assistant": config.assistant is not None}
+
+    @app.post("/auth/guest")
+    async def guest(request: Request):
+        if not config.guest_viewer:
+            raise HTTPException(404, "guest access is disabled")
+        origin(request)
+        _model(request, await request.body(), _Body)
+        session = await run_in_threadpool(
+            issue_guest, auth, origin=config.origin, peer=peer(request)
+        )
+        return credentials(session)
+
     @app.post("/auth/challenge")
     async def challenge(request: Request):
         origin(request)
@@ -410,6 +441,23 @@ def create_user_app(auth: UserAuth, config: UserHTTPConfig) -> FastAPI:
     mount_alarm_routes(app, auth, session_cookie=SESSION_COOKIE)
     mount_execution_routes(app, auth, session_cookie=SESSION_COOKIE)
     mount_work_order_cancel_routes(app, auth, session_cookie=SESSION_COOKIE)
+    from apps.api.dashboard_http import register_dashboard_routes
+    from apps.api.downtime_http import register_downtime_routes
+    from apps.api.reports_http import register_report_routes
+    from apps.api.spc_http import register_spc_routes
+    from apps.api.trend_http import register_trend_routes
+
+    register_trend_routes(app, auth)
+    register_report_routes(app, auth)
+    register_downtime_routes(app, auth)
+    from apps.api.downtime import annotate_report_segments
+
+    app.state.report_segment_annotator = annotate_report_segments
+    register_spc_routes(app, auth)
+    register_dashboard_routes(app, auth)
+    register_assistant_routes(
+        app, auth, config.assistant, origin=config.origin, session_cookie=SESSION_COOKIE
+    )
     mount_screen_ws(
         app,
         auth,

@@ -1,0 +1,113 @@
+{
+ "tag_id": "Sealer.TemperaturePV",
+ "unit": "°C",
+ "method": "statistical",
+ "subgroup_size": 5,
+ "rules_version": "western-electric-1-4-v1",
+ "status": "INSUFFICIENT_DATA",
+ "baseline": null,
+ "limits": null,
+ "spec": {
+  "usl": 155.0,
+  "lsl": 145.0,
+  "target": 150.0,
+  "source": "recipe+alarm_rule"
+ },
+ "capability": null,
+ "subgroups": [
+  {
+   "t": "2026-10-22T00:00:00Z",
+   "mean": 149.961,
+   "range": 1.619,
+   "n": 5,
+   "violations": []
+  },
+  {
+   "t": "2026-10-22T00:01:00Z",
+   "mean": 149.883,
+   "range": 0.609,
+   "n": 5,
+   "violations": []
+  },
+  {
+   "t": "2026-10-22T00:02:00Z",
+   "mean": 149.933,
+   "range": 1.508,
+   "n": 5,
+   "violations": []
+  },
+  {
+   "t": "2026-10-22T00:03:00Z",
+   "mean": 149.759,
+   "range": 1.186,
+   "n": 5,
+   "violations": []
+  },
+  {
+   "t": "2026-10-22T00:04:00Z",
+   "mean": 150.343,
+   "range": 1.602,
+   "n": 5,
+   "violations": []
+  },
+  {
+   "t": "2026-10-22T00:05:00Z",
+   "mean": 150.191,
+   "range": 2.019,
+   "n": 5,
+   "violations": []
+  },
+  {
+   "t": "2026-10-22T00:06:00Z",
+   "mean": 150.038,
+   "range": 1.074,
+   "n": 5,
+   "violations": []
+  },
+  {
+   "t": "2026-10-22T00:07:00Z",
+   "mean": 149.606,
+   "range": 1.265,
+   "n": 5,
+   "violations": []
+  },
+  {
+   "t": "2026-10-22T00:08:00Z",
+   "mean": 150.236,
+   "range": 1.024,
+   "n": 5,
+   "violations": []
+  },
+  {
+   "t": "2026-10-22T00:09:00Z",
+   "mean": 149.982,
+   "range": 1.339,
+   "n": 5,
+   "violations": []
+  },
+  {
+   "t": "2026-10-22T00:10:00Z",
+   "mean": 150.143,
+   "range": 1.019,
+   "n": 5,
+   "violations": []
+  },
+  {
+   "t": "2026-10-22T00:11:00Z",
+   "mean": 149.894,
+   "range": 1.005,
+   "n": 5,
+   "violations": []
+  }
+ ],
+ "excluded": {
+  "count": 3,
+  "reasons": {
+   "MISSING": 2,
+   "BAD": 0,
+   "TIME_UNKNOWN": 1
+  }
+ },
+ "trend_warning": null,
+ "generated_at": "2026-10-23T05:30:00Z"
+}

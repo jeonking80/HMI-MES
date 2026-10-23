@@ -1,0 +1,10 @@
+{
+ "sources": [
+  {
+   "line_id": "packaging-line-1",
+   "line_name": "Packaging line 1",
+   "source_id": "demo-packaging-source-v1",
+   "stream_id": "events-main"
+  }
+ ]
+}

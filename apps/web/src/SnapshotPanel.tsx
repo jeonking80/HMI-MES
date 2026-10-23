@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { tagEnums, tagMetadata } from './tagMetadata'
 import CommandPanel from './CommandPanel'
+import CopyId from './CopyId'
+import './lineMonitoring.css'
 import ProcessOverview from './ProcessOverview'
 import WorkOrderBinding from './WorkOrderBinding'
 import LoadTracker from './LoadTracker'
@@ -29,6 +31,9 @@ const names: Record<string, string> = {
 }
 const stateLabels: Record<string, string> = { STOPPED: '정지', READY: '준비', RUNNING: '운전 중', PAUSED: '일시 정지', STOPPING: '정지 중', FAULT: '고장', ESTOP: '비상 정지', RECOVERY_REQUIRED: '복구 필요', UNKNOWN: '불명' }
 const healthLabels: Record<string, string> = { NEVER_OBSERVED: '수집 이력 없음', STALE: '수집 지연', DEGRADED: '품질 저하 · 확인 필요', CAPTURE_FRESH: '최근 수집 확인' }
+type Tone = 'good' | 'warn' | 'bad' | 'unknown' | 'neutral'
+const stateTones: Record<string, Tone> = { RUNNING: 'good', READY: 'neutral', STOPPED: 'neutral', PAUSED: 'warn', STOPPING: 'warn', FAULT: 'bad', ESTOP: 'bad', RECOVERY_REQUIRED: 'bad' }
+const heartbeatTones: Record<string, Tone> = { GOOD: 'good', DELAYED: 'warn', ALARM: 'bad', UNKNOWN: 'unknown' }
 function timestamp(value: string) { const date = new Date(value); return Number.isFinite(date.getTime()) ? date.toLocaleString('ko-KR', { hour12: false }) : '시간 불명' }
 function displayValue(sample: Sample, enumName: string | null): string {
   if (sample.reading.value === null) return '값 불명'
@@ -65,7 +70,7 @@ export default function SnapshotPanel({ session, onSessionInvalid, workflow, sel
   }, [attempt, onSessionInvalid])
   const source = sources && selected !== '' ? sources[Number(selected)] : undefined
   return <section className="monitor-section" aria-labelledby="monitor-heading">
-    <div className="monitor-heading"><div><p className="section-kicker">LINE MONITORING</p><h2 id="monitor-heading">설비 수집 상태</h2></div><span className="read-only-tag">실제 저장 관측</span></div>
+    <div className="monitor-heading"><div><p className="section-kicker">DATA SOURCE</p><h2 id="monitor-heading">설비 수집 상태</h2></div><span className="read-only-tag">실제 저장 관측</span></div>
     {sourceError ? <div className="message error" role="alert">{sourceError}<button type="button" className="button secondary" onClick={() => setAttempt(value => value + 1)}>다시 조회</button></div>
       : sources === null ? <p role="status">등록된 수집원을 확인하고 있습니다.</p>
         : sources.length === 0 ? <div id="no-sources" className="connection-card"><h2>등록된 수집원이 없습니다.</h2><p>설비 관리자가 라인과 수집원을 등록한 뒤 조회할 수 있습니다. 현재 설비 상태는 확인할 수 없습니다.</p><button type="button" className="button secondary" onClick={() => setAttempt(value => value + 1)}>수집원 다시 조회</button></div>
@@ -132,31 +137,47 @@ function LiveSnapshot({ source, session, tracked, setTracked, workflow, selected
       : snapshot.health.source_conflicted || snapshot.health.reconciliation_required || snapshot.missing_tag_ids.length > 0 ? '수집원 충돌·대조 필요·미수신 태그를 먼저 확인해 주세요.' : ''
   const heartbeatLabel = { UNKNOWN: '확인 불가', GOOD: '정상', DELAYED: '지연', ALARM: '통신 경보' }[heartbeat]
   const health = !snapshot ? '수집 상태 확인 중' : current ? (locallyStale && snapshot.health.state === 'CAPTURE_FRESH' ? '수집 지연' : healthLabels[snapshot.health.state] ?? '수집 상태 불명') : '조회 지연 · 상태 불명'
+  const lineValue = snapshot && derivedUsable('Line.State') ? snapshot.screen.view.state : null
+  const lineTone: Tone = lineValue ? stateTones[lineValue] ?? 'unknown' : 'unknown'
+  const healthTone: Tone = !snapshot || !current ? 'unknown' : locallyStale || snapshot.health.state === 'STALE' || snapshot.health.state === 'DEGRADED' ? 'warn' : snapshot.health.state === 'CAPTURE_FRESH' ? 'good' : 'unknown'
+  const executionText = snapshot && derivedUsable('Line.ActiveExecutionId') ? snapshot.screen.view.execution_id ?? '불명' : '불명'
+  const executionId = executionText === '불명' ? null : executionText
   return <div id="snapshot-panel">
-    <p id="screen-connection" className="form-help" data-state={stream.phase} data-sync={snapshot?.screen.sync_id ?? ''} data-revision={snapshot?.screen.revision ?? ''}>
+    <div className="status-bar">
+      <p id="screen-connection" className="connection-pill" data-state={stream.phase} data-sync={snapshot?.screen.sync_id ?? ''} data-revision={snapshot?.screen.revision ?? ''}>
       {stream.phase === 'synced' ? (stream.transport === 'polling' ? '화면 갱신 연결됨' : '실시간 화면 연결됨') : stream.phase === 'stopped' ? '화면 연결 확인 필요' : '화면 연결 중 · 현재 상태 확인 불가'}
-    </p>
-    {stream.phase === 'stopped' && <button id="screen-reconnect" className="button secondary" type="button" onClick={stream.retry}>화면 다시 연결</button>}
+      </p>
+      {stream.phase === 'stopped' && <button id="screen-reconnect" className="button secondary" type="button" onClick={stream.retry}>화면 다시 연결</button>}
+    </div>
     {error && <div className="message error" role="alert">{error}</div>}
     <div className="snapshot-summary">
-      <div><span>수집 상태</span><strong id="snapshot-health">{health}</strong></div>
-      <div><span>라인 상태</span><strong id="line-state">{snapshot && derivedUsable('Line.State') ? stateLabels[snapshot.screen.view.state] ?? snapshot.screen.view.state : '불명'}</strong></div>
-      <div><span>실행 ID</span><strong>{snapshot && derivedUsable('Line.ActiveExecutionId') ? snapshot.screen.view.execution_id ?? '불명' : '불명'}</strong></div>
-      <div><span>PLC 하트비트 진행</span><strong id="heartbeat-state" data-state={heartbeat}>{heartbeatLabel}</strong></div>
+      <div data-tone={healthTone}><span>수집 상태</span><strong id="snapshot-health">{health}</strong></div>
+      <div data-tone={lineTone}><span>라인 상태</span><strong id="line-state">{snapshot && derivedUsable('Line.State') ? stateLabels[snapshot.screen.view.state] ?? snapshot.screen.view.state : '불명'}</strong></div>
+      <div data-tone="neutral"><span>실행 ID</span><strong className="execution-chip">{executionId ? <CopyId value={executionId} /> : '불명'}</strong></div>
+      <div data-tone={heartbeatTones[heartbeat]}><span>PLC 하트비트</span><strong id="heartbeat-state" data-state={heartbeat}>{heartbeatLabel}</strong></div>
     </div>
-    <div className="message caution" id="control-restricted">원격 요청은 별도 인증 경로에서 검증합니다. 수집 정상 표시만으로 제어가 허용되지 않으며 서버와 PLC가 권한·사건 대조·실행 조건을 다시 확인합니다.</div>
+    <p className="control-note" id="control-restricted">제어 요청은 서버와 PLC가 권한·실행 조건을 다시 확인한 뒤 실행됩니다. 화면의 정상 표시만으로 실행되지 않습니다.</p>
     {snapshot && <>
       {(snapshot.health.source_conflicted || snapshot.health.reconciliation_required) && <div className="message error">{snapshot.health.source_conflicted ? '수집원 충돌 · ' : ''}{snapshot.health.reconciliation_required ? '데이터 대조 필요' : ''}</div>}
       <p className="snapshot-time">서버 응답 시각 {timestamp(snapshot.screen.emitted_at)} · 실시간 화면 갱신 · 미수신 태그 {snapshot.missing_tag_ids.length}개</p>
     </>}
-    <ProcessOverview readKnownValue={tagId => {
-      if (!current || heartbeat !== 'GOOD' || snapshot.health.source_conflicted || snapshot.health.reconciliation_required || !derivedUsable(tagId)) return null
-      return snapshot.screen.view.samples.find(item => item.tag_id === tagId)?.reading.value ?? null
-    }} />
-    <WorkOrderBinding order={selectedOrder} source={source} session={session} blockedReason={blockedReason} values={controlValues} workflow={workflow} tracked={tracked} />
-    <LoadTracker source={source} workflow={workflow} onSessionInvalid={onSessionInvalid} />
-    <CommandPanel source={source} session={session} blockedReason={blockedReason} newIntentBlocked={workflow.attempt && (!workflow.attempt.record || (workflow.attempt.kind === 'bind' && (workflow.attempt.loadResult?.status !== 'SUCCEEDED' || !('execution_id' in workflow.attempt.record.receipt) || workflow.attempt.record.receipt.execution_id !== controlValues['Line.ActiveExecutionId']))) ? '작업지시 요청과 원래 작업 불러오기 결과를 먼저 확인해 주세요.' : ''} values={controlValues} tracked={tracked} setTracked={setTracked} onSessionInvalid={onSessionInvalid} />
-    <AlarmPanel session={session} source={source} onSessionInvalid={onSessionInvalid} ledger={alarmLedger} setLedger={setAlarmLedger} />
+    <nav className="section-jump" aria-label="이 화면의 구역">
+      <a href="#process-heading">공정 현황</a><a href="#command-heading">운전 제어</a><a href="#equipment-heading">태그 상세</a><a href="#alarm-center-heading">알람</a>
+    </nav>
+    <div className="line-layout">
+      <div className="line-process">
+      <ProcessOverview readKnownValue={tagId => {
+        if (!current || heartbeat !== 'GOOD' || snapshot.health.source_conflicted || snapshot.health.reconciliation_required || !derivedUsable(tagId)) return null
+        return snapshot.screen.view.samples.find(item => item.tag_id === tagId)?.reading.value ?? null
+      }} />
+      </div>
+      <div className="line-side">
+      <CommandPanel source={source} session={session} blockedReason={blockedReason} newIntentBlocked={workflow.attempt && (!workflow.attempt.record || (workflow.attempt.kind === 'bind' && (workflow.attempt.loadResult?.status !== 'SUCCEEDED' || !('execution_id' in workflow.attempt.record.receipt) || workflow.attempt.record.receipt.execution_id !== controlValues['Line.ActiveExecutionId']))) ? '작업지시 요청과 원래 작업 불러오기 결과를 먼저 확인해 주세요.' : ''} values={controlValues} tracked={tracked} setTracked={setTracked} onSessionInvalid={onSessionInvalid} />
+      <WorkOrderBinding order={selectedOrder} source={source} session={session} blockedReason={blockedReason} values={controlValues} workflow={workflow} tracked={tracked} />
+      <LoadTracker source={source} workflow={workflow} onSessionInvalid={onSessionInvalid} />
+      </div>
+    <section id="equipment-details" className="equipment-details" aria-labelledby="equipment-heading">
+      <div className="equipment-details-heading"><h2 id="equipment-heading">태그 상세</h2><p>48개 태그의 현재 값과 데이터 품질입니다. 오래되거나 품질이 나쁜 값은 숫자 대신 —로 표시합니다.</p></div>
     <div className="equipment-grid">{Object.entries(groupNames).map(([group, title]) => <section key={group} className="equipment-card" aria-labelledby={`group-${group}`}>
       <h3 id={`group-${group}`}>{title}<span>{group}</span></h3>
       <dl>{tagMetadata.filter(tag => tag.group === group).map(tag => {
@@ -171,5 +192,8 @@ function LiveSnapshot({ source, session, tracked, setTracked, workflow, selected
         </div>
       })}</dl>
     </section>)}</div>
+    </section>
+    </div>
+    <AlarmPanel session={session} source={source} onSessionInvalid={onSessionInvalid} ledger={alarmLedger} setLedger={setAlarmLedger} />
   </div>
 }

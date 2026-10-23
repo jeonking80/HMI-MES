@@ -18,8 +18,9 @@ from sqlalchemy.pool import NullPool
 from starlette.responses import JSONResponse
 from starlette.routing import Mount
 
+from apps.api.assistant import DEFAULT_MODEL, AssistantConfig
 from apps.api.auth import UserAuth
-from apps.api.database import SUPPORTED_AUTH_REVISIONS
+from apps.api.database import SUPPORTED_MIXED_ALARM_REVISIONS
 from apps.api.ingestion import IngestionService
 from apps.api.internal import (
     InternalConfig,
@@ -27,6 +28,7 @@ from apps.api.internal import (
     SourceBindingPolicy,
     create_internal_app,
 )
+from apps.api.trend_history import TrendRetention
 from apps.api.user_http import UserHTTPConfig, create_user_app
 
 
@@ -95,9 +97,17 @@ class VercelConfig:
     database_dsn: str = field(repr=False)
     credentials: tuple[ServiceCredential, ...] = field(default=(), repr=False)
     source_binding_policy: SourceBindingPolicy | None = field(default=None, repr=False)
+    guest_viewer: bool = False
+    # None keeps the baseline (7-day raw, 90-day minute). A public free-tier profile
+    # may shorten it; see docs/architecture/TREND_HISTORY.md.
+    trend_retention: TrendRetention | None = None
+    # Read-only assistant; absent key keeps the feature off.
+    assistant: AssistantConfig | None = field(default=None, repr=False)
 
     def __post_init__(self):
-        UserHTTPConfig(origin=self.origin, allow_insecure_loopback=False)
+        UserHTTPConfig(
+            origin=self.origin, allow_insecure_loopback=False, guest_viewer=self.guest_viewer
+        )
         if self.source_binding_policy is not None and (
             not isinstance(self.source_binding_policy, SourceBindingPolicy)
             or self.source_binding_policy.credential not in self.credentials
@@ -125,8 +135,18 @@ class VercelConfig:
 
     @classmethod
     def from_environment(cls):
+        guest_setting = os.environ.get("HMI_GUEST_VIEWER_ENABLED", "false")
+        if guest_setting not in {"true", "false"}:
+            raise ValueError("HMI_GUEST_VIEWER_ENABLED must be true or false")
         origin = os.environ["HMI_PUBLIC_ORIGIN"]
         database_dsn = os.environ["HMI_DATABASE_DSN"]
+        trend_retention = _trend_retention()
+        assistant = None
+        if os.environ.get("HMI_ASSISTANT_API_KEY"):
+            assistant = AssistantConfig(
+                api_key=os.environ["HMI_ASSISTANT_API_KEY"],
+                model=os.environ.get("HMI_ASSISTANT_MODEL", DEFAULT_MODEL),
+            )
         policy = None
         if "HMI_GATEWAY_CREDENTIALS_JSON" not in os.environ:
             policy = _packaged_binding(origin)
@@ -142,9 +162,40 @@ class VercelConfig:
         return cls(
             origin=origin,
             database_dsn=database_dsn,
+            guest_viewer=guest_setting == "true",
             credentials=credentials,
             source_binding_policy=policy,
+            trend_retention=trend_retention,
+            assistant=assistant,
         )
+
+
+_WHOLE_NUMBER = re.compile(r"[1-9][0-9]{0,3}")
+
+
+def _trend_retention():
+    """Optional public-profile retention; absent means the baseline, invalid fails startup."""
+    raw = os.environ.get("HMI_TREND_RAW_HOURS")
+    minute = os.environ.get("HMI_TREND_MINUTE_DAYS")
+    if raw is None and minute is None:
+        return None
+    values = {}
+    for name, value, bound in (
+        ("HMI_TREND_RAW_HOURS", raw, 168),
+        ("HMI_TREND_MINUTE_DAYS", minute, 90),
+    ):
+        if value is None:
+            continue
+        if not _WHOLE_NUMBER.fullmatch(value) or int(value) > bound:
+            raise ValueError(f"{name} must be a whole number from 1 to {bound}")
+        values[name] = int(value)
+    defaults = TrendRetention()
+    return TrendRetention(
+        raw_days=values["HMI_TREND_RAW_HOURS"] / 24
+        if "HMI_TREND_RAW_HOURS" in values
+        else defaults.raw_days,
+        minute_days=values.get("HMI_TREND_MINUTE_DAYS", defaults.minute_days),
+    )
 
 
 def neon_engine(config: VercelConfig):
@@ -211,12 +262,17 @@ def _readiness_failure(stage, error):
 def create_vercel_app(config: VercelConfig, *, engine=None):
     database = engine if engine is not None else neon_engine(config)
     users = create_user_app(
-        UserAuth(database, allowed_origins={config.origin}),
-        UserHTTPConfig(origin=config.origin, allow_insecure_loopback=False),
+        UserAuth(database, allowed_origins={config.origin}, guest_viewer=config.guest_viewer),
+        UserHTTPConfig(
+            origin=config.origin,
+            allow_insecure_loopback=False,
+            guest_viewer=config.guest_viewer,
+            assistant=config.assistant,
+        ),
     )
     internal = (
         create_internal_app(
-            IngestionService(database),
+            IngestionService(database, trend_retention=config.trend_retention),
             credential_bindings=config.credentials,
             config=InternalConfig(allow_insecure_loopback=False),
             source_binding_policy=config.source_binding_policy,
@@ -236,7 +292,7 @@ def create_vercel_app(config: VercelConfig, *, engine=None):
                         .scalars()
                         .all()
                     )
-                    if len(head) != 1 or head[0] not in SUPPORTED_AUTH_REVISIONS:
+                    if len(head) != 1 or head[0] not in SUPPORTED_MIXED_ALARM_REVISIONS:
                         return {"ready": False, "stage": stage, "reason": "REVISION_UNSUPPORTED"}
                     stage = "runtime_role"
                     role = connection.execute(

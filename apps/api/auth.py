@@ -25,6 +25,7 @@ AUTH_REVISION = "0003_user_auth"
 ROLES = frozenset({"viewer", "operator", "production_manager", "equipment_admin"})
 PERMISSIONS = {
     "read": ROLES,
+    "downtime_annotate": frozenset({"operator", "production_manager"}),
     "operate": frozenset({"operator"}),
     "load_job": frozenset({"operator", "production_manager"}),
     "end_run": frozenset({"operator", "production_manager"}),
@@ -36,6 +37,7 @@ PERMISSIONS = {
 IDLE_TIMEOUT = timedelta(minutes=30)
 ABSOLUTE_TIMEOUT = timedelta(hours=8)
 LOGIN_TIMEOUT = timedelta(minutes=5)
+GUEST_LOGIN = "guest-viewer"
 _LOGIN = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9_.@-]{0,63}\Z")
 _TOKEN = re.compile(r"[A-Za-z0-9_-]{43}\Z")
 _SCRYPT_N, _SCRYPT_R, _SCRYPT_P = 2**15, 8, 1
@@ -149,11 +151,15 @@ class UserAuth:
         *,
         allowed_origins: frozenset[str] | set[str],
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        guest_viewer: bool = False,
     ) -> None:
         if engine.dialect.name != "postgresql" or not engine.hide_parameters or engine.echo:
             raise ValueError("a PostgreSQL engine with hidden parameters and no echo is required")
         if not allowed_origins or not all(_origin(origin) for origin in allowed_origins):
             raise ValueError("an explicit set of exact HTTP(S) origins is required")
+        if type(guest_viewer) is not bool:
+            raise ValueError("guest_viewer must be a boolean")
+        self.guest_viewer = guest_viewer
         self.engine = engine
         self._origins = frozenset(allowed_origins)
         self._clock = clock
@@ -211,6 +217,8 @@ class UserAuth:
     def bootstrap_user(self, login: str, password: str, *, roles: set[str] | frozenset[str]):
         """Explicit local provisioning; never replaces or resets an existing user."""
         login, encoded, roles = _login(login), _password(password), _roles(roles)
+        if login == GUEST_LOGIN:
+            raise ValueError("dedicated guest requires explicit guest provisioning")
         salt = secrets.token_bytes(16)
         password_hash = _derive(encoded, salt)
         with self._transaction() as db:
@@ -276,7 +284,7 @@ class UserAuth:
             salt = user["salt"] if user else self._dummy_salt
             expected = user["password_hash"] if user else self._dummy_hash
             matched = secrets.compare_digest(_derive(encoded, salt), expected)
-            if not matched or user is None or not user["active"]:
+            if normalized == GUEST_LOGIN or not matched or user is None or not user["active"]:
                 raise AuthenticationError("invalid credentials")
             # Recheck expiry after waiting for a concurrent user/password operation.
             now = self._now()
@@ -292,7 +300,9 @@ class UserAuth:
 
     def _issue(self, db: Connection, user, now: datetime) -> SessionCredentials:
         token, csrf_token = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
-        expires = now + ABSOLUTE_TIMEOUT
+        expires = now + (
+            timedelta(minutes=30) if user["login"] == GUEST_LOGIN else ABSOLUTE_TIMEOUT
+        )
         db.execute(
             sa.text(
                 "INSERT INTO auth_sessions VALUES "
@@ -335,6 +345,17 @@ class UserAuth:
             < min(row["expires_at"], row["idle_expires_at"])
         ):
             raise AuthenticationError("invalid credentials")
+        if user["login"] == GUEST_LOGIN:
+            from apps.api.guest import validate_guest
+
+            if not self.guest_viewer or row["expires_at"] > row["created_at"] + timedelta(
+                minutes=30
+            ):
+                raise AuthenticationError("invalid credentials")
+            try:
+                validate_guest(self, db, user)
+            except ValueError:
+                raise AuthenticationError("invalid credentials") from None
         return user, row, now
 
     @staticmethod
@@ -410,6 +431,8 @@ class UserAuth:
         with self._transaction() as db:
             user, row, now = self._session(db, token)
             self._check_mutation(row["csrf_digest"], csrf_token, origin)
+            if user["login"] == GUEST_LOGIN:
+                raise AuthorizationError("guest password changes are prohibited")
             if secrets.compare_digest(_derive(encoded, user["salt"]), user["password_hash"]):
                 raise ValueError("new password must differ from the current password")
             salt = secrets.token_bytes(16)
@@ -463,6 +486,8 @@ class UserAuth:
                 raise AuthorizationError("permission denied")
             if self._user(db, target_login) is None:
                 raise ValueError("target user does not exist")
+            if target_login == GUEST_LOGIN and roles is not None:
+                raise AuthorizationError("guest roles cannot be changed")
             if roles is not None:
                 self._replace_roles(db, target_login, roles)
                 action = "roles_changed"

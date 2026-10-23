@@ -137,13 +137,16 @@ export default function CommandPanel({ source, session, blockedReason, newIntent
   const feedbackMatches = !blockedReason && result?.evidence?.state !== undefined
     && result.evidence.state === ({ 0: 'STOPPED', 1: 'READY', 2: 'RUNNING', 3: 'PAUSED', 4: 'STOPPING', 5: 'FAULT', 6: 'ESTOP', 7: 'RECOVERY_REQUIRED' } as Record<string, string>)[String(state)]
     && result.evidence.execution_id === values['Line.ActiveExecutionId']
+  const reasons = kinds.map(kind => disabledReason(kind))
+  // One shared line when every button has the same reason; per-button text stays for assistive tech.
+  const sharedReason = kinds.length > 1 && reasons.every(reason => reason === reasons[0]) ? reasons[0] : null
   return <section id="command-panel" className="command-panel" aria-labelledby="command-heading">
     <div className="monitor-heading"><div><p className="section-kicker">COMMAND REQUEST</p><h2 id="command-heading">현재 실행 제어 요청</h2></div><span className="read-only-tag">서버 · PLC 재검증</span></div>
     <p className="form-help">요청 저장과 PLC 접수는 실행 완료가 아닙니다. 현재 실행에 대한 요청만 제공합니다. 작업지시 화면에서 배포 후 실행 연결을 준비할 수 있습니다.</p>
-    {kinds.length ? <div className="command-actions">{kinds.map(kind => {
+    {kinds.length ? <><div className="command-actions">{kinds.map(kind => {
       const reason = disabledReason(kind)
-      return <div key={kind}><button id={`command-${kind}`} type="button" className={`button ${kind === 'START' ? 'primary' : kind === 'END_RUN' ? 'danger' : 'secondary'}`} disabled={!!reason} aria-describedby={`command-${kind}-reason`} onClick={() => kind === 'END_RUN' ? setConfirmEnd({ execution: String(values['Line.ActiveExecutionId']), version: String(values['Line.ControlVersion']), epoch: String(values['Line.CounterEpoch']) }) : void submit(kind)}>{commandLabels[kind]}</button><p id={`command-${kind}-reason`} className="command-reason">{reason || '요청 시 서버와 PLC가 조건을 다시 확인합니다.'}</p></div>
-    })}</div> : <p className="message caution">현재 역할은 운전 요청 권한이 없습니다. 명령 결과 조회는 가능합니다.</p>}
+      return <div key={kind}><button id={`command-${kind}`} type="button" className={`button ${kind === 'START' ? 'primary' : kind === 'END_RUN' ? 'danger' : 'secondary'}`} disabled={!!reason} aria-describedby={`command-${kind}-reason`} onClick={() => kind === 'END_RUN' ? setConfirmEnd({ execution: String(values['Line.ActiveExecutionId']), version: String(values['Line.ControlVersion']), epoch: String(values['Line.CounterEpoch']) }) : void submit(kind)}>{commandLabels[kind]}</button><p id={`command-${kind}-reason`} className={sharedReason === null ? 'command-reason' : 'command-reason sr-only'}>{reason || '요청 시 서버와 PLC가 조건을 다시 확인합니다.'}</p></div>
+    })}</div>{sharedReason !== null && <p className="command-reason command-reason-shared" aria-hidden="true">{sharedReason || '요청 시 서버와 PLC가 조건을 다시 확인합니다.'}</p>}</> : <p className="message caution">현재 역할은 운전 요청 권한이 없습니다. 명령 결과 조회는 가능합니다.</p>}
     {confirmEnd && <div className="end-confirm" role="group" aria-labelledby="end-confirm-heading">
       <h3 id="end-confirm-heading">현재 작업의 종료를 요청하시겠습니까?</h3><p>실행 {confirmEnd.execution}의 신규 투입을 중지하고 재공 정리 후 종료하도록 요청합니다. 종료가 확정되면 이 실행을 다시 시작할 수 없습니다. MES 실적 정산 완료와는 구분됩니다.</p>
       {endConfirmationReason && <p className="message caution">{endConfirmationReason}</p>}<div><button id="command-END_RUN-confirm" className="button danger" type="button" disabled={!!endConfirmationReason} onClick={() => void submit('END_RUN')}>현재 실행 종료 요청</button><button className="button secondary" type="button" onClick={() => setConfirmEnd(null)}>취소</button></div>

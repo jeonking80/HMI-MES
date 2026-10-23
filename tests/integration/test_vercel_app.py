@@ -408,3 +408,123 @@ async def test_readiness_connect_time_authentication_without_sqlstate(caplog):
     }
     assert response.headers["cache-control"] == "no-store"
     assert private not in response.text + caplog.text
+
+
+async def test_kuls_contract_routes_are_mounted_in_serverless_factory(runtime):
+    params = {
+        "line_id": LINE_ID,
+        "source_id": "simulator-1",
+        "stream_id": "stream-1",
+    }
+    start = "2026-10-23T00:00:00Z"
+    end = "2026-10-23T00:01:00Z"
+    queries = {
+        "/api/v1/trends": params | {"tag": "Sealer.TemperaturePV", "from": start, "to": end},
+        "/api/v1/reports/executions": {"line_id": LINE_ID, "from": start, "to": end},
+        "/api/v1/reports/executions.csv": {"line_id": LINE_ID, "from": start, "to": end},
+        "/api/v1/reports/executions/run-A/timeline": params,
+        "/api/v1/reports/execution-timeline": params | {"execution_id": "run-A"},
+        "/api/v1/reports/daily": {"line_id": LINE_ID, "date": "2026-10-23"},
+        "/api/v1/reports/daily.csv": {"line_id": LINE_ID, "date": "2026-10-23"},
+        "/api/v1/spc/xbar-r": params | {"tag": "Sealer.TemperaturePV", "execution_id": "run-A"},
+        "/api/v1/dashboard": params | {"date": "2026-10-23"},
+        "/api/v1/downtime-reasons/history": {"execution_id": "run-A", "segment_from": start},
+    }
+    application = serverless.create_vercel_app(runtime.config, engine=runtime.engine)
+    # The outer ASGI router owns ingress; inspect the exact composed user app too.
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=application), base_url=ORIGIN
+    ) as client:
+        for path, query in queries.items():
+            response = await client.get(path, params=query)
+            assert response.status_code == 401, path
+            assert response.headers["cache-control"] == "no-store"
+        response = await client.get("/auth/config")
+        assert response.status_code == 200
+        assert response.json() == {"guest_viewer": False, "assistant": False}
+        assert (
+            await client.post("/auth/guest", headers={"Origin": ORIGIN}, json={})
+        ).status_code in {403, 404}
+        response = await client.post(
+            "/api/v1/downtime-reasons", headers={"Origin": ORIGIN}, json={}
+        )
+        assert response.status_code == 403
+        assert response.headers["cache-control"] == "no-store"
+
+
+def _public_environment(monkeypatch, **trend):
+    monkeypatch.setenv("HMI_PUBLIC_ORIGIN", ORIGIN)
+    monkeypatch.setenv("HMI_DATABASE_DSN", DSN)
+    monkeypatch.setenv("HMI_GATEWAY_CREDENTIALS_JSON", "[]")
+    for name in ("HMI_TREND_RAW_HOURS", "HMI_TREND_MINUTE_DAYS"):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in trend.items():
+        monkeypatch.setenv(name, value)
+
+
+def test_trend_retention_defaults_to_the_baseline_when_unset(monkeypatch):
+    _public_environment(monkeypatch)
+    assert serverless.VercelConfig.from_environment().trend_retention is None
+
+
+@pytest.mark.parametrize(
+    ("trend", "raw_days", "minute_days"),
+    [
+        ({"HMI_TREND_RAW_HOURS": "6", "HMI_TREND_MINUTE_DAYS": "14"}, 0.25, 14),
+        ({"HMI_TREND_RAW_HOURS": "168"}, 7, 90),
+        ({"HMI_TREND_MINUTE_DAYS": "1"}, 7, 1),
+    ],
+)
+def test_trend_retention_from_environment(monkeypatch, trend, raw_days, minute_days):
+    _public_environment(monkeypatch, **trend)
+    retention = serverless.VercelConfig.from_environment().trend_retention
+    assert (retention.raw_days, retention.minute_days) == (raw_days, minute_days)
+
+
+@pytest.mark.parametrize(
+    "trend",
+    [
+        {"HMI_TREND_RAW_HOURS": "0"},
+        {"HMI_TREND_RAW_HOURS": "169"},
+        {"HMI_TREND_RAW_HOURS": "6.5"},
+        {"HMI_TREND_RAW_HOURS": " 6"},
+        {"HMI_TREND_RAW_HOURS": ""},
+        {"HMI_TREND_MINUTE_DAYS": "91"},
+        {"HMI_TREND_MINUTE_DAYS": "-1"},
+        {"HMI_TREND_MINUTE_DAYS": "014"},
+    ],
+)
+def test_trend_retention_rejects_out_of_range_values(monkeypatch, trend):
+    _public_environment(monkeypatch, **trend)
+    with pytest.raises(ValueError, match="HMI_TREND_"):
+        serverless.VercelConfig.from_environment()
+
+
+def test_trend_retention_reaches_serverless_ingestion(monkeypatch, runtime):
+    seen = []
+
+    class Recording(IngestionService):
+        def __init__(self, *args, **kwargs):
+            seen.append(kwargs.get("trend_retention"))
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr(serverless, "IngestionService", Recording)
+    retention = serverless.TrendRetention(raw_days=0.25, minute_days=14)
+    config = serverless.VercelConfig(
+        ORIGIN, DSN, runtime.config.credentials, trend_retention=retention
+    )
+    serverless.create_vercel_app(config, engine=runtime.engine)
+    assert seen == [retention]
+
+
+def test_assistant_is_enabled_only_by_its_key(monkeypatch):
+    _public_environment(monkeypatch)
+    monkeypatch.delenv("HMI_ASSISTANT_API_KEY", raising=False)
+    assert serverless.VercelConfig.from_environment().assistant is None
+    monkeypatch.setenv("HMI_ASSISTANT_API_KEY", "nvapi-fixture-only")
+    config = serverless.VercelConfig.from_environment()
+    assert config.assistant.model == "nvidia/nemotron-3-ultra-550b-a55b"
+    assert "nvapi-fixture-only" not in repr(config)
+    monkeypatch.setenv("HMI_ASSISTANT_MODEL", "bad model")
+    with pytest.raises(ValueError):
+        serverless.VercelConfig.from_environment()

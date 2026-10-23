@@ -1,0 +1,1652 @@
+{
+ "scope": {
+  "line_id": "packaging-line-1",
+  "source_id": "demo-packaging-source-v1",
+  "stream_id": "events-main"
+ },
+ "from": "2026-10-23T04:30:00Z",
+ "to": "2026-10-23T05:30:00Z",
+ "resolution": "minute",
+ "policy_version": "utc-second-latest-capture-v1",
+ "series": [
+  {
+   "tag_id": "Sealer.TemperaturePV",
+   "unit": "°C",
+   "points": [
+    {
+     "t": "2026-10-23T04:30:00Z",
+     "value": 149.78,
+     "min": 149.39,
+     "max": 150.27,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:31:00Z",
+     "value": 150.23,
+     "min": 149.82,
+     "max": 150.66,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:32:00Z",
+     "value": 150.2,
+     "min": 149.58,
+     "max": 150.72,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:33:00Z",
+     "value": 150.14,
+     "min": 149.53,
+     "max": 150.53,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:34:00Z",
+     "value": 150.44,
+     "min": 149.99,
+     "max": 150.85,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:35:00Z",
+     "value": 150.13,
+     "min": 149.67,
+     "max": 150.7,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:36:00Z",
+     "value": 150.21,
+     "min": 149.69,
+     "max": 150.75,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:37:00Z",
+     "value": 150.36,
+     "min": 149.85,
+     "max": 150.75,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:38:00Z",
+     "value": 150.25,
+     "min": 149.82,
+     "max": 150.79,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:39:00Z",
+     "value": 150.47,
+     "min": 150.02,
+     "max": 150.99,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:40:00Z",
+     "value": 150.51,
+     "min": 150.06,
+     "max": 151.09,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:41:00Z",
+     "value": 150.66,
+     "min": 150.23,
+     "max": 151.18,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:42:00Z",
+     "value": 150.6,
+     "min": 150.0,
+     "max": 151.15,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:43:00Z",
+     "value": 150.49,
+     "min": 149.87,
+     "max": 150.89,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:44:00Z",
+     "value": 150.56,
+     "min": 149.99,
+     "max": 150.97,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:45:00Z",
+     "value": 150.59,
+     "min": 150.21,
+     "max": 151.13,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:46:00Z",
+     "value": 150.72,
+     "min": 150.2,
+     "max": 151.31,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:47:00Z",
+     "value": 150.48,
+     "min": 149.93,
+     "max": 151.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:48:00Z",
+     "value": 150.59,
+     "min": 150.1,
+     "max": 151.17,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:49:00Z",
+     "value": 150.74,
+     "min": 150.24,
+     "max": 151.28,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:50:00Z",
+     "value": 150.26,
+     "min": 149.71,
+     "max": 150.79,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:51:00Z",
+     "value": 150.68,
+     "min": 150.1,
+     "max": 151.13,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:52:00Z",
+     "value": null,
+     "min": null,
+     "max": null,
+     "quality": "MISSING",
+     "valid_count": 0,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:53:00Z",
+     "value": null,
+     "min": null,
+     "max": null,
+     "quality": "MISSING",
+     "valid_count": 0,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:54:00Z",
+     "value": null,
+     "min": null,
+     "max": null,
+     "quality": "MISSING",
+     "valid_count": 0,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:55:00Z",
+     "value": null,
+     "min": null,
+     "max": null,
+     "quality": "MISSING",
+     "valid_count": 0,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:56:00Z",
+     "value": null,
+     "min": null,
+     "max": null,
+     "quality": "MISSING",
+     "valid_count": 0,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:57:00Z",
+     "value": 150.03,
+     "min": 149.49,
+     "max": 150.41,
+     "quality": "PARTIAL",
+     "valid_count": 41,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:58:00Z",
+     "value": 150.0,
+     "min": 149.58,
+     "max": 150.4,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:59:00Z",
+     "value": 149.73,
+     "min": 149.16,
+     "max": 150.14,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:00:00Z",
+     "value": 149.76,
+     "min": 149.29,
+     "max": 150.35,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:01:00Z",
+     "value": 149.61,
+     "min": 149.12,
+     "max": 150.12,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:02:00Z",
+     "value": 149.95,
+     "min": 149.37,
+     "max": 150.54,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:03:00Z",
+     "value": 149.59,
+     "min": 149.11,
+     "max": 150.05,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:04:00Z",
+     "value": 149.84,
+     "min": 149.22,
+     "max": 150.25,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:05:00Z",
+     "value": 149.43,
+     "min": 149.0,
+     "max": 149.86,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:06:00Z",
+     "value": 149.54,
+     "min": 149.02,
+     "max": 149.98,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:07:00Z",
+     "value": 149.26,
+     "min": 148.78,
+     "max": 149.72,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:08:00Z",
+     "value": 149.5,
+     "min": 148.89,
+     "max": 150.05,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:09:00Z",
+     "value": 149.45,
+     "min": 148.92,
+     "max": 149.99,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:10:00Z",
+     "value": 149.2,
+     "min": 148.6,
+     "max": 149.77,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:11:00Z",
+     "value": 149.62,
+     "min": 149.05,
+     "max": 150.1,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:12:00Z",
+     "value": 149.41,
+     "min": 149.01,
+     "max": 149.94,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:13:00Z",
+     "value": 149.27,
+     "min": 148.88,
+     "max": 149.7,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:14:00Z",
+     "value": 149.36,
+     "min": 148.9,
+     "max": 149.75,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:15:00Z",
+     "value": 149.32,
+     "min": 148.91,
+     "max": 149.73,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:16:00Z",
+     "value": 149.56,
+     "min": 149.18,
+     "max": 150.15,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:17:00Z",
+     "value": 149.74,
+     "min": 149.33,
+     "max": 150.18,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:18:00Z",
+     "value": 149.68,
+     "min": 149.21,
+     "max": 150.08,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:19:00Z",
+     "value": 150.0,
+     "min": 149.37,
+     "max": 150.49,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:20:00Z",
+     "value": 149.89,
+     "min": 149.5,
+     "max": 150.29,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:21:00Z",
+     "value": 149.9,
+     "min": 149.46,
+     "max": 150.49,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:22:00Z",
+     "value": 149.9,
+     "min": 149.52,
+     "max": 150.51,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:23:00Z",
+     "value": 150.17,
+     "min": 149.76,
+     "max": 150.68,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:24:00Z",
+     "value": 150.02,
+     "min": 149.51,
+     "max": 150.64,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:25:00Z",
+     "value": 150.53,
+     "min": 149.98,
+     "max": 150.97,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:26:00Z",
+     "value": 150.38,
+     "min": 149.96,
+     "max": 150.94,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:27:00Z",
+     "value": 150.56,
+     "min": 149.99,
+     "max": 151.01,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:28:00Z",
+     "value": 150.5,
+     "min": 149.92,
+     "max": 151.12,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:29:00Z",
+     "value": 150.91,
+     "min": 150.33,
+     "max": 151.49,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    }
+   ]
+  },
+  {
+   "tag_id": "Sealer.TemperatureSP",
+   "unit": "°C",
+   "points": [
+    {
+     "t": "2026-10-23T04:30:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:31:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:32:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:33:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:34:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:35:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:36:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:37:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:38:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:39:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:40:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:41:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:42:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:43:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:44:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:45:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:46:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:47:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:48:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:49:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:50:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:51:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:52:00Z",
+     "value": null,
+     "min": null,
+     "max": null,
+     "quality": "MISSING",
+     "valid_count": 0,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:53:00Z",
+     "value": null,
+     "min": null,
+     "max": null,
+     "quality": "MISSING",
+     "valid_count": 0,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:54:00Z",
+     "value": null,
+     "min": null,
+     "max": null,
+     "quality": "MISSING",
+     "valid_count": 0,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:55:00Z",
+     "value": null,
+     "min": null,
+     "max": null,
+     "quality": "MISSING",
+     "valid_count": 0,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:56:00Z",
+     "value": null,
+     "min": null,
+     "max": null,
+     "quality": "MISSING",
+     "valid_count": 0,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:57:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "PARTIAL",
+     "valid_count": 41,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:58:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:59:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:00:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:01:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:02:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:03:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:04:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:05:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:06:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:07:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:08:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:09:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:10:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:11:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:12:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:13:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:14:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:15:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:16:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:17:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:18:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:19:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:20:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:21:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:22:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:23:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:24:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:25:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:26:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:27:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:28:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:29:00Z",
+     "value": 150.0,
+     "min": 150.0,
+     "max": 150.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    }
+   ]
+  },
+  {
+   "tag_id": "Sealer.AirPressure",
+   "unit": "bar",
+   "points": [
+    {
+     "t": "2026-10-23T04:30:00Z",
+     "value": 5.97,
+     "min": 5.88,
+     "max": 6.05,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:31:00Z",
+     "value": 6.02,
+     "min": 5.96,
+     "max": 6.09,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:32:00Z",
+     "value": 6.03,
+     "min": 5.96,
+     "max": 6.1,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:33:00Z",
+     "value": 6.06,
+     "min": 5.98,
+     "max": 6.15,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:34:00Z",
+     "value": 6.0,
+     "min": 5.91,
+     "max": 6.06,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:35:00Z",
+     "value": 6.07,
+     "min": 5.99,
+     "max": 6.14,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:36:00Z",
+     "value": 6.05,
+     "min": 5.96,
+     "max": 6.12,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:37:00Z",
+     "value": 6.03,
+     "min": 5.95,
+     "max": 6.1,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:38:00Z",
+     "value": 6.03,
+     "min": 5.96,
+     "max": 6.09,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:39:00Z",
+     "value": 6.04,
+     "min": 5.97,
+     "max": 6.12,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:40:00Z",
+     "value": 6.09,
+     "min": 6.02,
+     "max": 6.17,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:41:00Z",
+     "value": 6.05,
+     "min": 5.98,
+     "max": 6.11,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:42:00Z",
+     "value": 6.06,
+     "min": 6.0,
+     "max": 6.15,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:43:00Z",
+     "value": 6.08,
+     "min": 6.02,
+     "max": 6.16,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:44:00Z",
+     "value": 6.11,
+     "min": 6.05,
+     "max": 6.21,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:45:00Z",
+     "value": 6.07,
+     "min": 5.99,
+     "max": 6.17,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:46:00Z",
+     "value": 6.07,
+     "min": 5.99,
+     "max": 6.16,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:47:00Z",
+     "value": 6.11,
+     "min": 6.04,
+     "max": 6.21,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:48:00Z",
+     "value": 6.09,
+     "min": 6.0,
+     "max": 6.17,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:49:00Z",
+     "value": 6.06,
+     "min": 5.99,
+     "max": 6.12,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:50:00Z",
+     "value": 6.03,
+     "min": 5.94,
+     "max": 6.1,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:51:00Z",
+     "value": 6.03,
+     "min": 5.97,
+     "max": 6.12,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:52:00Z",
+     "value": null,
+     "min": null,
+     "max": null,
+     "quality": "MISSING",
+     "valid_count": 0,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:53:00Z",
+     "value": null,
+     "min": null,
+     "max": null,
+     "quality": "MISSING",
+     "valid_count": 0,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:54:00Z",
+     "value": null,
+     "min": null,
+     "max": null,
+     "quality": "MISSING",
+     "valid_count": 0,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:55:00Z",
+     "value": null,
+     "min": null,
+     "max": null,
+     "quality": "MISSING",
+     "valid_count": 0,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:56:00Z",
+     "value": null,
+     "min": null,
+     "max": null,
+     "quality": "MISSING",
+     "valid_count": 0,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:57:00Z",
+     "value": 6.04,
+     "min": 5.95,
+     "max": 6.11,
+     "quality": "PARTIAL",
+     "valid_count": 41,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:58:00Z",
+     "value": 5.98,
+     "min": 5.91,
+     "max": 6.06,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T04:59:00Z",
+     "value": 5.97,
+     "min": 5.89,
+     "max": 6.04,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:00:00Z",
+     "value": 6.02,
+     "min": 5.92,
+     "max": 6.1,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:01:00Z",
+     "value": 5.96,
+     "min": 5.86,
+     "max": 6.03,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:02:00Z",
+     "value": 5.96,
+     "min": 5.9,
+     "max": 6.03,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:03:00Z",
+     "value": 5.96,
+     "min": 5.88,
+     "max": 6.03,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:04:00Z",
+     "value": 5.95,
+     "min": 5.89,
+     "max": 6.02,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:05:00Z",
+     "value": 5.91,
+     "min": 5.84,
+     "max": 5.97,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:06:00Z",
+     "value": 5.9,
+     "min": 5.83,
+     "max": 5.97,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:07:00Z",
+     "value": 5.94,
+     "min": 5.86,
+     "max": 6.03,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:08:00Z",
+     "value": 5.94,
+     "min": 5.85,
+     "max": 6.04,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:09:00Z",
+     "value": 5.92,
+     "min": 5.84,
+     "max": 6.02,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:10:00Z",
+     "value": 5.89,
+     "min": 5.81,
+     "max": 5.98,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:11:00Z",
+     "value": 5.88,
+     "min": 5.79,
+     "max": 5.98,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:12:00Z",
+     "value": 5.93,
+     "min": 5.84,
+     "max": 6.02,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:13:00Z",
+     "value": 5.89,
+     "min": 5.81,
+     "max": 5.97,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:14:00Z",
+     "value": 5.95,
+     "min": 5.86,
+     "max": 6.04,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:15:00Z",
+     "value": 5.93,
+     "min": 5.83,
+     "max": 6.02,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:16:00Z",
+     "value": 5.94,
+     "min": 5.87,
+     "max": 6.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:17:00Z",
+     "value": 5.9,
+     "min": 5.83,
+     "max": 5.97,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:18:00Z",
+     "value": 5.96,
+     "min": 5.88,
+     "max": 6.05,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:19:00Z",
+     "value": 5.95,
+     "min": 5.86,
+     "max": 6.03,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:20:00Z",
+     "value": 5.91,
+     "min": 5.82,
+     "max": 6.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:21:00Z",
+     "value": 5.95,
+     "min": 5.87,
+     "max": 6.04,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:22:00Z",
+     "value": 5.93,
+     "min": 5.84,
+     "max": 6.0,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:23:00Z",
+     "value": 5.94,
+     "min": 5.86,
+     "max": 6.02,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:24:00Z",
+     "value": 5.95,
+     "min": 5.86,
+     "max": 6.05,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:25:00Z",
+     "value": 5.99,
+     "min": 5.91,
+     "max": 6.06,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:26:00Z",
+     "value": 6.01,
+     "min": 5.92,
+     "max": 6.09,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:27:00Z",
+     "value": 6.02,
+     "min": 5.95,
+     "max": 6.08,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:28:00Z",
+     "value": 5.99,
+     "min": 5.9,
+     "max": 6.07,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    },
+    {
+     "t": "2026-10-23T05:29:00Z",
+     "value": 6.03,
+     "min": 5.97,
+     "max": 6.09,
+     "quality": "GOOD",
+     "valid_count": 60,
+     "expected_count": 60
+    }
+   ]
+  }
+ ],
+ "generated_at": "2026-10-23T05:30:00Z"
+}

@@ -339,3 +339,59 @@ M1의 주요 독립 운전·권한·실제 생산 경로는 확인했지만, 원
 - `6f06cb1` 공개 배포 후 원래 query 보존을 확인했다. 본문·query 없는 source 등록 POST와 인증된 서비스 health는 각각200, 익명 정확 scope 화면 요청은401, 여분 query 요청은422다. 공개 루트·실제 JS/CSS도200이다. 전용 클라우드 supervisor를 재개하고 실제 원격/자동·복구 확인을 수행했다. simulator→암호화 OPC UA→게이트웨이→Vercel→Neon 경로에서 capture711의48개 GOOD 관측과 capture710의COMMITTED ACK를 확인했다. 오래된 오프라인 배치453개는 보관기한을 지나 태그 관측이 유실됐다. 해당 배치에 사건 범위는 없고 ACK의 미해결 사건 gap은 비어 있다. 큐를 삭제하거나 유실을0으로 재설정하지 않았다.
 - 공개 viewer 브라우저 조회 검증이 **정상 종료**했다(2026-10-23 01:10 UTC). 정상 로그인·최초 암호 변경 후 정확한 source/stream/line을 선택했고, 최소3개 실제 batch에 걸친4회 연속48개 fresh/GOOD·heartbeatGOOD·CAPTURE_FRESH·화면 usable48개를 확인했다. WS0·페이지 오류0·비인증 업무 변경0·브라우저 저장소0, viewer 운전 변경 불가도 확인했다. `demo`의 사용자가 변경한 암호는 접근·재설정하지 않았다. 실제 설비는 정지·현재 실행 없음·양품0이며 공개 생산 명령은 제출하지 않았다.
 - 위 공개 브라우저 검증은 Chromium JavaScript/UI를 실행하되, 이 환경의 Chromium 직접 TLS 신뢰 실패로 Playwright route에서 정상 CA 검증·상속 프록시를 사용하는 httpx로 실제 공개 응답을 전달했다. 모의 응답·TLS 검증 해제·프록시 우회는 사용하지 않았다. 직접 Chromium TLS 검증 통과로 표시하지 않는다. 보호 증거 `.local/commissioning/public-screen-evidence.json`, 암호가 없는 화면 `.local/commissioning/public-screen.png`, 로그 `/tmp/hmi-public-screen-bridge.log`에 기록했다. 현재 클라우드 프로세스의 생존을 사용량 소진 후 또는 환경 중단 후의 상시 실행 보장으로 확대하지 않는다. 전체 기획 수락과 별개다.
+
+## KULS 지원용 보강 (2026-10-23 착수)
+
+목적과 범위는 [작업지시서](work-orders/CODEX_KULS_보강_v1.md)를 따른다. 백엔드·데이터·실행 환경(CX-01~CX-07)은 Codex, 화면(UX-01~UX-08)은 Claude가 맡는다. CX-08 운영 챗봇은 LLM 비용 승인 전까지 보류한다. 아래 두 절은 각 담당자만 추가한다.
+
+### Codex 백엔드 보강
+
+- 미착수.
+- 2026-10-23 착수: 기준 브랜치 `claude/bold-feynman-rpbxfw`의 `31f07fd`와 작업지시서 v1을 확인하고 `codex/kuls-backend`에서 시작했다. CX-01·CX-02·CX-06을 medium으로 병렬 구현하며 선행 계약에 맞춰 CX-03·CX-04·CX-07도 파일 소유 범위를 나눴다. 주 에이전트는 CX-05와 공통 API 등록·통합 검증을 담당한다. DB·인증 변경은 구현 후 high로 독립 검토한다. UI·README·Claude 소유 브라우저 스크립트는 수정하지 않고, 공개 DB 이관·게스트 활성화·main 통합은 수행하지 않는다. CX-08은 유료 LLM 승인 없이 계속 보류한다. SPC·대시보드·게스트는 기존 기획에 추가된 포트폴리오 범위이며 원래 수락 조건을 대신하지 않는다. 현재 로컬 Docker 응답을 확인했으나 새 기능 검증 결과는 아직 없다.
+
+
+- CX-01~CX-07 백엔드 구현과 사용자 앱/Vercel 경로 등록을 `codex/kuls-backend`에 작업별 커밋으로 통합했다. 트렌드·실행/일일 보고·CSV·정지 사유·통계 SPC·대시보드·기본 비활성 게스트·로컬 Compose를 제공한다. [통합 보고](work-orders/reports/INTEGRATION.md)와 작업별 결과에 커밋·계약 추가 필드·검증·제한을 기록한다. 화면·README·원본 작업지시서·Claude 소유 브라우저 스크립트는 수정하지 않았다.
+- CX-01/03 독립 high DB 검토의 시간 역행·digital-only/monotonic 연속성·기존 이력 최초 이관·캐시 왕복 근거 유실과 CX-02의 실행 소유 변경을 보완했다. 최종 독립 PG13개 통과·비차단 cache downgrade 관찰1개 xfail. CX-06 독립 high 인증 검토79개 통과. 이후 명시적 Neon17 권한 파일 `70826f7`도 high 검토하고 임시 카탈로그 우회 수정·최소 권한·기존 ACL 보존을 실제 PG에서 검증했다. 운영 DB에는 적용하지 않았다.
+- `./scripts/check-local.sh`는 Python **2,093개 통과·1개 실패(1,169.87초)**로 exit1이었다. 실패는 coordinator rollback 시험의 head14 고정 기대였고 실제 head17을 보존했다. 시작 revision 보존으로 시험을 수정한 뒤 해당1개+새 runtime권한3개+독립high권한9개 집중 **13개 통과(18.27초)**. 전체 명령을 재실행해 통과한 것으로 표시하지 않는다. 웹은 별도로 **75개·타입·린트·기본/polling 빌드 통과**, 최종 Python 정적/형식 **292개 파일 통과**.
+- 변경된 수집 경로의 실제 CLI/Chromium 통합은 `check-operable-system.py`로 정상 종료했다. 원본 공정→암호화 OPC UA→gateway→PG/API→브라우저에서 등록·배포·LOAD·예열·START·생산·PAUSE·END_RUN·SETTLED를 확인했고 원본 최종 요약과 **양품4/불량2/폐기0·투입6/재공0·사건순번13**이 일치했다. 보호된 로컬 산출물 `.local/kuls-operable-system.json`, `.local/kuls-operable-system.png`. 공개 배포 운전 시험과 구분한다.
+- 커밋 `70826f7`만 별도 소스로 추출하여 기존 .local/가상환경/node_modules/dist 없이 실제 Compose build/up·게스트·48 fresh/GOOD·빌드 웹·반복 init을 통과했다. 임의 검사 프로젝트만 down-v 정리했고 기존 preview·공개 설비는 변경하지 않았다. UI의 게스트 버튼 UX-07 결합은 남아 있다.
+- SPC 원시 보관 뒤 최초 기준선을 남은20개로 이동시키는 문제를 `d9a18d9`에서 보완했다. 원본 capture prefix가 없으면 기준선·관리한계·공정능력을 null로 유지하며 실제40개 중 첫15개 삭제 회귀를 포함해 **19개 통과(12.06초)**. 이 조회 보강 뒤 전체·브라우저·Compose를 반복 실행했다고 주장하지 않는다. 공개 Neon head14·게스트 비활성·기존 고정 source 정책은 유지한다. 공개 이관·권한 적용·용량 프로필·서로 다른 호스트의 시간 증거·새 UI 결합과 전체 기획 수락은 후속이며 CX-08은 계속 보류한다.
+
+### Claude UI/UX 보강
+
+- 착수 전 확인: `scripts/check-operable-system.py` 로컬 실행 PASS(브라우저→API→PostgreSQL→게이트웨이→암호화 OPC UA→최종 SETTLED 대조). 현재 화면은 세로 약 7,000px의 단일 페이지이며 트렌드·보고서·대시보드 화면이 없다.
+- UX-01 앱 골격(해당 범위 검증 통과): 좌측 업무 메뉴(모니터링·생산 관리·품질), 페이지 머리말, 디자인 토큰(`apps/web/src/shell.css`), 1023px 이하 상단 가로 메뉴. 대시보드·트렌드·보고서·SPC는 서버 API(CX-01~05) 연동 전이라 "예정"으로 비활성 표시한다. 기존 화면 ID(`#workspace-operations`, `#workspace-drafts`, `#current-login`, `#logout` 등)를 유지했다. 검증: 웹 typecheck·lint·화면 시험 75개 통과, `scripts/check-app-a-browser.py` PASS(5분 7초, 변경 전 기준선도 PASS), `--focus-line-alarms` PASS, `scripts/check-operable-system.py` PASS, 360px 가로 넘침 없음.
+- UX-03 라인 모니터링 정리(해당 범위 검증 통과): 연결 상태 표시, 상태 카드 색상(정상·주의·이상·불명 구분, 불명은 정상과 다른 색), 실행 ID 축약·복사, 구역 바로가기, 넓은 화면의 공정도·태그 상세 | 운전 제어 2단 배치, 태그 행의 품질 배지, 동일한 명령 비활성 사유의 한 줄 표시(보조기술용 버튼별 설명은 유지). 검증: 웹 typecheck·lint·화면 시험 75개 통과, `check-app-a-browser.py` PASS(5분 8초), `--focus-line-alarms` PASS, `check-operable-system.py` PASS.
+- UX-02·04·05·06 분석 화면(UI 구현, 실제 API 결합 미검증): 대시보드(KPI·진행 작업·가동/정지/불명 시간·부분 OEE·시간대별 생산), 트렌드(태그 최대 4개, 단위별 차트 분리, 누락 구간 빗금, 1분 집계 최소~최대 음영, 표 보기, 키보드 이동), 보고서(작업별 실적·CSV 링크·상태 타임라인·정지 사유 입력·일일 보고), SPC(X̄-R 관리도·관리한계·WE 규칙 위반 표시·Cp/Cpk·추세 경고). 작업지시서 CX-01~05 계약 기준이며, `VITE_ANALYTICS_PAGES=enabled` 빌드에서만 메뉴가 열린다. 검증: 계약 고정 데이터 응답 검증 시험 9개 포함 웹 화면 시험 84개 통과, typecheck·lint 통과로 기록했으나 커밋 `2d7b74a`의 typecheck는 실제로 실패했다(아래 정정 참조), 고정 데이터 미리보기 1440px·390px 가로 넘침 없음, 일반 빌드로 `check-app-a-browser.py`(5분 9초)·`--focus-line-alarms`·`check-operable-system.py` PASS. 서버 API(Codex CX-01~05) 통합 후 실제 결합 검증이 남아 있다.
+- UX-08 README 재구성(해당 범위 완료): 첫 화면에 실제 운전 화면(로컬 전체 경로 검증 중 캡처), 핵심 설계 포인트, 구현 현황(단계별 남은 항목 명시), 로컬 검증 방법·최근 결과, 개발 방식, 문서 링크를 배치했다. 분석 화면 4종은 "고정 데이터 미리보기"로 표시했다. 개발 순서 체크박스를 실제 상태와 맞추고 남은 항목을 괄호로 적었으며, 기술 표를 실제 사용 기술로 고쳤다(compose는 준비 중으로 표기). 캡처 도구: `scripts/check-operable-system.py --capture-dir`, `scripts/capture_portfolio_media.py`.
+- 검사 스크립트 보강: `check-operable-system.py`가 PAUSE 결과가 화면에 반영되기 전에 END_RUN 확인을 여는 경합을 발견했다(캡처 지연을 넣은 실행에서 1회 재현, 정산 대기 TimeoutError). 화면의 라인 상태가 "일시 정지"가 된 뒤 END_RUN을 요청하도록 고쳤고, 수정 후 캡처 포함 3회·미포함 2회 모두 PASS. 성공 알림은 6초 뒤 사라지도록 바꿨다(오류 알림은 유지). 변경 후 `check-app-a-browser.py`·`--focus-line-alarms` PASS.
+- 정정(2026-10-23): 커밋 `2d7b74a`에 미사용 타입 import(`SpcPage.tsx`의 `Spc`)가 남아 `npm run typecheck`와 `npm run build`가 실패했다. typecheck 출력을 숨긴 `&&` 연결 명령으로 확인하면서 실패를 놓쳤고, 전체 `./scripts/check-local.sh`(Python 2,015개 통과·Ruff 통과, 20분 41초) 실행에서 웹 typecheck 단계 실패로 발견했다. import를 지우고 typecheck·lint·build·화면 시험 84개를 출력을 확인하며 다시 통과시켰다. 런타임 코드는 바뀌지 않아 기존 브라우저 검사 결과는 유효하다. 이후 검사 결과는 종료 코드를 직접 확인한다.
+- Codex `codex/kuls-backend`(`26b424f`) 병합 검증(2026-10-23): 소유 범위 위반 없음, 충돌 없이 병합. 병합본 `./scripts/check-local.sh` **exit 0**(Python 2,098개 통과, 22분 8초, 웹 단계 포함). 분석 화면을 실제 API에 결합하는 검사를 `check-operable-system.py --analytics-dir`로 추가했다. 첫 실행에서 실행 보고 응답의 소수 초(`812.37` 등)를 UI 검증기가 정수만 허용해 거절하는 결합 결함을 발견해 UI를 고쳤다(계약 예시는 정수였으나 정수 요구는 없었음). 이후 정산된 실행으로 대시보드·트렌드·보고서·타임라인·SPC가 실제 API를 호출해 오류 없이 표시되고, 대시보드·보고서 수량이 설비 최종 요약과 일치하며, CSV가 200·text/csv·BOM·실행 ID를 포함함을 확인했다. 검사가 응답 도착 전에 통과하던 약점(SPC 미호출 통과)도 화면별 요소·응답 대기로 고쳤다.
+- 실제 결합에서 확인한 제한: 실행 환경에 시간 정책이 구성되지 않아 트렌드 1시간 3,600점 중 값 0개(TIME_UNKNOWN 42, MISSING 3,558), 실행 보고 가동 0초·불명 100%였다. UI는 이를 "데이터 없음"과 구분해 "시간 불명"으로 표시하고 원인을 안내하도록 고쳤다. 백엔드 후속은 작업지시서 v1.1 CX-09(같은 호스트 시간 정책)·CX-10(기능 제공 여부 알림)·CX-11(서로 다른 호스트, 사용자 결정 필요)로 기록했다.
+- UX-07 게스트 진입(해당 범위 검증 통과): `/auth/config`가 허용할 때만 로그인 화면에 "로그인 없이 둘러보기" 버튼, 게스트 안내 띠, 비밀번호 변경 버튼 숨김. `check-operable-system.py --guest-dir`로 실제 `bootstrap-guest`·`--enable-guest-viewer` 서버에서 버튼 진입, viewer 역할, 운전 버튼 없음, 실제 설비 상태 표시, 쓰기(비밀번호 변경) 403을 확인했다.
+- 최종 회귀(최종 코드): 웹 typecheck·lint·화면 시험 85개, `check-app-a-browser.py`·`--focus-line-alarms`·`check-operable-system.py`(일반)·`check-operable-system.py --analytics-dir --guest-dir`(CSV 포함) 모두 PASS.
+- Compose(CX-07)는 이 환경에서 재현하지 못했다(차단): 이미지 빌드가 `ghcr.io/astral-sh/uv` 레이어를 내려받는 `pkg-containers.githubusercontent.com` 접속을 환경 네트워크 정책이 거절했다. Codex 보고의 Compose 검증 결과를 따르며, 이 환경에서 직접 확인한 것으로 표시하지 않는다.
+- 2026-10-23 사용자 결정 반영: CX-11(서로 다른 호스트 시간 근거) 승인으로 사양을 확정했고, 공개 이관 선행 조건인 CX-12(서버리스 트렌드 보관 환경변수)를 추가했다(`apps/api/serverless.py`에 보관 설정 경로가 없어 기본 7일 원시 보관이 Neon Free 용량을 넘을 수 있음). 공개 DB 이관·게스트 활성화는 이 환경에 Neon·Vercel 자격 증명이 없어 IDE 에이전트 작업지시서 [OPS-01](work-orders/OPS-01_공개배포_이관_활성화.md)로 넘겼다. `main` 직접 푸시는 운영 배포에 해당해 권한 정책으로 거절되어 PR로 대체했다.
+- PR #1 Codex 자동 리뷰 10건 처리(2026-10-23):
+  - 수정 8건:
+    - (P1) 원시값 보관 종료 후 드러난 시계 역행이 보존된 분 집계를 GOOD으로 남기던 문제 → 불변 `ingest_batches`로 영향 분을 찾아 TIME_UNKNOWN으로 무효화(수정 전 실패 재현 시험 포함)
+    - (P1) END_RUN 뒤 유휴 표본이 SPC에 귀속되던 문제 → 확정 종료 시각까지만 표본 사용
+    - 보고 항목에 `source_id`·`stream_id` 추가(필드 추가)와 UI의 실행별 범위 사용
+    - 식별자 검증을 공용 `Identifier` 계약과 일치(유니코드·문장부호 허용)
+    - 품목 미연결 실행의 `item_id: null` 허용
+    - 트렌드 응답 상한 4MiB → 16MiB(최대 합법 응답 약 7MiB)
+    - 누락 구간 계산 O(n²) → 색인 기반
+    - 범위 키 충돌 제거(JSON 직렬화)
+    - SPC `baseline_limitation` 표시
+  - 수정하지 않은 2건:
+    - CSP 인라인 style 차단 주장: React style 속성은 CSSOM으로 적용되어 `style-src 'self'`에서도 동작한다. 실제 서버 CSP 헤더 아래 색상 적용 확인을 `check-operable-system.py --analytics-dir`에 추가해 PASS.
+    - 시간대별 생산량이 2^53을 넘는 정밀도 문제: 현실적 경로가 없다(시간당 9천조 개).
+- PR #1 Codex 2차 리뷰 7건 처리(2026-10-23, 7건 모두 수정):
+  - (P1) 실행 보고 목록이 항목마다 수집원 전체 시계 이력을 다시 스캔하던 문제 → 수집원 단위로 한 번만 계산해 공유
+  - (P1) 7일 트렌드 요청이 분 경계에 맞지 않아 서버 버킷 한도(10080)를 넘던 문제 → 1시간 초과 조회는 끝 시각을 분 경계로 정렬
+  - 표본 없는 배치가 통신 장애를 보고해도 근거에서 빠지던 문제 → `communication` 블록이 있고 장애를 알리면 COMMUNICATION_LOST로 기록. 블록이 없는 1.0 이벤트 전용 배치는 판단하지 않는다(수정 전 실패 재현 확인).
+  - `/`·`..`가 든 실행 ID를 경로 세그먼트로 받을 수 없는 문제 → `GET /api/v1/reports/execution-timeline?execution_id=…` 추가, 화면은 이 경로를 쓴다(기존 경로 유지)
+  - 대시보드가 STALE·NO_DATA에서도 진행 작업을 보이던 경로 → LIVE일 때만 표시
+  - 7일 원시 범위 이전에 끝난 실행의 SPC 요청이 500이던 문제 → `INSUFFICIENT_DATA`와 `baseline_limitation: EXECUTION_OUTSIDE_RAW_RETENTION` 반환, 화면 안내 추가
+  - 보고 기간을 바꾸면 이전 선택 실행 상세가 남던 문제 → 선택 해제
+  - 검증: 관련 통합 시험(`test_reports`·`test_spc_http`·`test_dashboard`·`test_vercel_app`·`test_trend_history`) 69개 통과, Ruff 통과, 웹 typecheck·lint·화면 시험 89개 통과. 전체 `./scripts/check-local.sh`와 브라우저 결합 검사(`check-operable-system.py --analytics-dir`)는 이번 수정 후 **아직 실행하지 않았다.**

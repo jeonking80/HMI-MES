@@ -1,0 +1,126 @@
+{
+ "items": [
+  {
+   "execution_id": "00000001-6d0e-4c1b-9a51-2f7d1c8e4b20",
+   "work_order_id": "WO-20261023-02",
+   "item_id": "PKG-500G",
+   "recipe_version": "recipe-500g-v3",
+   "target_quantity": 1200,
+   "registered_at": "2026-10-21T23:50:00Z",
+   "started_at": "2026-10-22T00:00:00Z",
+   "ended_at": null,
+   "totals": {
+    "good": "742",
+    "reject": "18",
+    "scrap": "1"
+   },
+   "yield_ratio": 0.9763,
+   "settlement_status": "PENDING",
+   "provisional": true,
+   "provisional_reasons": [
+    "NOT_SETTLED",
+    "COMMUNICATION_LOST"
+   ],
+   "durations_seconds": {
+    "running": 17436,
+    "stopped": 1584,
+    "unknown": 780,
+    "total": 19800
+   },
+   "stopped_by_state": {
+    "PAUSED": 792,
+    "FAULT": 792
+   }
+  },
+  {
+   "execution_id": "00000002-6d0e-4c1b-9a51-2f7d1c8e4b20",
+   "work_order_id": "WO-20261023-01",
+   "item_id": "PKG-250G",
+   "recipe_version": "recipe-250g-v2",
+   "target_quantity": 800,
+   "registered_at": "2026-10-20T15:50:00Z",
+   "started_at": "2026-10-20T16:00:00Z",
+   "ended_at": "2026-10-20T20:20:00Z",
+   "totals": {
+    "good": "800",
+    "reject": "11",
+    "scrap": "0"
+   },
+   "yield_ratio": 0.9864,
+   "settlement_status": "SETTLED",
+   "provisional": false,
+   "provisional_reasons": [],
+   "durations_seconds": {
+    "running": 14352,
+    "stopped": 1248,
+    "unknown": 0,
+    "total": 15600
+   },
+   "stopped_by_state": {
+    "PAUSED": 624,
+    "FAULT": 624
+   }
+  },
+  {
+   "execution_id": "00000003-6d0e-4c1b-9a51-2f7d1c8e4b20",
+   "work_order_id": "WO-20261022-03",
+   "item_id": "PKG-1KG",
+   "recipe_version": "recipe-1kg-v1",
+   "target_quantity": 400,
+   "registered_at": "2026-10-23T00:50:00Z",
+   "started_at": "2026-10-23T01:00:00Z",
+   "ended_at": "2026-10-23T04:10:00Z",
+   "totals": {
+    "good": "400",
+    "reject": "6",
+    "scrap": "2"
+   },
+   "yield_ratio": 0.9852,
+   "settlement_status": "SETTLED",
+   "provisional": false,
+   "provisional_reasons": [],
+   "durations_seconds": {
+    "running": 10488,
+    "stopped": 912,
+    "unknown": 0,
+    "total": 11400
+   },
+   "stopped_by_state": {
+    "PAUSED": 456,
+    "FAULT": 456
+   }
+  },
+  {
+   "execution_id": "00000004-6d0e-4c1b-9a51-2f7d1c8e4b20",
+   "work_order_id": "WO-20261021-02",
+   "item_id": "PKG-500G",
+   "recipe_version": "recipe-500g-v3",
+   "target_quantity": 1000,
+   "registered_at": "2026-10-21T17:50:00Z",
+   "started_at": "2026-10-21T18:00:00Z",
+   "ended_at": null,
+   "totals": {
+    "good": "997",
+    "reject": "31",
+    "scrap": "0"
+   },
+   "yield_ratio": 0.9698,
+   "settlement_status": "MISMATCH",
+   "provisional": true,
+   "provisional_reasons": [
+    "NOT_SETTLED"
+   ],
+   "durations_seconds": {
+    "running": 16560,
+    "stopped": 1440,
+    "unknown": 0,
+    "total": 18000
+   },
+   "stopped_by_state": {
+    "PAUSED": 720,
+    "FAULT": 720
+   }
+  }
+ ],
+ "next_cursor": null
+}
