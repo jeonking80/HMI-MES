@@ -15,6 +15,11 @@ import { WorkOrderMutationGuard } from './workOrderMutationGuard'
 import Sidebar from './Sidebar'
 import { pageDefinition } from './navigation'
 import type { WorkspacePage } from './navigation'
+import DashboardPage from './analytics/DashboardPage'
+import TrendPage from './analytics/TrendPage'
+import ReportsPage from './analytics/ReportsPage'
+import SpcPage from './analytics/SpcPage'
+import type { Source } from './analytics/hooks'
 
 export default function App() {
   // A reload intentionally drops the CSRF token and requires login.
@@ -26,6 +31,7 @@ export default function App() {
   const [changingPassword, setChangingPassword] = useState(false)
   const [workspaceTab, setWorkspaceTab] = useState<WorkspacePage>('operations')
   const [mesOpened, setMesOpened] = useState(false)
+  const [analyticsScope, setAnalyticsScope] = useState<Source | null>(null)
   const [busy, setBusy] = useState(false)
   const inFlight = useRef(false)
   const [error, setError] = useState('')
@@ -151,8 +157,15 @@ export default function App() {
           {notice && <div className="message success" role="status">{notice}</div>}
           <div hidden={workspaceTab !== 'operations'}><SnapshotPanel session={session} onSessionInvalid={invalidateSession} workflow={workflow} selectedOrder={selectedOrder} tracked={tracked} setTracked={setTracked} alarmLedger={alarmLedger} setAlarmLedger={setAlarmLedger} /></div>
           {mesOpened && <div hidden={workspaceTab !== 'drafts'}><MesDraftPanel session={session} onSessionInvalid={invalidateSession} workflow={workflow} cancellation={cancellation} onSelectOrder={order => { setSelectedOrder(order); setWorkspaceTab('operations') }} /></div>}
-          <WorkflowTracker workflow={workflow} login={session.login} onSessionInvalid={invalidateSession} />
-          <CancellationPanel cancellation={cancellation} login={session.login} />
+          {workspaceTab === 'dashboard' && <DashboardPage scope={analyticsScope} onScope={setAnalyticsScope} onSessionInvalid={invalidateSession} />}
+          {workspaceTab === 'trends' && <TrendPage scope={analyticsScope} onScope={setAnalyticsScope} onSessionInvalid={invalidateSession} />}
+          {workspaceTab === 'reports' && <ReportsPage session={session} scope={analyticsScope} onScope={setAnalyticsScope} onSessionInvalid={invalidateSession} />}
+          {workspaceTab === 'spc' && <SpcPage scope={analyticsScope} onScope={setAnalyticsScope} onSessionInvalid={invalidateSession} />}
+          {/* Work-order request ledgers belong to the operations and work-order pages; hidden (not unmounted) elsewhere to keep their state. */}
+          <div hidden={workspaceTab !== 'operations' && workspaceTab !== 'drafts'}>
+            <WorkflowTracker workflow={workflow} login={session.login} onSessionInvalid={invalidateSession} />
+            <CancellationPanel cancellation={cancellation} login={session.login} />
+          </div>
           <p id="session-reset" className="session-note">페이지를 새로고침하거나 다시 열면 재로그인이 필요합니다.</p>
         </main>
       </div>

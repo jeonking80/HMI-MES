@@ -1,0 +1,84 @@
+{
+ "execution_id": "00000001-6d0e-4c1b-9a51-2f7d1c8e4b20",
+ "from": "2026-10-22T00:00:00Z",
+ "to": "2026-10-22T05:30:00Z",
+ "segments": [
+  {
+   "from": "2026-10-22T00:00:00Z",
+   "to": "2026-10-22T01:35:00Z",
+   "class": "RUNNING",
+   "state": "RUNNING",
+   "fault_code": null,
+   "stop_reason": null
+  },
+  {
+   "from": "2026-10-22T01:35:00Z",
+   "to": "2026-10-22T01:47:00Z",
+   "class": "STOPPED",
+   "state": "PAUSED",
+   "fault_code": null,
+   "stop_reason": null
+  },
+  {
+   "from": "2026-10-22T01:47:00Z",
+   "to": "2026-10-22T02:47:00Z",
+   "class": "RUNNING",
+   "state": "RUNNING",
+   "fault_code": null,
+   "stop_reason": null
+  },
+  {
+   "from": "2026-10-22T02:47:00Z",
+   "to": "2026-10-22T02:56:00Z",
+   "class": "STOPPED",
+   "state": "FAULT",
+   "fault_code": 3,
+   "stop_reason": {
+    "code": "EQUIPMENT",
+    "note": "히터 온도 편차 점검",
+    "recorded_by": "operator1",
+    "recorded_at": "2026-10-22T02:59:00Z"
+   }
+  },
+  {
+   "from": "2026-10-22T02:56:00Z",
+   "to": "2026-10-22T03:09:00Z",
+   "class": "UNKNOWN",
+   "state": null,
+   "fault_code": null,
+   "stop_reason": null,
+   "unknown_reason": "COMMUNICATION_LOST"
+  },
+  {
+   "from": "2026-10-22T03:09:00Z",
+   "to": "2026-10-22T04:29:00Z",
+   "class": "RUNNING",
+   "state": "RUNNING",
+   "fault_code": null,
+   "stop_reason": null
+  },
+  {
+   "from": "2026-10-22T04:29:00Z",
+   "to": "2026-10-22T04:35:00Z",
+   "class": "STOPPED",
+   "state": "PAUSED",
+   "fault_code": null,
+   "stop_reason": null
+  },
+  {
+   "from": "2026-10-22T04:35:00Z",
+   "to": "2026-10-22T05:30:00Z",
+   "class": "RUNNING",
+   "state": "RUNNING",
+   "fault_code": null,
+   "stop_reason": null
+  }
+ ],
+ "durations_seconds": {
+  "running": 17400,
+  "stopped": 1620,
+  "unknown": 780,
+  "total": 19800
+ },
+ "check_ok": true
+}

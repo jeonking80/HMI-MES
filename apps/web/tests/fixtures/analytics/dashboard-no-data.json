@@ -1,0 +1,209 @@
+{
+ "date": "2026-10-23",
+ "timezone": "Asia/Seoul",
+ "generated_at": "2026-10-23T05:30:00Z",
+ "freshness": {
+  "last_receipt_at": "2026-10-23T02:18:00Z",
+  "status": "NO_DATA"
+ },
+ "production": {
+  "good": "1011",
+  "reject": "28",
+  "scrap": "2",
+  "yield_ratio": 0.9731,
+  "basis": "RECEIVED_EVENTS",
+  "provisional": true
+ },
+ "active_execution": null,
+ "time": {
+  "running_seconds": 21300,
+  "stopped_seconds": 30120,
+  "unknown_seconds": 780,
+  "total_seconds": 52200,
+  "running_ratio": 0.408,
+  "unknown_ratio": 0.0149
+ },
+ "oee_partial": {
+  "availability": 0.408,
+  "quality": 0.9731,
+  "performance": null,
+  "note": "PERFORMANCE_NOT_DEFINED"
+ },
+ "alarms": {
+  "active_total": 1,
+  "active_by_severity": {
+   "high": 1
+  },
+  "unacknowledged": 1
+ },
+ "hourly": [
+  {
+   "hour_start": "2026-10-22T15:00:00Z",
+   "good": "0",
+   "reject": "0",
+   "running_seconds": 0,
+   "unknown_seconds": 0
+  },
+  {
+   "hour_start": "2026-10-22T16:00:00Z",
+   "good": "0",
+   "reject": "0",
+   "running_seconds": 0,
+   "unknown_seconds": 0
+  },
+  {
+   "hour_start": "2026-10-22T17:00:00Z",
+   "good": "0",
+   "reject": "0",
+   "running_seconds": 0,
+   "unknown_seconds": 0
+  },
+  {
+   "hour_start": "2026-10-22T18:00:00Z",
+   "good": "0",
+   "reject": "0",
+   "running_seconds": 0,
+   "unknown_seconds": 0
+  },
+  {
+   "hour_start": "2026-10-22T19:00:00Z",
+   "good": "0",
+   "reject": "0",
+   "running_seconds": 0,
+   "unknown_seconds": 0
+  },
+  {
+   "hour_start": "2026-10-22T20:00:00Z",
+   "good": "0",
+   "reject": "0",
+   "running_seconds": 0,
+   "unknown_seconds": 0
+  },
+  {
+   "hour_start": "2026-10-22T21:00:00Z",
+   "good": "0",
+   "reject": "0",
+   "running_seconds": 0,
+   "unknown_seconds": 0
+  },
+  {
+   "hour_start": "2026-10-22T22:00:00Z",
+   "good": "0",
+   "reject": "0",
+   "running_seconds": 0,
+   "unknown_seconds": 0
+  },
+  {
+   "hour_start": "2026-10-22T23:00:00Z",
+   "good": "160",
+   "reject": "4",
+   "running_seconds": 3300,
+   "unknown_seconds": 0
+  },
+  {
+   "hour_start": "2026-10-23T00:00:00Z",
+   "good": "165",
+   "reject": "2",
+   "running_seconds": 3300,
+   "unknown_seconds": 0
+  },
+  {
+   "hour_start": "2026-10-23T01:00:00Z",
+   "good": "144",
+   "reject": "3",
+   "running_seconds": 3300,
+   "unknown_seconds": 0
+  },
+  {
+   "hour_start": "2026-10-23T02:00:00Z",
+   "good": "61",
+   "reject": "3",
+   "running_seconds": 1500,
+   "unknown_seconds": 780
+  },
+  {
+   "hour_start": "2026-10-23T03:00:00Z",
+   "good": "172",
+   "reject": "5",
+   "running_seconds": 3300,
+   "unknown_seconds": 0
+  },
+  {
+   "hour_start": "2026-10-23T04:00:00Z",
+   "good": "142",
+   "reject": "3",
+   "running_seconds": 3300,
+   "unknown_seconds": 0
+  },
+  {
+   "hour_start": "2026-10-23T05:00:00Z",
+   "good": "167",
+   "reject": "8",
+   "running_seconds": 3300,
+   "unknown_seconds": 0
+  },
+  {
+   "hour_start": "2026-10-23T06:00:00Z",
+   "good": "0",
+   "reject": "0",
+   "running_seconds": 0,
+   "unknown_seconds": 0
+  },
+  {
+   "hour_start": "2026-10-23T07:00:00Z",
+   "good": "0",
+   "reject": "0",
+   "running_seconds": 0,
+   "unknown_seconds": 0
+  },
+  {
+   "hour_start": "2026-10-23T08:00:00Z",
+   "good": "0",
+   "reject": "0",
+   "running_seconds": 0,
+   "unknown_seconds": 0
+  },
+  {
+   "hour_start": "2026-10-23T09:00:00Z",
+   "good": "0",
+   "reject": "0",
+   "running_seconds": 0,
+   "unknown_seconds": 0
+  },
+  {
+   "hour_start": "2026-10-23T10:00:00Z",
+   "good": "0",
+   "reject": "0",
+   "running_seconds": 0,
+   "unknown_seconds": 0
+  },
+  {
+   "hour_start": "2026-10-23T11:00:00Z",
+   "good": "0",
+   "reject": "0",
+   "running_seconds": 0,
+   "unknown_seconds": 0
+  },
+  {
+   "hour_start": "2026-10-23T12:00:00Z",
+   "good": "0",
+   "reject": "0",
+   "running_seconds": 0,
+   "unknown_seconds": 0
+  },
+  {
+   "hour_start": "2026-10-23T13:00:00Z",
+   "good": "0",
+   "reject": "0",
+   "running_seconds": 0,
+   "unknown_seconds": 0
+  },
+  {
+   "hour_start": "2026-10-23T14:00:00Z",
+   "good": "0",
+   "reject": "0",
+   "running_seconds": 0,
+   "unknown_seconds": 0
+  }
+ ]
+}

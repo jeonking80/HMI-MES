@@ -51,7 +51,7 @@ def protected(directory, name, value):
     return path
 
 
-async def exercise(directory, executable, web_dir, screenshot, evidence):
+async def exercise(directory, executable, web_dir, screenshot, evidence, capture_dir=None):
     import httpx
     from alembic import command
     from playwright.async_api import async_playwright, expect
@@ -479,6 +479,12 @@ async def exercise(directory, executable, web_dir, screenshot, evidence):
                         running["state"]["execution_id"] == execution_id,
                         "Production changed execution identity",
                     )
+                    if capture_dir is not None:
+                        # Optional README media from the real running line; no effect on checks.
+                        capture_dir.mkdir(parents=True, exist_ok=True)
+                        await page.evaluate("window.scrollTo(0, 0)")
+                        await page.wait_for_timeout(2500)
+                        await page.screenshot(path=str(capture_dir / "line-monitoring-running.png"))
                     checkpoint("PAUSE through browser and verify actual PLC PAUSED")
                     await command_ui("PAUSE")
                     await wait_json(
@@ -588,6 +594,9 @@ def main():
     parser.add_argument("--web-dir", type=Path, default=ROOT / "apps/web/dist")
     parser.add_argument("--screenshot", type=Path, default=ROOT / ".local/operable-system.png")
     parser.add_argument("--evidence", type=Path, default=ROOT / ".local/operable-system.json")
+    parser.add_argument(
+        "--capture-dir", type=Path, help="Also save a viewport screenshot while the line runs"
+    )
     args = parser.parse_args()
     if not args.chromium or not (args.web_dir / "index.html").is_file():
         print("FAIL: Chromium and a built polling web directory are required", file=sys.stderr)
@@ -601,6 +610,7 @@ def main():
                     args.web_dir.resolve(),
                     args.screenshot.resolve(),
                     args.evidence.resolve(),
+                    args.capture_dir.resolve() if args.capture_dir else None,
                 )
             )
     except BaseException as error:
