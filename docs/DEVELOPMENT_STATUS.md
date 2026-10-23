@@ -420,6 +420,8 @@ M1의 주요 독립 운전·권한·실제 생산 경로는 확인했지만, 원
 - CX-20 재개 실측: 원시 **5,443,200행·분 집계90,720행** 전체 검산 뒤10명 동시 실제 HTTP 조회에서 **cold10표본 p95 1.398692초 / warm100표본 p95 1.343585초**, 목표3초 이내 통과. cold는 PG shared buffers만 비우고 OS tmpfs cache는 유지한 조건이다. 일회성 DB 약10.47GB이며 공개 무료 DB를 쓰지 않았다. 실행기 초기화/SQL bind 오류와 재시작 시 임시 포트 변경을 바로잡았고 실패·HTTP0표본은 통과로 대체하지 않는다. [보고서](work-orders/reports/CX-20.md)에 실제 소스·계획·크기·정리 근거를 보존한다.
 
 - CX-22 운영 설비 CLI 사전 검증: 생성기·prepare 초기화·기존 prepare·serve·commission의 실제 진입점5개, 보존·48태그 미ACK 큐·명시 commission/no START·SIGTERM 자식 정리 시험 **1개10.91초 통과**. 첫 시험의 gateway 로그 접두어 parser 오류와 원실패를 보존하고 수정했다. 닫힌 로컬 API에 대한 delivery blocked 검증이며 공개 적용/API commit으로 표시하지 않는다. clean release의 단일 수락 묶음에도 포함한다.
+
+- CX-22 실제 재개: BuildKit의 session proxy DNS EAI_AGAIN을 확인하고 같은 proxy endpoint의 해석된 IP를 build child 환경에만 전달해 clean no-cache build를 통과했다. console 준비 전 commission race를 보완한 `cc566f6` clean clone에서 build·Compose 운전/GOOD/SETTLED·데이터 보존 재시작·독립 CLI/분석 화면까지 통과했으나 전체 수락은17/19였다. T02 LOCAL의 DOM polling 대기와 T06 OPC의 fixture transport/capture 직렬화를 보완해 동일 release 웹의 집중2개37.84초 통과. 기존 실패원문과 정확한 범위를 보존하고 최종 커밋 전체 묶음을 다시 실행한다. 제품/UI/통신 시간 기준은 바꾸지 않았다.
 - 전체backup/restore/resume 운영CLI 진입점도실제프로세스로 **1개10.452초통과**(6assertions,동일fixture PG17 Docker도구),nativehost도구검증과구분한다. 소유PG/복원DB정리완료. 현재polling웹빌드·고정커밋후실제30분검증을이어간다.
 
 ### Claude UI/UX 보강
