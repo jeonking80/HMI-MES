@@ -27,9 +27,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "tests/integration"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests/integration"))
 
 import httpx
 import psycopg
@@ -47,6 +46,8 @@ from apps.api.ingestion import IngestionService, ingest_batches
 from apps.api.screen_frames import APP_SCREEN_ADAPTER, APP_SCREEN_MAX_BYTES, ScreenDataFrame
 from apps.api.user_http import UserHTTPConfig, create_user_app
 from contracts.transport import BatchBody, batch_digest
+
+ROOT = Path(__file__).resolve().parents[1]
 
 IMAGE = (
     "postgres:17-bookworm@sha256:3645570cccdfa447589da9f57dd740faa29b30938e861289a5574b6ca6b03826"
