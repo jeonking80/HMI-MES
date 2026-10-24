@@ -288,3 +288,31 @@ START 버튼 아래 사유도 같은 문구였다. 이번 실패를 배포 기�
 command·settlement에는 초기 blocked가 각각 1회 있고 상세 클래스·코드는 없다. BufferFull이나 최종 gateway 오류 종료 기록은 없었다. 독립 medium 관찰자는 이번 시작 byte 1,297,561 이후의 supervisor.log와 `/tmp/hmi-ops02-v7-existing-order-once/run.json`만 읽어 위 수치를 확인했다. 최종 `supervisor stopped; persistent scope retained`, 두 자식 PID 없음, processes.json 없음도 확인했다.
 
 허용된 이번 1회 재개 이후에는 재시도·복구 조작·큐/커서 수정 없이 멈췄다. 기존 작업지시·runtime을 보존했으며 앱 코드·UI·이관·권한·배포는 변경하지 않았다. 공개 DB 전후 확인은 앞선 사용자 승인대로 Claude 담당으로 유지한다. **생산 START와 원래 실행 수량 대조는 여전히 미완료**다.
+
+### 7차 §2-2: 60초 안정화·120초 버튼 대기 재개 1회
+
+사용자가 `ae4141e`의 §2-2대로 한 번 재개하도록 지시했다. 최신 main 반영 상태를 확인했고, 기존 runtime·RELEASED 작업지시·release ID를 유지했다. 앱 코드·안전 조건·한도는 변경하지 않았다. 기존 정상 로그인·Origin·CSRF 절차와 숨김 메모리 입력을 사용했고, 운영계정 비밀번호는 출력·파일 저장하지 않았다.
+
+| 항목 | 실측 |
+|---|---|
+| runtime 시작 | 2026-10-24T08:13:00.322340Z / 17:13:00 KST |
+| commission | 1회, exit0 |
+| 안정화 완료 | 08:14:00.324683Z, 시작 후 **60.002초** |
+| 배포 기록 확인 | 기존 기록 조회 후 클릭·처리 완료 확인 |
+| 버튼 대기 시작 | 08:14:10.390076Z |
+| 버튼 대기 종료 | 08:16:10.410237Z |
+| 실제 버튼 대기 | **120.020초** |
+| runtime 종료 | 08:16:12.102939Z / 17:16:12 KST |
+| 전체 경과 | 191.8초 |
+| LOAD_JOB / START / END_RUN | **모두 미제출** |
+| execution_id·수량 대조 | 없음 / 해당 없음 |
+
+`#binding-prepare`는 시한 안에 활성화되지 않았다. 대기 시작과 종료 시의 직접 사유는 동일했다.
+
+> 전체 48개 태그의 최신 정상 품질과 원본 시각을 확인해야 합니다.
+
+**추가 운영 증거: 이번 수집 로그에서 BufferFull / METADATA_FULL이 88회 기록됐다.** 새 로그 구간(시작 byte 1,306,539)은 capture collected 98회·uncertain 2회·GatewayReadError blocked 1회와 METADATA_FULL blocked 88회, delivery COMMITTED 101회를 포함한다. command 초기 blocked 1회에는 클래스·코드가 없고 이후 idle 134회다. 이는 capture에서 한도 오류를 잡아 blocked로 남긴 경우이며 최종 gateway 오류 종료 기록은 없다. 감독자는 버튼 대기 실패 뒤 정상 종료됐다. 시작 적체만으로 이번 전체 결과를 설명하거나, 6차 압축만으로 운영 메타데이터 한도가 해소됐다고 판정하지 않는다. 어떤 저장 항목·전이에서 다시 한도를 초과했는지 추가 SQLite 조회나 재현은 하지 않았다.
+
+독립 medium 관찰자가 `/tmp/hmi-ops02-v7-stabilized-once/run.json`과 해당 supervisor.log 구간만 읽어 수치·시각·사유를 확인했다. 최종 `supervisor stopped; persistent scope retained`, 두 자식 PID 없음, processes.json 없음도 확인했다. 기존 작업지시·영속 상태는 보존했고 새 recipe/order/release를 생성하지 않았다.
+
+**판정: 승인된 1회 재개 실패.** 60초 안정화와 최대 120초 대기를 실행했지만 생산 실행 연결까지 진행하지 못했다. 안전 조건 우회·추가 시도·큐/커서 변경·원장 정리·추가 복구·DB/배포 변경은 하지 않고 이 기록 후 멈췄다. 공개 DB 전후 수치·화면 확인은 기존 사용자 승인대로 Claude 담당이며, 가동 시간 >0·원래 실행 수량 대조와 OPS-02 전체 수락은 미완료다.
