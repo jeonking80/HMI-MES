@@ -93,10 +93,15 @@ def test_snapshot_complete_capture_opt_in_matches_history(state, shape):
         fast_queries = list(statements)
         original = snapshot_value(db, now=now, fast=False)
     assert fast == original
+    fallback_queries = [sql for sql in fast_queries if "FROM unnest(" in sql]
+    assert not any("DISTINCT ON" in sql for sql in fast_queries)
     if shape in {"full", "events_only", "stale_bad", "old_generation"}:
-        assert not any("DISTINCT ON" in sql for sql in fast_queries)
+        assert not fallback_queries
     else:
-        assert any("DISTINCT ON" in sql for sql in fast_queries)
+        assert len(fallback_queries) == 1
+        query = fallback_queries[0]
+        assert "body @> jsonb_build_object(" in query
+        assert query.index("LIMIT 1") < query.index("jsonb_array_elements")
 
 
 def test_legacy_projection_keeps_nonempty_nonreport_samples(state):
