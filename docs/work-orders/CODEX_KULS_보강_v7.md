@@ -38,6 +38,26 @@
    - capture 오류 클래스·코드별 횟수
 5. **실패하면 멈춘다.** 사유 코드와 함께 보고한다. 자동 재시도나 두 번째 실연은 하지 않는다.
 
+## 2-1. 1차 시도 중단 원인과 클릭 순서 (Claude 확인, 2026-10-24)
+
+1차 시도(`1ce7b11`)는 배포 뒤 `#binding-prepare`가 35초 동안 비활성이라 중단됐다.
+
+- 공개 DB의 마지막 수집(seq 4609)은 연결 조건을 모두 충족했다: `Line.State=0`, `ControlMode=1`, `OperationMode=1`, `WipCount=0`, `ActiveExecutionId=""`, `ControlVersion=10`. 설비 쪽 원인이 아니다.
+- 화면은 배포 확인 기록(`workflow.attempt`)이 남아 있으면 실행 연결을 막는다. 이때 표시되는 사유는 "기존 요청의 원래 기록과 결과를 먼저 확인해 주세요."다(`apps/web/src/WorkOrderBinding.tsx` 13행). 같은 작업지시의 잠금도 `#workflow-acknowledge`를 눌러야 풀린다. 오래된 화면 기준 요청을 막는 의도된 동작이다.
+- 1차 시도에서 `#workflow-acknowledge`를 누른 기록이 없다. 이것이 가장 유력한 원인이다.
+
+검증된 순서(`scripts/check-operable-system.py` 429~470행)를 그대로 따른다.
+
+1. `[data-release-order=<ID>]` → `#release-submit`
+2. `#workflow-status`의 `data-state="confirmed"` 대기
+3. **`#workflow-acknowledge` 클릭(배포 기록 확인 · 다음 업무 준비)**
+4. 작업지시 목록의 "목록 새로 조회" → `[data-bind-order=<ID>]`
+5. `#binding-prepare` 활성 대기 → 클릭 → `#binding-submit`
+6. `#load-command-status`가 `SUCCEEDED`가 될 때까지 대기(최대 30초). 이어서 예열로 READY가 될 때까지 최대 45초 기다린다.
+7. 라인 모니터링의 `#command-START` 클릭. 클릭 전에 `#command-panel`의 `data-control-version`이 최신값인지 확인한다(5차 지시서와 같다).
+
+이번에 만든 작업지시(`000-v7-order-20261024T075220304749Z`)는 이미 RELEASED다. 새로 만들지 말고 4번부터 이어서 진행한다. 버튼이 또 비활성이면 그 아래의 사유 문구를 그대로 기록하고 멈춘다.
+
 ## 3. 하지 않을 것
 
 - 게이트웨이·시뮬레이터 SQLite 초기화, 새 source·generation, 한도 완화
