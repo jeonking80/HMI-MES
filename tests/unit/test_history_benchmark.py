@@ -265,3 +265,28 @@ def test_provenance_identifies_runner_and_backend_bytes():
     )
     assert "contracts/transport.py" in hashes
     assert "deploy/backup_set.py" in hashes
+
+
+def test_seed_does_not_begin_transaction_around_alembic(monkeypatch):
+    from contextlib import contextmanager
+    from types import SimpleNamespace
+
+    events = []
+
+    @contextmanager
+    def connect():
+        events.append("connect")
+        yield SimpleNamespace(execute=lambda _sql: SimpleNamespace(scalar_one=lambda: 0))
+
+    def begin():
+        raise AssertionError("Alembic migration env owns begin/advisory lock")
+
+    def upgrade(_config, _target):
+        events.append("upgrade")
+        raise LookupError("stop after testing migration boundary")
+
+    monkeypatch.setattr(benchmark.command, "upgrade", upgrade)
+    monkeypatch.setattr(benchmark, "migration_config", lambda db: db)
+    with pytest.raises(LookupError):
+        benchmark.seed(SimpleNamespace(connect=connect, begin=begin), {})
+    assert events == ["connect", "connect", "upgrade"]

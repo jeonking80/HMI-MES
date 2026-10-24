@@ -1,0 +1,21 @@
+{
+  "copy_migration_exit_code": 0,
+  "original_main_file_unchanged": true,
+  "migration": {
+    "ack_rows_compacted": 487,
+    "loss_rows_compacted": 453,
+    "metadata_bytes_after": 5413421,
+    "metadata_bytes_before": 9999697,
+    "row_counts": {
+      "batch_ledger": 4753,
+      "gateway_identity": 1,
+      "loss_intervals": 0,
+      "missing_ranges": 453,
+      "outbound_batches": 0,
+      "source_progress": 1,
+      "sqlite_sequence": 1
+    },
+    "semantic_bytes_equal": true,
+    "semantic_sha256": "a8b59cbf1de138e73780eb0e00343de46d077d7075b592c0db94cc08876008a5"
+  }
+}

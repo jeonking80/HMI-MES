@@ -126,7 +126,7 @@ def seed(engine, progress):
             sa.text("SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
         ).scalar_one():
             raise ValueError("seed requires empty disposable database; never overwrites")
-    with engine.begin() as db:
+    with engine.connect() as db:
         command.upgrade(migration_config(db), "head")
     bootstrap_reference_data(engine)
     end = datetime.now(UTC).replace(second=0, microsecond=0) - timedelta(minutes=1)
@@ -224,6 +224,7 @@ def seed(engine, progress):
         # Session temp tables require keeping this connection through the chunks below.
         for first in range(2, SECONDS + 1, 3600):
             last = min(first + 3599, SECONDS)
+            assert 1 <= first <= last <= SECONDS < 2**31
             db.execute(
                 sa.text("""INSERT INTO analog_history_raw
                 (line_id,source_id,stream_id,gateway_id,capture_generation,capture_seq,
@@ -238,7 +239,8 @@ def seed(engine, progress):
                  'synthetic_performance_fixture',true,
                  'basis','explicit fixture UTC, not per-capture measured proof',
                  'template_assessment',t.clock_assessment),true,at
-                FROM cx20_templates t CROSS JOIN generate_series(:first,:last) n
+                FROM cx20_templates t CROSS JOIN
+                 generate_series(CAST(:first AS integer),CAST(:last AS integer)) n
                 CROSS JOIN LATERAL (SELECT CAST(:start AS timestamptz)
                  +(n-1)*interval '1 second' AS at) a"""),
                 dict(first=first, last=last, start=start),

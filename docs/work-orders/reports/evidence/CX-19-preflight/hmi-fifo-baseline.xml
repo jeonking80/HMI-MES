@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="8.880" timestamp="2026-10-23T11:26:37.607158+00:00" hostname="8661b16fa9a0"><testcase classname="tests.integration.test_gateway_fifo_recovery" name="test_1800_capture_fifo_drain_with_live_collection" time="8.064"><failure message="apps.gateway.http_client.DeliveryUncertain: Intake did not return a committed receipt">tests/integration/test_gateway_fifo_recovery.py:229: in test_1800_capture_fifo_drain_with_live_collection
+    assert await pump.deliver_once()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+apps/gateway/worker.py:239: in deliver_once
+    ack = await self.intake.deliver(queued.batch)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+apps/gateway/http_client.py:85: in deliver
+    raise DeliveryUncertain("Intake did not return a committed receipt")
+E   apps.gateway.http_client.DeliveryUncertain: Intake did not return a committed receipt</failure></testcase></testsuite></testsuites>

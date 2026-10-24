@@ -315,6 +315,7 @@ def create_user_app(auth: UserAuth, config: UserHTTPConfig) -> FastAPI:
                     source_id=source_id,
                     stream_id=stream_id,
                     now=datetime.now(UTC),
+                    prefer_complete_capture=True,
                 ).model_dump(mode="json")
 
         try:
@@ -350,6 +351,7 @@ def create_user_app(auth: UserAuth, config: UserHTTPConfig) -> FastAPI:
                     source_id=scope.source_id,
                     stream_id=scope.stream_id,
                     now=datetime.now(UTC),
+                    prefer_complete_capture=True,
                 )
                 payload = make_screen_frame(scope, projection.screen, projection).model_dump_json()
                 if len(payload.encode("utf-8")) > APP_SCREEN_MAX_BYTES:

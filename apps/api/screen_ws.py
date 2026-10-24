@@ -200,6 +200,7 @@ def mount_screen_ws(
                 source_id=scope.source_id,
                 stream_id=scope.stream_id,
                 now=clock(),
+                prefer_complete_capture=True,
             )
 
     async def screen(websocket: WebSocket, *, enveloped: bool):

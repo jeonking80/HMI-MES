@@ -1,0 +1,33 @@
+{
+  "scope": "build child environment only; same session proxy endpoint resolved to IPv4",
+  "variables": [
+    {
+      "variable": "HTTP_PROXY",
+      "scheme_and_port_preserved": true,
+      "same_configured_proxy_hostname_resolved_by_executor": true,
+      "resolved_address_sha256": "842d7ffbd87706e840163c1efb7eb8f830f02a2d7943af8e1ef6470712b4a553"
+    },
+    {
+      "variable": "HTTPS_PROXY",
+      "scheme_and_port_preserved": true,
+      "same_configured_proxy_hostname_resolved_by_executor": true,
+      "resolved_address_sha256": "842d7ffbd87706e840163c1efb7eb8f830f02a2d7943af8e1ef6470712b4a553"
+    },
+    {
+      "variable": "http_proxy",
+      "scheme_and_port_preserved": true,
+      "same_configured_proxy_hostname_resolved_by_executor": true,
+      "resolved_address_sha256": "842d7ffbd87706e840163c1efb7eb8f830f02a2d7943af8e1ef6470712b4a553"
+    },
+    {
+      "variable": "https_proxy",
+      "scheme_and_port_preserved": true,
+      "same_configured_proxy_hostname_resolved_by_executor": true,
+      "resolved_address_sha256": "842d7ffbd87706e840163c1efb7eb8f830f02a2d7943af8e1ef6470712b4a553"
+    }
+  ],
+  "no_proxy_preserved": true,
+  "ca_trust_preserved": true,
+  "tls_verification_disabled": false,
+  "source_changed": false
+}

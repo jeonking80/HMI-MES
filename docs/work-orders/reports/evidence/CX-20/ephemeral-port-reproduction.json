@@ -1,0 +1,8 @@
+{
+  "kind": "Docker port lifecycle reproduction; no PostgreSQL process or dataset",
+  "utc": "2026-10-23T13:02:28.680965+00:00",
+  "container_id": "baf64bc28061dedb79c27bb2c56d96b48c0db84c8478358274f2c4d7599b2325",
+  "before": "127.0.0.1:33780",
+  "after": "127.0.0.1:33781",
+  "changed": true
+}

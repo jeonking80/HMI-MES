@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="221.976" timestamp="2026-10-23T11:27:30.253728+00:00" hostname="8661b16fa9a0"><testcase classname="tests.integration.test_gateway_fifo_recovery" name="test_1800_capture_fifo_drain_with_live_collection" time="221.267"><failure message="assert 180 &gt;= (184 - 2)&#10; +  where 184 = int(184.79438605500036)">tests/integration/test_gateway_fifo_recovery.py:302: in test_1800_capture_fifo_drain_with_live_collection
+    while not stop.is_set():
+E   assert 180 &gt;= (184 - 2)
+E    +  where 184 = int(184.79438605500036)</failure></testcase></testsuite></testsuites>

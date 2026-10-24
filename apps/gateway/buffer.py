@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import zlib
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -32,6 +33,10 @@ _POSITIVE = TypeAdapter(PositiveUInt64)
 _APPLICATION_ID = 0x484D4742
 _SCHEMA_VERSION = 1
 _ROW_ALLOWANCE = 512
+_ACK_ENCODING = b"HMIACK1\0"
+_MAX_ACK_BYTES = 8 * 1024 * 1024
+_LOSS_ENCODING = b"HMILOSS1\0"
+_MAX_LOSS_BYTES = 128 * 1024 * 1024
 
 
 def _uint(value: int) -> str:
@@ -167,7 +172,10 @@ class GatewayBuffer:
         *,
         gateway_id: str | None = None,
         limits: BufferLimits | None = None,
+        recover_inflight: bool = True,
     ):
+        if type(recover_inflight) is not bool:
+            raise ValueError("recover_inflight must be a boolean")
         limits = BufferLimits() if limits is None else limits
         if str(path) == ":memory:" or not isinstance(limits, BufferLimits):
             raise ValueError("GatewayBuffer requires durable storage and typed limits")
@@ -222,9 +230,10 @@ class GatewayBuffer:
                 self._verify()
                 # A previous owner's in-flight request may have committed remotely. Replay its
                 # exact identity/payload and let the API return its existing durable receipt.
-                self._db.execute(
-                    "UPDATE outbound_batches SET status='PENDING' WHERE status='INFLIGHT'"
-                )
+                if recover_inflight:
+                    self._db.execute(
+                        "UPDATE outbound_batches SET status='PENDING' WHERE status='INFLIGHT'"
+                    )
         except BaseException:
             self.close()
             raise
@@ -467,10 +476,10 @@ class GatewayBuffer:
             )
         return self._loss_from_json(encoded)
 
-    @staticmethod
-    def _loss_from_json(encoded: str) -> BufferLoss:
+    @classmethod
+    def _loss_from_json(cls, encoded: str | bytes) -> BufferLoss:
         try:
-            value = json.loads(encoded)
+            value = json.loads(cls._loss_bytes(encoded))
             intervals = tuple(
                 (_POSITIVE.validate_python(start), _POSITIVE.validate_python(end))
                 for start, end in value["event_ranges"]
@@ -639,13 +648,14 @@ class GatewayBuffer:
             for gap in body.gaps:
                 self._db.execute(
                     "UPDATE loss_intervals SET report_batch_id=? WHERE gap=? "
-                    "AND loss_id IN (SELECT loss_id FROM missing_ranges "
-                    "WHERE json_extract(body,'$.source_id')=? "
-                    "AND json_extract(body,'$.stream_id')=?) "
+                    "AND loss_id IN (SELECT loss.loss_id FROM missing_ranges loss "
+                    "JOIN batch_ledger owner ON owner.batch_id=loss.batch_id "
+                    "WHERE owner.source_id=? AND owner.stream_id=?) "
                     "AND (report_batch_id IS NULL OR report_batch_id IN "
                     "(SELECT batch_id FROM batch_ledger WHERE state='EVICTED'))",
                     (body.batch_id, gap.model_dump_json(), body.source_id, body.stream_id),
                 )
+            self._compact_lossless_metadata()
             self._check_metadata_budget()
             self._before_enqueue_commit()
         self._after_enqueue_commit()
@@ -688,6 +698,151 @@ class GatewayBuffer:
     def _after_ack_commit(self):
         """Crash seam after receipt/delete/progress are durable."""
 
+    @staticmethod
+    def _ack_bytes(value: str | bytes) -> bytes:
+        if isinstance(value, str):
+            return value.encode("utf-8")
+        if not isinstance(value, bytes) or not value.startswith(_ACK_ENCODING):
+            raise BufferCorruption("Unknown persisted ACK encoding")
+        try:
+            decoder = zlib.decompressobj()
+            raw = decoder.decompress(value[len(_ACK_ENCODING) :], _MAX_ACK_BYTES + 1)
+            if (
+                len(raw) > _MAX_ACK_BYTES
+                or not decoder.eof
+                or decoder.unused_data
+                or decoder.unconsumed_tail
+            ):
+                raise BufferCorruption("Invalid compressed ACK bounds")
+            return raw
+        except zlib.error as error:
+            raise BufferCorruption("Invalid compressed ACK") from error
+
+    @classmethod
+    def _load_ack(cls, value: str | bytes) -> DurableAck:
+        try:
+            return DurableAck.model_validate_json(cls._ack_bytes(value))
+        except (ValueError, TypeError) as error:
+            raise BufferCorruption("Invalid persisted ACK") from error
+
+    @staticmethod
+    def _ack_stored_size(value: str | bytes) -> int:
+        return len(value.encode("utf-8")) if isinstance(value, str) else len(value)
+
+    @staticmethod
+    def _loss_bytes(value: str | bytes) -> bytes:
+        """Decode exact original evidence bytes with a bounded, complete zlib stream."""
+        if isinstance(value, str):
+            return value.encode("utf-8")
+        if not isinstance(value, bytes) or not value.startswith(_LOSS_ENCODING):
+            raise BufferCorruption("Unknown persisted loss encoding")
+        try:
+            decoder = zlib.decompressobj()
+            raw = decoder.decompress(value[len(_LOSS_ENCODING) :], _MAX_LOSS_BYTES + 1)
+            if (
+                len(raw) > _MAX_LOSS_BYTES
+                or not decoder.eof
+                or decoder.unused_data
+                or decoder.unconsumed_tail
+            ):
+                raise BufferCorruption("Invalid compressed loss bounds")
+            return raw
+        except zlib.error as error:
+            raise BufferCorruption("Invalid compressed loss") from error
+
+    def _compact_lossless_metadata(self, *, keep_batch_id=None, force=False):
+        ack_count = self._compact_verified_receipts(keep_batch_id=keep_batch_id, force=force)
+        loss_count = 0
+        if force or self._metadata_bytes() > self.limits.max_metadata_bytes:
+            for row in self._db.execute(
+                "SELECT * FROM missing_ranges WHERE typeof(body)='text' ORDER BY rowid"
+            ).fetchall():
+                self._loss_from_json(row["body"])
+                raw = self._loss_bytes(row["body"])
+                if row["metadata_bytes"] != len(raw) + _ROW_ALLOWANCE:
+                    raise BufferCorruption("Loss metadata accounting mismatch")
+                # Keep oversized legacy TEXT readable without producing an unreadable BLOB.
+                if len(raw) > _MAX_LOSS_BYTES:
+                    continue
+                compact = _LOSS_ENCODING + zlib.compress(raw)
+                if len(compact) >= len(raw):
+                    continue
+                if self._loss_bytes(compact) != raw:
+                    raise BufferCorruption("Loss compression verification failed")
+                self._db.execute(
+                    "UPDATE missing_ranges SET body=?,metadata_bytes=? WHERE loss_id=?",
+                    (compact, len(compact) + _ROW_ALLOWANCE, row["loss_id"]),
+                )
+                loss_count += 1
+        return ack_count, loss_count
+
+    def compact_metadata(self) -> dict[str, int]:
+        """Force lossless metadata compression in one fully verified transaction."""
+        with self._transaction():
+            self._verify()
+            before = self._metadata_bytes()
+            ack_count, loss_count = self._compact_lossless_metadata(force=True)
+            self._verify()
+            return {
+                "metadata_bytes_before": before,
+                "metadata_bytes_after": self._metadata_bytes(),
+                "ack_rows_compacted": ack_count,
+                "loss_rows_compacted": loss_count,
+            }
+
+    def _compact_verified_receipts(self, *, keep_batch_id: str | None = None, force=False):
+        """Losslessly encode terminal receipts under pressure, retaining all identity proof."""
+        if not force and self._metadata_bytes() <= self.limits.max_metadata_bytes:
+            return 0
+        count = 0
+        rows = self._db.execute(
+            "SELECT ledger.* FROM batch_ledger ledger "
+            "WHERE ledger.state='ACKNOWLEDGED' AND (? IS NULL OR ledger.batch_id<>?) "
+            "AND typeof(ledger.ack)='text' "
+            "AND NOT EXISTS (SELECT 1 FROM outbound_batches queued "
+            "WHERE queued.batch_id=ledger.batch_id) "
+            "AND NOT EXISTS (SELECT 1 FROM missing_ranges loss "
+            "WHERE loss.batch_id=ledger.batch_id) "
+            "AND NOT EXISTS (SELECT 1 FROM loss_intervals loss "
+            "WHERE loss.report_batch_id=ledger.batch_id) ORDER BY ledger.ordinal",
+            (keep_batch_id, keep_batch_id),
+        ).fetchall()
+        for row in rows:
+            receipt = self._load_ack(row["ack"])
+            if (
+                receipt.batch_id != row["batch_id"]
+                or receipt.gateway_id != self.gateway_id
+                or receipt.content_sha256 != row["content_sha256"]
+                or (receipt.progress.source_id, receipt.progress.stream_id)
+                != (row["source_id"], row["stream_id"])
+            ):
+                raise BufferCorruption("Ledger receipt identity mismatch")
+            current = self.progress(row["source_id"], row["stream_id"]).api_progress
+            if (
+                receipt.recorded_gaps
+                or receipt.progress.unresolved_gaps
+                or receipt.progress.latest_ingested_seq > current.verified_through_seq
+                or any(
+                    event.disposition != "APPLIED"
+                    or event.seq > receipt.progress.verified_through_seq
+                    or event.seq > current.verified_through_seq
+                    for event in receipt.events
+                )
+            ):
+                continue
+            raw = self._ack_bytes(row["ack"])
+            if len(raw) > _MAX_ACK_BYTES:
+                continue
+            compact = _ACK_ENCODING + zlib.compress(raw)
+            if len(compact) >= len(raw):
+                continue
+            self._db.execute(
+                "UPDATE batch_ledger SET ack=?,metadata_bytes=metadata_bytes-?+? WHERE batch_id=?",
+                (compact, len(raw), len(compact), row["batch_id"]),
+            )
+            count += 1
+        return count
+
     def acknowledge(self, ack: DurableAck) -> DurableAck:
         if not isinstance(ack, DurableAck):
             raise ValueError("Expected a typed committed DurableAck")
@@ -703,7 +858,7 @@ class GatewayBuffer:
             ):
                 raise ValueError("ACK identity/hash does not match a known batch")
             if ledger["state"] == "ACKNOWLEDGED":
-                previous = DurableAck.model_validate_json(ledger["ack"])
+                previous = self._load_ack(ledger["ack"])
                 if previous != ack:
                     raise BatchConflict("Committed receipt for this batch is immutable")
                 return previous
@@ -778,6 +933,7 @@ class GatewayBuffer:
                 (ack_json, len(ack_json.encode("utf-8")), ack.batch_id),
             )
             self._db.execute("DELETE FROM outbound_batches WHERE batch_id=?", (ack.batch_id,))
+            self._compact_lossless_metadata(keep_batch_id=ack.batch_id)
             self._check_metadata_budget()
             self._before_ack_commit()
         self._after_ack_commit()
@@ -840,9 +996,9 @@ class GatewayBuffer:
         rows = self._db.execute(
             "SELECT intervals.gap FROM loss_intervals intervals "
             "JOIN missing_ranges loss USING(loss_id) "
+            "JOIN batch_ledger owner ON owner.batch_id=loss.batch_id "
             "LEFT JOIN batch_ledger reporter ON reporter.batch_id=intervals.report_batch_id "
-            "WHERE json_extract(loss.body,'$.source_id')=? "
-            "AND json_extract(loss.body,'$.stream_id')=? "
+            "WHERE owner.source_id=? AND owner.stream_id=? "
             "AND (reporter.batch_id IS NULL OR reporter.state='EVICTED') "
             "ORDER BY intervals.from_seq,intervals.through_seq,loss.rowid",
             (source_id, stream_id),
@@ -933,7 +1089,7 @@ class GatewayBuffer:
                     raise BufferCorruption("Ledger state disagrees with payload/loss ownership")
                 expected = _ROW_ALLOWANCE + len(row["batch_id"].encode("utf-8")) + 64
                 if row["state"] == "ACKNOWLEDGED":
-                    ack = DurableAck.model_validate_json(row["ack"])
+                    ack = self._load_ack(row["ack"])
                     if (
                         ack.batch_id != row["batch_id"]
                         or ack.gateway_id != self.gateway_id
@@ -942,7 +1098,7 @@ class GatewayBuffer:
                         or ack.progress.stream_id != row["stream_id"]
                     ):
                         raise BufferCorruption("Ledger receipt identity mismatch")
-                    expected += len(row["ack"].encode("utf-8"))
+                    expected += self._ack_stored_size(row["ack"])
                 elif row["ack"] is not None:
                     raise BufferCorruption("Unacknowledged ledger contains a receipt")
                 if row["metadata_bytes"] != expected:
@@ -971,7 +1127,7 @@ class GatewayBuffer:
                     or ledger is None
                     or (loss.source_id, loss.stream_id)
                     != (ledger["source_id"], ledger["stream_id"])
-                    or row["metadata_bytes"] != len(row["body"].encode("utf-8")) + _ROW_ALLOWANCE
+                    or row["metadata_bytes"] != self._ack_stored_size(row["body"]) + _ROW_ALLOWANCE
                 ):
                     raise BufferCorruption("Loss evidence identity/accounting mismatch")
                 expected_gaps = [
@@ -1018,7 +1174,7 @@ class GatewayBuffer:
                             ).fetchone()
                             reported = GatewayBatch.model_validate_json(payload[0]).body.gaps
                         elif reporter["state"] == "ACKNOWLEDGED":
-                            reported = DurableAck.model_validate_json(reporter["ack"]).recorded_gaps
+                            reported = self._load_ack(reporter["ack"]).recorded_gaps
                         else:
                             reporter_loss = self._db.execute(
                                 "SELECT body FROM missing_ranges WHERE batch_id=?",

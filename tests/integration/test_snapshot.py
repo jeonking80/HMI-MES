@@ -6,7 +6,7 @@ import pytest
 import sqlalchemy as sa
 
 from apps.api.bootstrap import LINE_ID, bootstrap_reference_data
-from apps.api.ingestion import IngestionService, source_streams
+from apps.api.ingestion import IngestionService, ingest_batches, source_streams
 from apps.api.snapshot import SnapshotNotFound, read_snapshot
 from contracts.models import UINT64_MAX
 from contracts.tags.validate import load_contract
@@ -82,6 +82,7 @@ def read(service, **kwargs):
             source_id="source-1",
             stream_id="stream-1",
             now=kwargs.get("now", AT),
+            prefer_complete_capture=kwargs.get("prefer_complete_capture", False),
         )
 
 
@@ -113,10 +114,13 @@ def test_latest_capture_wins_over_replay_and_source_timestamps(service):
     assert result.evidence[0].fresh
 
 
-def test_latest_per_tag_preserves_bad_null_and_uint64_decimal_wire(service):
+@pytest.mark.parametrize("prefer_complete_capture", [False, True])
+def test_latest_per_tag_preserves_bad_null_and_uint64_decimal_wire(
+    service, prefer_complete_capture
+):
     submit(service, sample(), sample("Line.Heartbeat", UINT64_MAX), seq=1)
     submit(service, sample(value=None, status=0x80000000), seq=2)
-    result = read(service)
+    result = read(service, prefer_complete_capture=prefer_complete_capture)
     values = {item.tag_id: item for item in result.screen.view.samples}
     assert values["Line.State"].reading.value is None
     assert values["Line.State"].status_code == 0x80000000
@@ -128,6 +132,61 @@ def test_latest_per_tag_preserves_bad_null_and_uint64_decimal_wire(service):
     assert heartbeat["reading"]["value"] == str(UINT64_MAX)
     assert wire["evidence"][0]["capture_generation"] == "1"
     assert wire["screen"]["revision"] == "0"
+
+
+def test_partial_capture_retains_old_bad_after_5000_unrelated_captures(service):
+    submit(service, sample(value=2), seq=1)
+    submit(service, sample(value=None, status=0x80000000), seq=2)
+    submit(service, sample("Line.Heartbeat", 1), seq=3)
+    # Build durable intake fixtures in one transaction; capture order and bodies
+    # remain realistic without running 5,000 separate ingestion transactions.
+    with service.engine.begin() as connection:
+        template = dict(
+            connection.execute(
+                sa.select(ingest_batches).where(ingest_batches.c.batch_id == "batch-1-3")
+            )
+            .mappings()
+            .one()
+        )
+        original = BatchBody.model_validate(template["body"])
+        rows = []
+        for seq in range(4, 5004):
+            body = original.model_copy(
+                update={
+                    "batch_id": f"batch-1-{seq}",
+                    "capture_seq": seq,
+                    "samples": tuple(
+                        item.model_copy(update={"sample_id": f"heartbeat-{seq}"})
+                        for item in original.samples
+                    ),
+                }
+            )
+            rows.append(
+                dict(
+                    template,
+                    batch_id=body.batch_id,
+                    capture_seq=seq,
+                    body=body.model_dump(mode="json"),
+                    content_sha256=batch_digest(body),
+                )
+            )
+        connection.execute(ingest_batches.insert(), rows)
+
+    snapshots = []
+    for prefer_complete_capture in (False, True):
+        result = read(service, prefer_complete_capture=prefer_complete_capture)
+        values = {item.tag_id: item for item in result.screen.view.samples}
+        evidence = {item.tag_id: item for item in result.evidence}
+        assert values["Line.State"].reading.value is None
+        assert values["Line.State"].status_code == 0x80000000
+        assert evidence["Line.State"].capture_seq == 2
+        assert evidence["Line.Heartbeat"].capture_seq == 5003
+        assert "Line.State" not in result.missing_tag_ids
+        assert result.health.state == "DEGRADED"
+        value = result.model_dump()
+        value["screen"].pop("sync_id")
+        snapshots.append(value)
+    assert snapshots[0] == snapshots[1]
 
 
 @pytest.mark.parametrize("future", [False, True])

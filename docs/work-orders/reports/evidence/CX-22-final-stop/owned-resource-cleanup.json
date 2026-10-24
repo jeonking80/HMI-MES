@@ -1,0 +1,140 @@
+{
+  "scope": "cleanup after user stop; no test/build/start operations",
+  "project": "cx22-release-eb9ed956a1a6",
+  "removed_images": [
+    {
+      "id": "sha256:58fb54939be6c19a914f17c8caaac7af4934c4599dc8514b0c31417956e2e1f0",
+      "removed": true
+    },
+    {
+      "id": "sha256:83651769e514b5808fa9f18ceac5ee39e3164438f69c4724086452eef3eea1cb",
+      "removed": true
+    },
+    {
+      "id": "sha256:8619fdc66178931b05eeb7ce1b1e782892d081f40cdbf4cf3531429ded37c32e",
+      "removed": true
+    },
+    {
+      "id": "sha256:a1124c473dfd270e37570fde26a1719e3542ce7e7de480abf63f3ef88fc07282",
+      "removed": true
+    },
+    {
+      "id": "sha256:fb23e45cdf99999f1081295376eb37fc66d4aef5711279ad50a0b2a679befe06",
+      "removed": true
+    }
+  ],
+  "cache_ids": [
+    {
+      "id": "kzz6gt7lt1kdulguryev5j30n",
+      "created_at": "2026-10-23 13:53:25.527806189 +0000 UTC",
+      "exit_code": 0
+    },
+    {
+      "id": "mk45qwtwf94fxar01s90djsu0",
+      "created_at": "2026-10-23 13:53:17.943945521 +0000 UTC",
+      "exit_code": 0
+    },
+    {
+      "id": "48y4k7o4b7hajya5ozajjt0p3",
+      "created_at": "2026-10-23 13:53:17.34954875 +0000 UTC",
+      "exit_code": 0
+    },
+    {
+      "id": "ouunq7f42ta2eiiiyzkxqlagk",
+      "created_at": "2026-10-23 13:53:16.122583808 +0000 UTC",
+      "exit_code": 0
+    },
+    {
+      "id": "hvebzm7bmzwadhny0ur5uyspg",
+      "created_at": "2026-10-23 13:53:15.599666433 +0000 UTC",
+      "exit_code": 0
+    },
+    {
+      "id": "mbcy9d0hadm51xz8qludtypvd",
+      "created_at": "2026-10-23 13:53:15.108587689 +0000 UTC",
+      "exit_code": 0
+    },
+    {
+      "id": "caod5atd8vkn45au95lqqt0ch",
+      "created_at": "2026-10-23 13:53:14.665920489 +0000 UTC",
+      "exit_code": 0
+    },
+    {
+      "id": "j70d0te3jzewmtqp96maod41c",
+      "created_at": "2026-10-23 13:53:13.106082164 +0000 UTC",
+      "exit_code": 0
+    },
+    {
+      "id": "lvy2x6i4vf6at01x53d355otw",
+      "created_at": "2026-10-23 13:53:12.728119665 +0000 UTC",
+      "exit_code": 0
+    },
+    {
+      "id": "kdo2fpzvo13ezfyeuv836952k",
+      "created_at": "2026-10-23 13:53:12.530324058 +0000 UTC",
+      "exit_code": 0
+    },
+    {
+      "id": "t46chlb1ts4huxnavbd4edu0i",
+      "created_at": "2026-10-23 13:53:11.755351782 +0000 UTC",
+      "exit_code": 0
+    },
+    {
+      "id": "vhpi3uoo8926mv77td0qowrjb",
+      "created_at": "2026-10-23 13:36:12.972649455 +0000 UTC",
+      "exit_code": 0
+    },
+    {
+      "id": "ypqjxxwler5n11uthdl18jewf",
+      "created_at": "2026-10-23 13:36:12.438615354 +0000 UTC",
+      "exit_code": 0
+    },
+    {
+      "id": "uu9tv4ojj285ouw7ptnzugge9",
+      "created_at": "2026-10-23 13:36:08.03488493 +0000 UTC",
+      "exit_code": 0
+    },
+    {
+      "id": "hnhvujw3c2kx5b91j1ur9k79i",
+      "created_at": "2026-10-23 13:27:56.63888445 +0000 UTC",
+      "exit_code": 0
+    },
+    {
+      "id": "0q8c33c3v8tzjc0vzsecfj20z",
+      "created_at": "2026-10-23 13:27:55.953360093 +0000 UTC",
+      "exit_code": 0
+    },
+    {
+      "id": "hn8tltce8wa0t2n2isfkw0uqx",
+      "created_at": "2026-10-23 13:27:50.70176756 +0000 UTC",
+      "exit_code": 0
+    },
+    {
+      "id": "vvirjezklpg4avobowmzmg1vy",
+      "created_at": "2026-10-23 13:12:05.762707175 +0000 UTC",
+      "exit_code": 0
+    },
+    {
+      "id": "ekyd9b0hcxnlbf6znbck7rr09",
+      "created_at": "2026-10-23 13:12:05.696811524 +0000 UTC",
+      "exit_code": 0
+    },
+    {
+      "id": "ntpe6z4byawql71ul30h1mzj3",
+      "created_at": "2026-10-23 13:12:05.213094326 +0000 UTC",
+      "exit_code": 0
+    },
+    {
+      "id": "r5cjgqtyxz9k0iau6cdvr3f4d",
+      "created_at": "2026-10-23 13:12:05.192331186 +0000 UTC",
+      "exit_code": 0
+    },
+    {
+      "id": "sxgbw37c459rm2iq6s0x198nn",
+      "created_at": "2026-10-23 13:12:04.250728651 +0000 UTC",
+      "exit_code": 0
+    }
+  ],
+  "before_free_bytes": 7393587200,
+  "after_free_bytes": 10128781312
+}

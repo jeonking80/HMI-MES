@@ -1,0 +1,670 @@
+#!/usr/bin/env python3
+"""CX-20 full seven-day history fixture and authenticated TCP HTTP benchmark.
+
+Never targets a public DB. Seed requires an empty, explicitly named local database.
+Fixture cloning measures retained-history reads, not intake throughput or clock proof.
+"""
+
+from __future__ import annotations
+
+import argparse
+import concurrent.futures
+import hashlib
+import json
+import math
+import os
+import platform
+import re
+import secrets
+import shutil
+import socket
+import subprocess
+import sys
+import threading
+import time
+import traceback
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+import httpx
+import sqlalchemy as sa
+import uvicorn
+from alembic import command
+
+from apps.api.alarm_consumer import ConfiguredClockPolicy
+from apps.api.auth import UserAuth
+from apps.api.bootstrap import LINE_ID, bootstrap_reference_data
+from apps.api.database import migration_config
+from apps.api.ingestion import IngestionService
+from apps.api.minute_aggregation import ANALOG_UNITS, POLICY_VERSION, RawObservation
+from apps.api.trend_history import points_for, z
+from apps.api.user_http import UserHTTPConfig, create_user_app
+from contracts.transport import BatchBody, GatewayBatch, batch_digest
+from deploy.backup_set import local_url
+
+SECONDS = 604800
+SCOPE = dict(line_id=LINE_ID, source_id="cx20-source", stream_id="cx20-stream")
+TAGS = tuple(ANALOG_UNITS)
+GATEWAY = "cx20-gateway"
+RESERVE = 14 * 1024**3
+
+
+def preflight(path):
+    disk = shutil.disk_usage(path)
+    return dict(
+        utc=z(datetime.now(UTC)),
+        platform=platform.platform(),
+        cpu_count=os.cpu_count(),
+        memory=Path("/proc/meminfo").read_text().splitlines()[:3],
+        disk_path=str(Path(path).resolve()),
+        free_bytes=disk.free,
+        filesystem=subprocess.check_output(
+            ["findmnt", "-T", str(path), "-n", "-o", "FSTYPE,SOURCE"], text=True
+        ).strip(),
+        reserve_bytes=RESERVE,
+        reserve_is_estimate=True,
+        seconds=SECONDS,
+        expected_raw=SECONDS * len(TAGS),
+        expected_minutes=SECONDS // 60 * len(TAGS),
+        tags=TAGS,
+        concurrency=10,
+        target_p95_seconds=3,
+    )
+
+
+def local_engine():
+    url = local_url(os.environ["HMI_DATABASE_DSN"])
+    if url.host not in {"127.0.0.1", "localhost", "::1"}:
+        raise ValueError("benchmark requires explicit local TCP PostgreSQL")
+    if not url.database or not url.database.startswith("cx20_"):
+        raise ValueError("benchmark database name must start cx20_")
+    return sa.create_engine(
+        url.set(drivername="postgresql+psycopg"), hide_parameters=True, pool_size=12, max_overflow=0
+    )
+
+
+def source_provenance():
+    root = Path(__file__).resolve().parents[1]
+    paths = {Path(__file__).resolve(), root / "deploy/backup_set.py"}
+    paths.update((root / "apps/api").rglob("*.py"))
+    paths.update(
+        path
+        for path in (root / "contracts").rglob("*")
+        if path.suffix in {".py", ".json", ".yaml", ".yml"}
+    )
+    return {
+        str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(paths)
+    }
+
+
+def expected_minute(observation, tag, start):
+    """Compute fixture expectations through the actual aggregation policy, including floats."""
+    obs = RawObservation.model_validate(observation)
+    values = tuple(
+        obs.model_copy(
+            update={
+                "capture_seq": n + 1,
+                "sample": obs.sample.model_copy(
+                    update={
+                        "sample_id": f"verify-{n}-{tag}",
+                        "acquired_at": start + timedelta(seconds=n),
+                    }
+                ),
+            }
+        )
+        for n in range(60)
+    )
+    return points_for(values, tag, start, start + timedelta(minutes=1), "minute")[0]
+
+
+def seed(engine, progress):
+    with engine.connect() as db:
+        if db.execute(
+            sa.text("SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
+        ).scalar_one():
+            raise ValueError("seed requires empty disposable database; never overwrites")
+    with engine.connect() as db:
+        command.upgrade(migration_config(db), "head")
+    bootstrap_reference_data(engine)
+    end = datetime.now(UTC).replace(second=0, microsecond=0) - timedelta(minutes=1)
+    start = end - timedelta(days=7)
+    policy = ConfiguredClockPolicy(
+        policy_id="cx20-fixture-clock",
+        policy_version="v1",
+        reference_id="cx20-local",
+        method="CONFIGURED_API_REFERENCE",
+        guarantee_kind="SAME_HOST_SHARED_KERNEL_UTC",
+        guarantee_basis="Synthetic local performance fixture with explicit UTC reference",
+        gateway_id=GATEWAY,
+        source_id=SCOPE["source_id"],
+        stream_id=SCOPE["stream_id"],
+        capture_generation=1,
+        clock_epoch="cx20-clock",
+        valid_from_api_utc=start,
+        valid_until_api_utc=end + timedelta(days=1),
+        offset_lower_seconds=0,
+        offset_upper_seconds=0,
+    )
+    service = IngestionService(engine, trend_clock_policy=policy)
+    service.configure_source(**SCOPE, gateway_id=GATEWAY, capture_generation=1, now=start)
+    body = BatchBody(
+        schema_version="1.2",
+        batch_id="cx20-1",
+        gateway_id=GATEWAY,
+        source_id=SCOPE["source_id"],
+        stream_id=SCOPE["stream_id"],
+        capture_generation=1,
+        capture_seq=1,
+        captured_at=start,
+        capture_time=dict(
+            clock_epoch="cx20-clock", monotonic_seconds=1.0, utc_read_span_seconds=0.0
+        ),
+        communication=dict(
+            state="GOOD",
+            connected=True,
+            read_age_seconds=0.0,
+            heartbeat_ages_seconds={
+                name: 0.0
+                for name in (
+                    "Line.Heartbeat",
+                    "Infeed.LinkHeartbeat",
+                    "Sealer.LinkHeartbeat",
+                    "Outfeed.LinkHeartbeat",
+                )
+            },
+        ),
+        samples=[
+            dict(
+                sample_id=f"cx20-1-{i}",
+                tag_id=tag,
+                source_timestamp=start,
+                server_timestamp=None,
+                acquired_at=start,
+                status_code=0,
+                reading=dict(data_type="Double", value=float(i * 100)),
+            )
+            for i, tag in enumerate(TAGS)
+        ],
+    )
+    service.ingest(
+        GatewayBatch(body=body, content_sha256=batch_digest(body)),
+        authenticated_gateway_id=GATEWAY,
+        authenticated_source_id=SCOPE["source_id"],
+        authenticated_stream_id=SCOPE["stream_id"],
+        now=start + timedelta(seconds=1),
+    )
+    with engine.connect() as db:
+        templates = db.execute(
+            sa.text(
+                "SELECT tag_id,observation,clock_assessment FROM analog_history_raw ORDER BY tag_id"
+            )
+        ).all()
+        assert len(templates) == 9
+        for _, observation, _ in templates:
+            assert RawObservation.model_validate(observation).time_quality == "GOOD"
+        db.execute(
+            sa.text(
+                "CREATE TABLE cx20_fixture "
+                "(start_at timestamptz NOT NULL,end_at timestamptz NOT NULL)"
+            )
+        )
+        db.execute(
+            sa.text("INSERT INTO cx20_fixture VALUES (:start,:end)"), dict(start=start, end=end)
+        )
+        db.execute(sa.text("CREATE TEMP TABLE cx20_templates AS SELECT * FROM analog_history_raw"))
+        progress["template_bytes"] = dict(
+            db.execute(sa.text("SELECT tag_id,pg_column_size(r) FROM analog_history_raw r")).all()
+        )
+        progress["projected_heap_bytes_before_overhead"] = (
+            sum(progress["template_bytes"].values()) * SECONDS
+        )
+        # Session temp tables require keeping this connection through the chunks below.
+        for first in range(2, SECONDS + 1, 3600):
+            last = min(first + 3599, SECONDS)
+            assert 1 <= first <= last <= SECONDS < 2**31
+            db.execute(
+                sa.text("""INSERT INTO analog_history_raw
+                (line_id,source_id,stream_id,gateway_id,capture_generation,capture_seq,
+                 tag_id,sample_id,acquired_at,stored_at,batch_id,observation,clock_assessment,
+                 aggregated,canonical_utc)
+                SELECT t.line_id,t.source_id,t.stream_id,t.gateway_id,1,n,
+                 t.tag_id,'cx20-'||n||'-'||t.tag_id,at,at,'cx20-'||n,
+                 jsonb_set(jsonb_set(t.observation,'{capture_seq}',to_jsonb(CAST(n AS text))),
+                 '{sample}',t.observation->'sample'||jsonb_build_object(
+                 'sample_id','cx20-'||n||'-'||t.tag_id,'acquired_at',at,
+                 'source_timestamp',at)),jsonb_build_object(
+                 'synthetic_performance_fixture',true,
+                 'basis','explicit fixture UTC, not per-capture measured proof',
+                 'template_assessment',t.clock_assessment),true,at
+                FROM cx20_templates t CROSS JOIN generate_series(CAST(:first AS integer),CAST(:last AS integer)) n
+                CROSS JOIN LATERAL (SELECT CAST(:start AS timestamptz)
+                 +(n-1)*interval '1 second' AS at) a"""),
+                dict(first=first, last=last, start=start),
+            )
+            # A single connection and explicit bounded transactions limit WAL bursts.
+            db.commit()
+            print(json.dumps(dict(stage="raw_seed", through_seq=last)), flush=True)
+            progress["raw_through_seq"] = last
+            # Guard the actual PostgreSQL data directory, not merely the report path.
+            data_directory = db.execute(sa.text("SHOW data_directory")).scalar_one()
+            if shutil.disk_usage(data_directory).free < 1024**3:
+                raise ValueError("seeding stopped with less than 1 GiB filesystem headroom")
+        db.execute(sa.text("UPDATE analog_history_raw SET aggregated=true WHERE capture_seq=1"))
+        # Constant values per tag: compute one exact projection with production code.
+        for tag, observation, _ in templates:
+            point = expected_minute(observation, tag, start)
+            db.execute(
+                sa.text("""INSERT INTO analog_history_minutes
+                SELECT :line_id,:source_id,:stream_id,:tag,m,:policy,
+                 CAST(:point AS jsonb)||jsonb_build_object('t',
+                 to_char(m AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"'))
+                FROM generate_series(CAST(:start AS timestamptz),
+                 CAST(:end AS timestamptz)-interval '1 minute',interval '1 minute') m"""),
+                dict(
+                    SCOPE,
+                    tag=tag,
+                    policy=POLICY_VERSION,
+                    point=json.dumps(point),
+                    start=start,
+                    end=end,
+                ),
+            )
+        db.commit()
+        db.execute(sa.text("ANALYZE analog_history_raw"))
+        db.execute(sa.text("ANALYZE analog_history_minutes"))
+        db.commit()
+    return start, end
+
+
+def inventory(engine):
+    with engine.connect() as db:
+        assert (
+            db.execute(sa.text("SELECT version_num FROM alembic_version")).scalar_one()
+            == "0018_clock_evidence"
+        )
+        start, end = db.execute(sa.text("SELECT start_at,end_at FROM cx20_fixture")).one()
+        counts = db.execute(
+            sa.text("""SELECT tag_id,count(*),min(canonical_utc),max(canonical_utc),
+            count(*) FILTER (WHERE NOT aggregated OR canonical_utc IS NULL),
+            count(DISTINCT capture_seq),
+            min((observation->'sample'->'reading'->>'value')::numeric),
+            max((observation->'sample'->'reading'->>'value')::numeric)
+            FROM analog_history_raw GROUP BY tag_id ORDER BY tag_id""")
+        ).all()
+        assert len(counts) == 9
+        for tag, count, left, right, bad, distinct_seq, low, high in counts:
+            assert tag in TAGS and count == SECONDS and left == start
+            assert right == end - timedelta(seconds=1) and bad == 0
+            assert distinct_seq == SECONDS
+            assert low == high == TAGS.index(tag) * 100
+        templates = db.execute(
+            sa.text("SELECT tag_id,observation FROM analog_history_raw WHERE capture_seq=1")
+        ).all()
+        assert {tag for tag, _ in templates} == set(TAGS) and len(templates) == 9
+        minutes = []
+        for tag, observation in templates:
+            expected = expected_minute(observation, tag, start)
+            count, distinct, left, right, invalid = db.execute(
+                sa.text("""
+                SELECT count(*),count(DISTINCT minute),min(minute),max(minute),
+                count(*) FILTER (WHERE line_id IS DISTINCT FROM :line_id
+                  OR source_id IS DISTINCT FROM :source_id
+                  OR stream_id IS DISTINCT FROM :stream_id
+                  OR policy_version IS DISTINCT FROM :policy
+                  OR minute<:start OR minute>=:end
+                  OR point IS DISTINCT FROM (CAST(:point AS jsonb)||jsonb_build_object(
+                    't',to_char(minute AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"'))))
+                FROM analog_history_minutes WHERE tag_id=:tag
+            """),
+                dict(
+                    SCOPE,
+                    tag=tag,
+                    policy=POLICY_VERSION,
+                    start=start,
+                    end=end,
+                    point=json.dumps(expected),
+                ),
+            ).one()
+            assert count == distinct == 10080
+            assert left == start and right == end - timedelta(minutes=1) and invalid == 0
+            minutes.append([tag, count, invalid])
+        assert (
+            db.execute(sa.text("SELECT count(*) FROM analog_history_minutes")).scalar_one() == 90720
+        )
+        sizes = db.execute(
+            sa.text("""SELECT relname,pg_total_relation_size(oid) FROM pg_class
+            WHERE relname IN ('analog_history_raw','analog_history_minutes',
+            'capture_clock_evidence','ingest_batches')""")
+        ).all()
+        return (
+            start,
+            end,
+            dict(
+                raw=[list(r[:2]) for r in counts],
+                minutes=[list(r) for r in minutes],
+                relation_bytes=dict(sizes),
+                database_bytes=db.execute(
+                    sa.text("SELECT pg_database_size(current_database())")
+                ).scalar_one(),
+                postgresql=db.execute(sa.text("SELECT version()")).scalar_one(),
+            ),
+        )
+
+
+def validate(payload, start, end):
+    assert payload["resolution"] == "minute" and payload["policy_version"] == POLICY_VERSION
+    assert payload["from"] == z(start) and payload["to"] == z(end)
+    assert [series["tag_id"] for series in payload["series"]] == list(TAGS[:4])
+    for series in payload["series"]:
+        value = float(TAGS.index(series["tag_id"]) * 100)
+        assert len(series["points"]) == 1440
+        for i, point in enumerate(series["points"]):
+            assert point == dict(
+                t=z(start + timedelta(minutes=i)),
+                value=value,
+                min=value,
+                max=value,
+                quality="GOOD",
+                valid_count=60,
+                expected_count=60,
+            )
+
+
+def distribution(samples):
+    ordered = sorted(samples)
+    return dict(
+        samples=len(samples),
+        p50_seconds=ordered[math.ceil(len(samples) * 0.5) - 1],
+        p95_seconds=ordered[math.ceil(len(samples) * 0.95) - 1],
+        max_seconds=max(samples),
+        durations_seconds=samples,
+    )
+
+
+def benchmark_app(auth, origin):
+    """Use the production app/config, with explicit local HTTP development policy."""
+    return create_user_app(auth, UserHTTPConfig(origin=origin, allow_insecure_loopback=True))
+
+
+def docker_local(*arguments):
+    """Always select the managed local socket; never inherited remote contexts."""
+    environment = os.environ.copy()
+    for key in (
+        "DOCKER_HOST",
+        "DOCKER_CONTEXT",
+        "DOCKER_TLS",
+        "DOCKER_TLS_VERIFY",
+        "DOCKER_CERT_PATH",
+    ):
+        environment.pop(key, None)
+    return subprocess.check_output(
+        ["docker", "--host=unix:///var/run/docker.sock", *arguments],
+        env=environment,
+        text=True,
+        timeout=60,
+        stderr=subprocess.DEVNULL,
+    )
+
+
+def validate_cold_container(details, url, data_directory):
+    """A label alone cannot authorize restarting a different DB or a Compose preview."""
+    labels = details.get("labels") or {}
+    if labels.get("hmi.task") != "cx20" or any(
+        key.startswith("com.docker.compose.") for key in labels
+    ):
+        raise ValueError("cold restart requires task-owned cx20 container, never Compose")
+    if url.host not in {"127.0.0.1", "localhost", "::1"}:
+        raise ValueError("cold restart requires local database host")
+    bindings = (details.get("ports") or {}).get("5432/tcp") or []
+    allowed_ip = "::1" if url.host == "::1" else "127.0.0.1"
+    if len(bindings) != 1 or bindings[0] != {
+        "HostIp": allowed_ip,
+        "HostPort": str(url.port or 5432),
+    }:
+        raise ValueError("container private published PostgreSQL port must match local DSN")
+    directory = Path(data_directory).resolve()
+    if not directory.is_relative_to("/tmp"):
+        raise ValueError("cold restart requires identically bound /tmp PostgreSQL data")
+    if not any(
+        mount.get("Type") == "bind"
+        and mount.get("RW") is True
+        and mount.get("Source") == mount.get("Destination")
+        and directory.is_relative_to(Path(mount["Source"]).resolve())
+        and Path(mount["Source"]).resolve().is_relative_to("/tmp")
+        for mount in details.get("mounts", [])
+    ):
+        raise ValueError("cold restart requires matching host/container tmpfs bind path")
+
+
+def cold_restart(engine, container):
+    if not re.fullmatch(r"[0-9a-f]{12,64}", container):
+        raise ValueError("cold restart requires explicit hexadecimal container ID")
+    # Selected fields exclude container environment variables and credentials.
+    template = (
+        '{"id":{{json .Id}},"labels":{{json .Config.Labels}},'
+        '"ports":{{json .NetworkSettings.Ports}},"mounts":{{json .Mounts}}}'
+    )
+    details = json.loads(docker_local("inspect", "--format", template, container))
+    if not details["id"].startswith(container):
+        raise ValueError("container inspection returned a different ID")
+    with engine.connect() as db:
+        data_directory = db.execute(sa.text("SHOW data_directory")).scalar_one()
+    validate_cold_container(details, engine.url, data_directory)
+    engine.dispose()
+    began = z(datetime.now(UTC))
+    docker_local("restart", "--time", "30", details["id"])
+    deadline = time.monotonic() + 45
+    while True:
+        try:
+            with engine.connect() as db:
+                assert db.execute(sa.text("SELECT 1")).scalar_one() == 1
+            break
+        except sa.exc.OperationalError:
+            if time.monotonic() >= deadline:
+                raise RuntimeError("restarted task PostgreSQL did not become ready") from None
+            time.sleep(0.2)
+    return dict(
+        container_id=details["id"],
+        started_utc=began,
+        ready_utc=z(datetime.now(UTC)),
+        condition="PostgreSQL shared buffers cold after restart; OS tmpfs cache warm",
+        os_cache_evicted=False,
+        postgres_restarted=True,
+        history_read_after_restart_before_measurement=False,
+    )
+
+
+def benchmark(engine, end, rounds, cold_postgres_container=None):
+    # Provision ten independent users/sessions; each HTTP worker uses its own cookie.
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    origin = f"http://127.0.0.1:{listener.getsockname()[1]}"
+    auth = UserAuth(engine, allowed_origins={origin})
+    sessions = []
+    for i in range(10):
+        login, password = f"cx20-{secrets.token_hex(6)}-{i}", secrets.token_urlsafe(24)
+        auth.bootstrap_user(login, password, roles={"viewer"})
+        challenge = auth.begin_login()
+        session = auth.login(
+            login,
+            password,
+            challenge_token=challenge.token,
+            csrf_token=challenge.csrf_token,
+            origin=origin,
+        )
+        session = auth.change_password(
+            session.token, secrets.token_urlsafe(24), csrf_token=session.csrf_token, origin=origin
+        )
+        sessions.append(session.token)
+    cold_state = (
+        cold_restart(engine, cold_postgres_container)
+        if cold_postgres_container
+        else dict(
+            condition="first HTTP use after fixture validation; DB/OS caches NOT evicted",
+            os_cache_evicted=False,
+            postgres_restarted=False,
+        )
+    )
+    app = benchmark_app(auth, origin)
+    server = uvicorn.Server(uvicorn.Config(app, log_level="error", access_log=False))
+    thread = threading.Thread(target=server.run, kwargs=dict(sockets=[listener]), daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 15
+    while not server.started:
+        if not thread.is_alive() or time.monotonic() > deadline:
+            raise RuntimeError("benchmark HTTP server failed to start")
+        time.sleep(0.05)
+    start = end - timedelta(days=1)
+    query = (
+        list(SCOPE.items())
+        + [("tag", tag) for tag in TAGS[:4]]
+        + [("from", z(start)), ("to", z(end)), ("resolution", "minute")]
+    )
+    records = []
+    clients = [
+        httpx.Client(base_url=origin, cookies={"hmi_session": token}, timeout=180)
+        for token in sessions
+    ]
+    try:
+        assert httpx.get(origin + "/api/v1/trends", params=query).status_code == 401
+        for _iteration in range(rounds + 1):
+            barrier = threading.Barrier(10)
+
+            def request(i, barrier=barrier):
+                barrier.wait(timeout=15)
+                began = time.perf_counter()
+                response = clients[i].get("/api/v1/trends", params=query)
+                elapsed = time.perf_counter() - began
+                response.raise_for_status()
+                validate(response.json(), start, end)
+                return dict(worker=i, seconds=elapsed, bytes=len(response.content))
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as pool:
+                samples = list(pool.map(request, range(10)))
+            records.append(samples)
+        cold = distribution([r["seconds"] for r in records[0]])
+        warm = distribution([r["seconds"] for group in records[1:] for r in group])
+        return dict(
+            cold_condition=cold_state["condition"],
+            cold_state=cold_state,
+            cold=cold,
+            warm=warm,
+            requests=records,
+            query=dict(start=z(start), end=z(end), tags=TAGS[:4]),
+            target_passed=warm["p95_seconds"] <= 3 and cold["p95_seconds"] <= 3,
+        )
+    finally:
+        for client in clients:
+            client.close()
+        server.should_exit = True
+        thread.join(timeout=15)
+        listener.close()
+
+
+def plans(engine, end):
+    result = {}
+    with engine.connect() as db:
+        params = dict(
+            SCOPE, tag=TAGS[0], start=end - timedelta(days=1), end=end, policy=POLICY_VERSION
+        )
+        for name, sql in {
+            "minutes": """SELECT minute,point FROM analog_history_minutes
+                WHERE line_id=:line_id AND source_id=:source_id AND stream_id=:stream_id
+                AND tag_id=:tag AND minute>=:start AND minute<:end
+                AND policy_version=:policy""",
+            "pending": """SELECT DISTINCT date_trunc('minute',COALESCE(canonical_utc,acquired_at))
+                FROM analog_history_raw WHERE line_id=:line_id AND source_id=:source_id
+                AND stream_id=:stream_id AND tag_id=:tag
+                AND COALESCE(canonical_utc,acquired_at)>=:start
+                AND COALESCE(canonical_utc,acquired_at)<:end AND NOT aggregated""",
+        }.items():
+            result[name] = db.execute(
+                sa.text("EXPLAIN (ANALYZE,BUFFERS,FORMAT JSON) " + sql), params
+            ).scalar_one()
+    return result
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--seed", action="store_true")
+    parser.add_argument("--run", action="store_true")
+    parser.add_argument("--cold-postgres-container", help="opt-in task-owned private PG ID")
+    parser.add_argument("--data-path", default="/workspace")
+    parser.add_argument("--rounds", type=int, default=10)
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+    report = dict(
+        status="preflight_only",
+        preflight=preflight(args.data_path),
+        fixture_kind="synthetic retained history; one actual clock-assessed intake template",
+        source_sha256=source_provenance(),
+        git_sha=subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+        git_dirty=bool(subprocess.check_output(["git", "status", "--porcelain"], text=True)),
+    )
+    code = 0
+    engine = None
+    try:
+        if args.rounds < 1:
+            raise ValueError("rounds must be positive")
+        if args.seed or args.run:
+            engine = local_engine()
+            with engine.connect() as db:
+                data_directory = db.execute(sa.text("SHOW data_directory")).scalar_one()
+            report["postgresql_data_preflight"] = preflight(data_directory)
+            if args.seed:
+                if report["postgresql_data_preflight"]["free_bytes"] < RESERVE:
+                    raise ValueError("PostgreSQL filesystem has less than 14 GiB reserve")
+                if report["preflight"]["free_bytes"] < RESERVE:
+                    raise ValueError(
+                        "insufficient estimated disk reserve: 14 GiB required before seeding"
+                    )
+                report["seed_started_utc"] = z(datetime.now(UTC))
+                seed(engine, report)
+                report["seed_ended_utc"] = z(datetime.now(UTC))
+            _, end, report["inventory"] = inventory(engine)
+            if args.run:
+                report["measurement"] = benchmark(
+                    engine, end, args.rounds, args.cold_postgres_container
+                )
+                report["query_plans"] = plans(engine, end)
+                report["status"] = (
+                    "passed" if report["measurement"]["target_passed"] else "target_failed"
+                )
+                code = 0 if report["status"] == "passed" else 1
+            else:
+                report["status"] = "seeded_not_measured"
+    except Exception as error:
+        # Avoid exception text/tracebacks: DB driver errors can expose bound secrets.
+        report["status"] = "failed"
+        report["error_type"] = type(error).__name__
+        if isinstance(error, ValueError):
+            report["error"] = str(error)
+        report["sqlstate"] = getattr(getattr(error, "orig", None), "sqlstate", None)
+        report["failure_locations"] = [
+            dict(file=Path(frame.filename).name, line=frame.lineno, function=frame.name)
+            for frame in traceback.extract_tb(error.__traceback__)
+        ]
+        if isinstance(error, httpx.HTTPStatusError):
+            report["http_status"] = error.response.status_code
+            report["http_body"] = error.response.text[:2000]
+        code = 1
+    finally:
+        if engine is not None:
+            engine.dispose()
+        report["source_sha256_end"] = source_provenance()
+        report["source_changed_during_run"] = report["source_sha256_end"] != report["source_sha256"]
+        if report["source_changed_during_run"] and report["status"] == "passed":
+            report["status"] = "source_changed_invalid_result"
+            code = 1
+        report["ended_utc"] = z(datetime.now(UTC))
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(report, indent=2, default=str) + "\n")
+        print(json.dumps(dict(status=report["status"], output=str(args.output))))
+    return code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,53 @@
+{
+  "stage": "complete",
+  "commands": {},
+  "start_attempted": false,
+  "end_succeeded": false,
+  "supervisor_log_start_offset": 1369060,
+  "runtime_started_at": "2026-10-24T08:56:00.715446+00:00",
+  "runtime_elapsed_seconds": 191.7,
+  "commission_exit_code": 0,
+  "stabilization_complete_at": "2026-10-24T08:57:00.715997+00:00",
+  "stabilization_elapsed_seconds": 60.001,
+  "recipe_id": "000-v7-recipe-20261024T075220304749Z",
+  "work_order_id": "000-v7-order-20261024T075220304749Z",
+  "release_id": "43b472e6-0142-4ed5-b34d-ed79f95adf9b",
+  "target_quantity": 100000,
+  "screen_delay_samples": [
+    {
+      "captured_at": "2026-10-24T08:57:03.274750Z",
+      "stored_minus_captured_seconds": 0.446255
+    },
+    {
+      "captured_at": "2026-10-24T08:57:04.087335Z",
+      "stored_minus_captured_seconds": 0.496125
+    },
+    {
+      "captured_at": "2026-10-24T08:57:07.017744Z",
+      "stored_minus_captured_seconds": 4.44824
+    },
+    {
+      "captured_at": "2026-10-24T08:57:13.054895Z",
+      "stored_minus_captured_seconds": 4.89842
+    },
+    {
+      "captured_at": "2026-10-24T08:57:26.049771Z",
+      "stored_minus_captured_seconds": 2.55974
+    },
+    {
+      "captured_at": "2026-10-24T08:57:45.130864Z",
+      "stored_minus_captured_seconds": 0.374463
+    }
+  ],
+  "ack_clicked": true,
+  "ack_processed": true,
+  "binding_reason": "전체 48개 태그의 최신 정상 품질과 원본 시각을 확인해야 합니다.",
+  "start_reason": "전체 48개 태그의 최신 정상 품질과 원본 시각을 확인해야 합니다.",
+  "failed_stage": "collection_delay_stability_wait",
+  "error_class": "RuntimeError",
+  "unresolved_execution": false,
+  "owned_runtime_stopped": true,
+  "runtime_ended_at": "2026-10-24T08:59:12.447759+00:00",
+  "processes_json_exists": false,
+  "result": "failed_before_execution_capture"
+}
