@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from apps.gateway.buffer import BufferCorruption, BufferLimits, GatewayBuffer
-from contracts.transport import BatchBody, DurableAck, GatewayBatch, batch_digest
+from contracts.transport import _TAGS, BatchBody, DurableAck, GatewayBatch, batch_digest
 
 AT = datetime(2026, 10, 24, tzinfo=UTC)
 LATER = AT + timedelta(minutes=31)
@@ -40,14 +40,14 @@ def _batch(capture, *, seqs=(), gaps=(), samples=False):
         samples=[
             {
                 "sample_id": f"sample-{index}",
-                "tag_id": f"Line.GoodTotal.{index}",
+                "tag_id": tag_id,
                 "source_timestamp": None,
                 "server_timestamp": AT,
                 "acquired_at": AT,
                 "status_code": 0x80000000,
-                "reading": {"data_type": "UInt64", "value": index},
+                "reading": {"data_type": tag["data_type"], "value": None},
             }
-            for index in range(40)
+            for index, (tag_id, tag) in enumerate(tuple(_TAGS.items())[:40])
         ]
         if samples
         else (),
@@ -89,11 +89,19 @@ def _seed(buffer, *, confirmed=False):
         offset = 1
     lost = _batch(1 + offset, seqs=(1 + 20 * offset,), samples=True)
     buffer.enqueue(lost, now=AT)
-    reporter = _batch(2 + offset)
-    buffer.enqueue(reporter, now=LATER)
+    reporter = _batch(2 + offset, seqs=(2 + 20 * offset,))
+    result = buffer.enqueue(reporter, now=LATER)
+    assert len(lost.body.samples) == len({sample.tag_id for sample in lost.body.samples}) == 40
+    assert len(result.losses) == 1
+    assert result.losses[0].batch_id == lost.body.batch_id
+    assert result.losses[0].reason_code == "BUFFER_AGE_LIMIT"
+    assert result.losses[0].event_ranges == ((1 + 20 * offset, 1 + 20 * offset),)
     gaps = buffer.pending_event_gaps("source", "stream")
+    assert len(gaps) == 1
+    assert (gaps[0].from_seq, gaps[0].through_seq) == result.losses[0].event_ranges[0]
     # This reporter has not claimed the loss; the next report must claim its original intervals.
-    buffer.acknowledge(_ack(reporter, 20 * offset, 20 * offset + 1, gaps))
+    buffer.acknowledge(_ack(reporter, 20 * offset, 20 * offset + 2, gaps))
+    assert buffer.pending_event_gaps("source", "stream") == gaps
     return lost, reporter, receipt, gaps
 
 
