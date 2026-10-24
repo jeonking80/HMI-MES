@@ -47,7 +47,12 @@ async def test_worker_status_and_supervisor_preserve_only_valid_error_classes(ca
         assert json.loads(sanitized_line(line)) == expected
         # The supervisor independently validates untrusted child output.
         raw = json.dumps(
-            {**base, "error": error, "error_code": error_code, "message": "secret endpoint and token"}
+            {
+                **base,
+                "error": error,
+                "error_code": error_code,
+                "message": "secret endpoint and token",
+            }
         )
         assert json.loads(sanitized_line(raw)) == expected
     assert sanitized_line(json.dumps({"operation": [], "state": "blocked"})) is None
@@ -65,7 +70,7 @@ async def test_worker_status_and_supervisor_preserve_only_valid_error_classes(ca
         pump.opc = SimpleNamespace(config=SimpleNamespace(poll_interval_seconds=0.01))
         pump.measured_clock = False
 
-        async def capture(error=exception):
+        async def capture(error=exception, stop=stop):
             stop.set()
             raise error
 
