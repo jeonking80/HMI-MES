@@ -1,0 +1,98 @@
+{
+  "stage": "complete",
+  "commands": {
+    "LOAD_JOB": "c58ac43a-bcad-42da-9444-9179607ab8ce",
+    "START": "854a2ff7-9bfc-4392-916e-dc10b4d8c923",
+    "END_RUN": "fd37d1b2-6015-4024-9095-e84302e5b808"
+  },
+  "start_attempted": true,
+  "end_succeeded": true,
+  "source_commit": "193246c82ff4c9b18f9d63dfb974942f7f2def47",
+  "supervisor_log_start_offset": 1502799,
+  "runtime_started_at": "2026-10-24T09:39:50.651759+00:00",
+  "runtime_elapsed_seconds": 528.1,
+  "recipe_id": "000-v7-recipe-20261024T075220304749Z",
+  "work_order_id": "000-v7-order-20261024T075220304749Z",
+  "release_id": "43b472e6-0142-4ed5-b34d-ed79f95adf9b",
+  "target_quantity": 100000,
+  "ack_clicked": true,
+  "ack_processed": true,
+  "armed_command": "END_RUN",
+  "execution_id": "3ac06c2b-ccd5-4a80-afd5-8c5e26ed204f",
+  "start_succeeded": true,
+  "start_success_monotonic": 62676.086890836,
+  "start_success_at": "2026-10-24T09:40:31.658244+00:00",
+  "server_record": {
+    "execution_id": "3ac06c2b-ccd5-4a80-afd5-8c5e26ed204f",
+    "scope": {
+      "line_id": "packaging-line-1",
+      "source_id": "demo-packaging-source-v1",
+      "stream_id": "events-main"
+    },
+    "settlement_status": "SETTLED",
+    "summary": {
+      "schema_version": "1.0",
+      "source_id": "demo-packaging-source-v1",
+      "stream_id": "events-main",
+      "execution_id": "3ac06c2b-ccd5-4a80-afd5-8c5e26ed204f",
+      "state": "ENDED",
+      "as_of": "2026-10-24T09:48:35.125901Z",
+      "counter_epoch": "929fe3aa-4e20-446a-8a52-b2e22d859a51",
+      "recipe_version": "000-v7-recipe-20261024T075220304749Z",
+      "parameters": {
+        "temperature_c": 150,
+        "speed_m_per_min": 10
+      },
+      "input_quantity": "796",
+      "good_quantity": "531",
+      "reject_quantity": "265",
+      "scrap_quantity": "0",
+      "wip_quantity": 0,
+      "last_event_seq": "819",
+      "final": true,
+      "ended_at": "2026-10-24T09:48:35.125901Z"
+    },
+    "totals": {
+      "good_quantity": "531",
+      "reject_quantity": "265",
+      "scrap_quantity": "0"
+    },
+    "source": {
+      "gateway_id": "demo-packaging-gateway-v1",
+      "capture_generation": "1",
+      "conflicted": false,
+      "reconciliation_required": false,
+      "verified_through_seq": "819",
+      "latest_ingested_seq": "819",
+      "control_restricted": false
+    }
+  },
+  "owned_runtime_stopped": true,
+  "runtime_ended_at": "2026-10-24T09:48:38.749336+00:00",
+  "processes_json_exists": false,
+  "simulator_final_summary": {
+    "schema_version": "1.0",
+    "source_id": "demo-packaging-source-v1",
+    "stream_id": "events-main",
+    "execution_id": "3ac06c2b-ccd5-4a80-afd5-8c5e26ed204f",
+    "state": "ENDED",
+    "as_of": "2026-10-24T09:48:35.125901Z",
+    "counter_epoch": "929fe3aa-4e20-446a-8a52-b2e22d859a51",
+    "recipe_version": "000-v7-recipe-20261024T075220304749Z",
+    "parameters": {
+      "temperature_c": 150.0,
+      "speed_m_per_min": 10.0
+    },
+    "input_quantity": "796",
+    "good_quantity": "531",
+    "reject_quantity": "265",
+    "scrap_quantity": "0",
+    "wip_quantity": 0,
+    "last_event_seq": "819",
+    "final": true,
+    "ended_at": "2026-10-24T09:48:35.125901Z"
+  },
+  "same_execution_final_summary_match": true,
+  "event_totals_match": true,
+  "result": "passed"
+}
