@@ -74,7 +74,7 @@ VITE_SCREEN_TRANSPORT=polling VITE_ANALYTICS_PAGES=enabled npm --prefix apps/web
 
 ## 문서
 
-- 기준: [시스템 기획서](docs/HMI_MES_시스템_기획서_v1_0.md) · [개발계획서](docs/HMI_MES_개발계획서_v1_0.md) · [작업자 사용 순서](docs/OPERATOR_GUIDE.md)
+- 기준: [시스템 기획서](docs/HMI_MES_시스템_기획서_v1_0.md) · [개발계획서](docs/HMI_MES_개발계획서_v1_0.md) · [사용자 매뉴얼](docs/USER_MANUAL.md) · [작업자 사용 순서](docs/OPERATOR_GUIDE.md)
 - 계약: [태그](contracts/tags/README.md) · [명령·사건 프로토콜](contracts/PROTOCOL.md) · [수집·ACK·화면 동기화](contracts/TRANSPORT.md) · [상태 전이](contracts/STATE_MACHINES.md)
 - 설계: [DB·인증](docs/architecture/DATA_AUTH.md) · [PLC 운전 조건](docs/architecture/PLC.md) · [명령 원장](docs/architecture/COMMAND_STORE.md) · [시뮬레이터 OPC UA](docs/architecture/SIMULATOR_OPCUA.md) · [게이트웨이 OPC UA](docs/architecture/GATEWAY_OPCUA.md) · [정산](docs/architecture/SETTLEMENT.md)
 - 실행: [게이트웨이·수집 API](docs/architecture/M2_RUN.md) · [앱 A 인증 서버](docs/architecture/API_RUN.md) · [설비 앱](docs/architecture/SIMULATOR_RUN.md) · [작업지시](docs/architecture/WORK_ORDERS.md) · [알람](docs/architecture/ALARM_RUN.md)
