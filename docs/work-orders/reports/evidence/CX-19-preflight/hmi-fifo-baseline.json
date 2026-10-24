@@ -1,0 +1,39 @@
+{
+  "preloaded": 1800,
+  "scope": "synthetic historical preload; real FIFO HTTP/PG and live OPC48tags1Hz",
+  "deadline_seconds": 300,
+  "outcome": "running",
+  "api": {
+    "ingest": {
+      "calls": 1,
+      "seconds": 0.07014224500744604,
+      "max": 0.07014224500744604
+    },
+    "sql": {
+      "other": {
+        "calls": 27,
+        "seconds": 0.015524502989137545
+      },
+      "ingest_batches": {
+        "calls": 2,
+        "seconds": 0.00255897399620153
+      },
+      "event_inbox": {
+        "calls": 17,
+        "seconds": 0.007633639994310215
+      },
+      "stream_progress": {
+        "calls": 2,
+        "seconds": 0.0009131799743045121
+      },
+      "stream_gaps": {
+        "calls": 3,
+        "seconds": 0.0031017049914225936
+      },
+      "capture_clock_evidence": {
+        "calls": 1,
+        "seconds": 0.001264969992917031
+      }
+    }
+  }
+}

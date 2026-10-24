@@ -1,0 +1,28 @@
+{
+  "scope": "documentation of stopped failing verification; no further fixes/retries",
+  "base_sha": "31c8e1416d4d671912c9439ee8cf1d2225759962",
+  "stop_instruction": "이제 또 실패하면 보고서만 작성하고 멈춰",
+  "new_test_runs_after_agent_received_stop_instruction": 0,
+  "already_running_bundle": {
+    "tests": 2,
+    "failed": 1,
+    "passed": 1,
+    "duration_seconds": 37.621
+  },
+  "failure": {
+    "case": "T05",
+    "operation": "second RESET_FAULT",
+    "actual_ui_post_status": 409,
+    "response_body_captured": false,
+    "root_cause": "unconfirmed; previous first reset RESET_BLOCKED is not the reason for this second POST409"
+  },
+  "working_files_preserved_uncommitted": {
+    "tests/e2e/browser_boundary.py": "9adefe0ca0a04757e93f479db52216583fbd9acf5398abb6f872e2d56f334b0d",
+    "tests/e2e/test_browser_acceptance.py": "dab40db37db364f628080fa4ee74dce1f90b90594e9658c1f48f83c141f782a3"
+  },
+  "patch_sha256": "b053537665b54fa0c53374990cc37ce5269e3fc1aeccbb702c744daf2ba297ba",
+  "implementation_stopped": true,
+  "patch_file": "uncommitted-fixture.patch.gz",
+  "patch_original_sha256": "b053537665b54fa0c53374990cc37ce5269e3fc1aeccbb702c744daf2ba297ba",
+  "patch_gzip_sha256": "fd930717ba02f0280e472dc0290f1715ee010393f48e80b9395084e59dc55425"
+}

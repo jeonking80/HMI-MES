@@ -1,0 +1,2538 @@
+{
+  "case_id": "T06-OPC",
+  "acceptance_id": "T06-OPC-4dee495d16924953b91bed37007945fa",
+  "target_sha": "31c8e1416d4d671912c9439ee8cf1d2225759962",
+  "dirty": true,
+  "started_at_utc": "2026-10-23T14:03:44.142191+00:00",
+  "runner_argv": [
+    "/workspace/HMI-MES/.venv/lib/python3.12/site-packages/pytest/__main__.py",
+    "tests/e2e/test_browser_acceptance.py::test_t05_browser_fault_ack_reset_separate_start",
+    "tests/e2e/test_browser_acceptance.py::test_t06_browser_real_disconnect[OPC]",
+    "-q",
+    "--tb=short",
+    "--junitxml=/tmp/hmi-browser-release5-targeted.xml"
+  ],
+  "source_sha256": {
+    "apps/api/__init__.py": "b0fdfcd4a54746cbcfb127f590b938e9b391bcefb788f9183073340d4ecef16a",
+    "apps/api/__main__.py": "357fcaa152d4313ce014cbf9253f0a5af90a82edb6861314e45623eaddfaa9f5",
+    "apps/api/alarm_capture.py": "fa65cc1ea313c7dfa562da5c85437dab36d67c0d10f6b4bb8e913bc0d452fe99",
+    "apps/api/alarm_consumer.py": "60c1a638317fd0d729a513c6d58a3d406b2b794665ff56a7095680c7f1e04cda",
+    "apps/api/alarm_coordinator.py": "ee7b4e820da9b8aa067bcab34174a9777a74ede5458fd69c692fb4005248c846",
+    "apps/api/alarm_fault.py": "eeaf98d67a24be938b4334f6fb4e4ea402693cfb64107835c322b0c5e550528a",
+    "apps/api/alarm_http.py": "d3ef4d1b8d600cd4b3bcf5d56b3924268000dc6734aea398306fafbcb3cc803f",
+    "apps/api/alarm_lifecycle.py": "f0e32487511888de0a918576e59ce60526ab8af5bab9f86cf835f90412e22677",
+    "apps/api/alarm_qualification.py": "3cafd9a3a6d7913d9be21f1839c23fa7e326910923d7771780f2af73c855967a",
+    "apps/api/alarm_rules.py": "7b35521338206f57df9b341cfd92dac3e7fc40a109314568fa9dcf7bc9cb2c80",
+    "apps/api/alarm_runtime.py": "f6d4674fdcda8a123758a99e1459b59d0256b8455e3c8f21f1da7d400494a9cb",
+    "apps/api/alarm_store.py": "aa7242a2499a29357415d57138e4fc555e929448b9501677a633b6dcb19775b0",
+    "apps/api/analytics_availability.py": "163ac4b0818fb1e04beae014db0e2e3631ff7bcf17790c545371fab0e2dde7ea",
+    "apps/api/assistant.py": "2b414393ae22c76300a151222418dba42ab5110985c717a28ab370c942b07fe8",
+    "apps/api/auth.py": "4b6e9b66f951207c8ca7d35f5a45392cdeff8b866d7f58663bdf1f63f0606955",
+    "apps/api/bootstrap.py": "800bdf101bdcea70b295e9975b856e05da422c73f4c5a508d27d81abf8399bd4",
+    "apps/api/capture_clock.py": "1c8e48dbda8f7caa8e363c50d9236f59110fa15aae329b42602f8e067b881751",
+    "apps/api/cloud_plant.json": "ea20ad36fd2870aaac148a01439b3b91c6be8693571e9be4f55975217b5226da",
+    "apps/api/commands.py": "c2cd4364b25634ca9b0758e2a8df17c428b51803838f0f1d438e038ffdfd64fd",
+    "apps/api/control_http.py": "28c117515fdb7b79262062a28b0f11e2507f4375c64a36fbfeaf4523e394ac5a",
+    "apps/api/dashboard.py": "8fe654a6e1e68417abfac2150cbac24c9f3126e4c210058e7f64c8ead96b3d5a",
+    "apps/api/dashboard_http.py": "2ce20c8bda7ae984ae3cea9284f7b8b9c43693048732d5772d57fec1a6aa45ea",
+    "apps/api/database.py": "84d71fd5954c2caba911ac6332aed4c340816d86066f571adef7f4c21fbc73e2",
+    "apps/api/downtime.py": "0a641f4060d7b1598ac266d08b49a9e45cbab1955f0dcbd4dc0aa734781228ec",
+    "apps/api/downtime_http.py": "e8dd692258b11b3c531d9ebbfb009c67beef92106ea440a6512e3157cd99b5ae",
+    "apps/api/execution_http.py": "616f4944d06ede59a3dbaf20d3dd31271db74fa27a2fb0055ab8d60cdda810be",
+    "apps/api/execution_plan.py": "7b432d5e2b8a04a04fa1965b3ba255c77749c916219864049d2ae170ca8ab6df",
+    "apps/api/execution_read.py": "5eb1cff2b17ab93278656e0e89eef87249d1226c724f39ba4115da1916b46ea5",
+    "apps/api/guest.py": "061a78113768f48622b5bab42afff6bcae95a640fe34a68f4e0ed48cc1494660",
+    "apps/api/ingestion.py": "2fda6da8899be9a110ad6091875645ab1c90f362232393b67331da1ee620dea3",
+    "apps/api/internal.py": "87782b36dacc86d34597276ca6f956d5bb1cdf22f7dea4ff7eab60c237c43758",
+    "apps/api/measured_clock.py": "e0667a87534c944c0fcf2cfc3d4961cbddd5be5cc3d8c05e2e9e35ddcf013d31",
+    "apps/api/migrations/env.py": "fe6a49b940cd9e15058b773e6985a6b477dfdc0148bc9d65f51b538cfc1f85a1",
+    "apps/api/migrations/versions/0001_reference_data.py": "66ea8a187911d4eb884be4db223dd482b3599ced7887a6425aece6fd6c955301",
+    "apps/api/migrations/versions/0002_ingestion.py": "a1875aa13bdb30433aff52e9bdc535a2f0ee25cae5faa84a8b812f4091d77d91",
+    "apps/api/migrations/versions/0003_user_auth.py": "8d96dbccac22313eef8d27a28cfebb24c21694f8e9e70e569ffb4a793f89698b",
+    "apps/api/migrations/versions/0004_commands.py": "ad9f3e65f2a0dae379fa897ee0396b6d4eb6a636e6abd64f21140446d12b197b",
+    "apps/api/migrations/versions/0005_command_dispatch.py": "71a2369d814865eba40430f6b89f556848510d104eb8ff96f5f27c3416b6fc2d",
+    "apps/api/migrations/versions/0006_settlement.py": "3e63ab091af67e010959539344575d67cf87969e20fb425dc4080932b6301aa0",
+    "apps/api/migrations/versions/0007_execution_plan.py": "d21c7afc5ae152663d3e2fab1ac17e5bfb6233ec1b9419c51b21efbbc8ee35bd",
+    "apps/api/migrations/versions/0008_work_orders.py": "58e0874df66a776fc8314ff683af9fcf697fe9acb0b55eedaed49f33d9e38fab",
+    "apps/api/migrations/versions/0009_work_order_binding.py": "7afe335349a4bad8d11f3455dac5f0289a5804b744a03cfaed748739f5dfd65d",
+    "apps/api/migrations/versions/0010_alarm_store.py": "dff1b4ca45d4960ab04e7b193080c61bed0368a31827a8591b9a71074d13e62b",
+    "apps/api/migrations/versions/0011_alarm_capture_context.py": "4360573bcd245d6067c35351386a251080173de9919e993d663245ecb4ca02ba",
+    "apps/api/migrations/versions/0012_alarm_line_fault.py": "563f8ba50718d028d2ded82baac6ef6245e470e3624bb0e490afbb0188b59b09",
+    "apps/api/migrations/versions/0013_work_order_cancel.py": "fb2f465def63c240971a1846a6b5f09fa8d01a74b85351b6cfbfaf83db9e138c",
+    "apps/api/migrations/versions/0014_mixed_alarm_runtime.py": "c4898f7aece61d441068354af165e375bdd1b9f17ad769a0bdfe5c215fdfdf95",
+    "apps/api/migrations/versions/0015_analog_history.py": "b8d41a973503094709559554174f1c1ac324afbb592beaca10b08e5064da1f78",
+    "apps/api/migrations/versions/0016_downtime_reasons.py": "436dc44040600e348af0f3a1e0d014bbc2c977f7df2a5162abf2e7d3169f8712",
+    "apps/api/migrations/versions/0017_guest_viewer.py": "ff709d193b450a8fc2fa24fcb49e7697197f9e577eae3980c6bfb1488ad61656",
+    "apps/api/migrations/versions/0018_clock_evidence.py": "62c3742558f26258e54d5c57e8c054064f78dec264917dd8494fe66d367acaed",
+    "apps/api/minute_aggregation.py": "65f41c74faa53c7f1de85b1113ef973c4fe2a7bd2c11ab2ef59dbfedcd37c0d0",
+    "apps/api/models.py": "854a255862b99339070420a2306413efb166455bf04ad66642a6b7d6428ae4e8",
+    "apps/api/recovery.py": "d3c67384499faf81af04e68fbdde17703deec9c1257714e93a980992bc67ec66",
+    "apps/api/reports.py": "ef4a37e7c292451f80b741c5342a6f13114f07a7efa0f5792efb17ab6c1eb5dc",
+    "apps/api/reports_http.py": "154fd48f4829e7788a1ce3273e846c4ba234fc9f62a602082454b5464c34b1c3",
+    "apps/api/screen_frames.py": "cfde040a28a895f1044fdfad3dd3eb9066c8db33c13826bf26c21a55ae20b274",
+    "apps/api/screen_ws.py": "52bb4492f5f6a7e60b0472f8d5f5c11a0cf32b88d7b75d5588d973a29cd47074",
+    "apps/api/serverless.py": "756e5ca654c31e970598e2629fb8cc45b7d0ebe8698069f33100ecfe7d59a87a",
+    "apps/api/settlement.py": "6d491b610452bb05cc84457b1f7ec82925638d20e834a749f352e82d73fcadfa",
+    "apps/api/settlement_http.py": "c761a49e7df06790bbd6ccbae253096f21854295734e78a4b8e9e28280438126",
+    "apps/api/snapshot.py": "0a704a16159314e9d2109bdccaeb1e55966032ab7009d1eec62b5682dad91585",
+    "apps/api/spc.py": "797342c129a27b44b34b25e075c968ba478f9638ed1a460bf9b4c076acbbb984",
+    "apps/api/spc_http.py": "b925d589409a905e747ecf8eb0e4dae027fd50674896ad935f34acd05c2478e1",
+    "apps/api/trend_history.py": "1d9c080edfa6f9f20ff9696cd28b4ea6efa8ad6d5842adce122b18f1ecf41123",
+    "apps/api/trend_http.py": "9acc1238ec58cec9cd843e8d6c5b6b38948885fdca3627cefc2c41aa1b195ab2",
+    "apps/api/user_http.py": "499e42792c8652c6dd52bf8a609af2ac2c7d7c2cc882b8f6dbf7cc36514fed11",
+    "apps/api/web.py": "4bfc19362d6cf038ed2880b1331d857bb702e1678200b39b6d69770f7edba16d",
+    "apps/api/work_order_cancel.py": "49ef2068f5e54e4542688e1782d9b29b78376b7de4644dd24d2b82ee346a8d9d",
+    "apps/api/work_order_cancel_http.py": "8d6e7830f1350f5f81f63c74a3faef0f0c7ab93ecb79c16c4520883870fa0ce6",
+    "apps/api/work_order_workflow.py": "db14f5a5dbfa28cfd7aa4bf5aa12fb86ca19605db7cf9c1def022d8170d1ed3c",
+    "apps/api/work_orders.py": "d4c36e8db726c10cc8a86aaf620465bc42b87f92454e4c44f9041471f9519874",
+    "apps/api/work_orders_http.py": "491179b4dc67416689967fc034beecc88248b75400b684abd5f3a6943b931239",
+    "apps/gateway/__init__.py": "6c50891007c2984533f4d7bd942fa6746f264f394ac504b46f8fcacdb788bafd",
+    "apps/gateway/__main__.py": "a5836ad62df1c205c8f8ab129296cdf20101003c26120b7bba9f7e6ddd396fd5",
+    "apps/gateway/buffer.py": "c8fc088de49792566322400425a45c169767c5ca4721baefdd234c4ded25a96c",
+    "apps/gateway/commands.py": "5878a1a183ce4552546de0b465ebdb3016e5bedc582f2ce57b19b781a7d83821",
+    "apps/gateway/http_client.py": "c836d5a170fea5e9a5b6266eb2f117fbbfad1e23785ba98f0ee554715d33a16c",
+    "apps/gateway/opcua_client.py": "f7c98051e10a6bfa96d3b8c0442ffd55e3bc0229a7eb3f7d6e113e8a1da84101",
+    "apps/gateway/settlement.py": "a9cc0db6eb645e9bb924faea59669b026d92c421b5223b3dd02cbac481842040",
+    "apps/gateway/worker.py": "75965906cdc3079a2a518d83900fa4b21e03653b683cd8093523c44500069f75",
+    "apps/simulator/__init__.py": "bfc7bf1092c6af7b7db6b8021692458640482b95b0f727d2440e2358575af414",
+    "apps/simulator/__main__.py": "e98eda44f9c337687595ad3cd81a5cb4a2afc3a1d43bf9eee48feca6fef23640",
+    "apps/simulator/_field_channels_v1.py": "f261bde89764897c0a9b68a7d36c7ab0ca169975af25605bebb736fa7d1780f8",
+    "apps/simulator/_field_channels_v2.py": "1e92e1bfc3e41eb4b9a0f123c472602e1a006e410aff1b70ef0d8e839c5fbb1d",
+    "apps/simulator/auth.py": "3cf4f2a1726ca73e3a9cf6171f37cd36251369b52e10f2853b316430ac00b4a6",
+    "apps/simulator/certificates.py": "fb5faf131e4ea979c3d87611c2fa4d11892684d6657c18eaebf24203be8274b7",
+    "apps/simulator/command_store.py": "62e0f7a1dcac2ac616ed8250ff9539e001bc8620dad4892afa2b73e0ecb7c97f",
+    "apps/simulator/console.py": "915b1329799cce8c839f3fee09f9a1ac4dcdb85fd7bac1ab9150d923c543a4fc",
+    "apps/simulator/controller.py": "5e0bed9e5df5366342c055abdbfaeb4d221e1a0dca5a01814df37adb2c8b51e0",
+    "apps/simulator/field_channels.py": "e9ed6df9d772681adc0f4fe80ea52cb2e590a42f44d1dcc411da0397e4c92e1c",
+    "apps/simulator/field_delay.py": "369832fd994ef9e464ded61b29b04e53e413b9991bb34c9d1851827e8c5d58f2",
+    "apps/simulator/field_publication.py": "a26747177b722178cb7e2e70192c9c31875e2ae4039cba96efedac963b6d37d2",
+    "apps/simulator/opcua_server.py": "f7d522c8743bb856f99ca809ace724ffdc2a02c6d04f595427a07dbb89ab848f",
+    "apps/simulator/plc.py": "8303285dbbd2685a1729421bc5e321c06f11d62f683a0a559833489575715b09",
+    "apps/simulator/process.py": "faa7c8322f3dbfe44c05fcded7c502b4156fe080ef4834242135d206115e0f98",
+    "apps/simulator/storage.py": "4db6e12ac1d1f7a33e69327eeebe88b3cf4b2a55ff629eeddbaf247f801b403b",
+    "apps/simulator/tags.py": "1c8b8ea25fe15d0bf8cf59d822be4211038bc4d9e3d0d189fa3bad0c7094ff65",
+    "contracts/__init__.py": "dcc00f93465d84e6862541a34bb8676dadda00ae151a9f8c7c6f81d32a9cb663",
+    "contracts/clock_evidence.py": "dc2c0e40be5343466410b0fc8d82b6088a2483023f19dde34e0f8fb13aabaefc",
+    "contracts/examples/command-expired.json": "03fa92289b72d8a73655154216d5cf7c9441baeab1d58fe5fa24e98e1962ed21",
+    "contracts/examples/command-not-found.json": "e5b8be1bd23e3eb1fc75e69578f8b909df459916f75fcc320654866e2d61f02a",
+    "contracts/examples/command-outcome-unknown.json": "05f1e7cb82406ea968e94f10de5dc4c89199ea9ef55622ff0aa530eabd163d15",
+    "contracts/examples/command-rejected.json": "b0057c9c863cf58c166851f945a223786a22d7121cdbc24180492630be57da54",
+    "contracts/examples/command-request.json": "eb128da1c184be8b85ade53377fd944f0e5d1d32b1ba8aebd59ba1366284cb6e",
+    "contracts/examples/command-result-request.json": "1ab32713ac62bb2722dec475886044734bcfa7b76af5835064cfe747d5f2be7d",
+    "contracts/examples/command-result.json": "fed8541d384a2d23cfd93a201001ca27ae92e3b012f774d59fb3138e76b86931",
+    "contracts/examples/command-submission.json": "564f590c3f4841874744c1eda2de395cdf8784850f4e64b1a5ea2e79ff1aa7d2",
+    "contracts/examples/commands.json": "b346bef6fe7435906714f268e8ad49ef37a9209eb3a51be3aae18b9657a89b9e",
+    "contracts/examples/event-page.json": "59fd205d15ccd8ed5d05362b10bcf35a206645bc21d6db2ba18c5ff0499f9c68",
+    "contracts/examples/event-read-error.json": "436fdc9e012709fb351e61c4940f32ca2633b205c1b8c5adbe2e2eb19f8b16e4",
+    "contracts/examples/event.json": "1f3724879001faacea8c5fe56ed764c7bd1a78c667321cde7dc065a3874655a2",
+    "contracts/examples/read-events-request.json": "85d552e2d3438a5c4c93bbb078d7f57b62d90ea8a02608dd3091b63e21b791ab",
+    "contracts/examples/run-not-found.json": "1981f7bebde9f21d312d59fc0f0dddc2fc71f3fa81f601ee4df500011645c7ca",
+    "contracts/examples/run-summary-request.json": "90a510ed2d96b16a6687b8036525fbbcb0be5a6ba929c42cda2d994ab5ca8df1",
+    "contracts/examples/run-summary.json": "c12de019c2c930179fa2b4b12a57fcd2039f0287779319fef1c3a9ef58b330de",
+    "contracts/examples/transport-ack-gap.json": "24c35b381f5165d6781dea119b7ea4d09b9b2a2a3155b61459775073839c453f",
+    "contracts/examples/transport-ack-quarantined.json": "cdd2aea8ef474a92601cf6252311ec59e85de516bffa1573c7343efd15918b5b",
+    "contracts/examples/transport-ack.json": "84cee3b2397f23c59db2a8b2e55387eeb489bfef48b2eb0d63ce31779509f7bb",
+    "contracts/examples/transport-batch-capture-time.json": "59b2a6c6bbe413e41f4b6d7e80dd7d8f9181e1734f41ef8efde26563cee43805",
+    "contracts/examples/transport-batch-gap.json": "308cabf6dcbd50d011579e4c2d91cebed5ae132778aeca3b6c8d58046a8beff7",
+    "contracts/examples/transport-batch.json": "cabc1e55f085e880752c5133615e2d9515d855512abd6568acecc69ac3be2245",
+    "contracts/examples/transport-screen-resync.json": "851bc6fb2f3f3f94463d68b723e99fd63b725ccc8a771d815bcb48afd2e97bd0",
+    "contracts/examples/transport-screen-update.json": "cb81d9adeffbdf686ad63b7d72a8275c086b52f2d073abdf9e386b3a1e884852",
+    "contracts/examples/transport-screen.json": "eaa79bc766fb2bf1b61d7a29fee5c4f840f8df2735e72b5f7236c913e2c955ee",
+    "contracts/models.py": "8e586c6f0e67e35804af28cf3db75ddf77394775a0912c2944a4c9de38836323",
+    "contracts/schemas/app-screen.schema.json": "a0ca37ffb33918f2e61a4d4c7ed0fc5b75b736ed2c7c040c55111a2fb58d0d56",
+    "contracts/schemas/command-not-found.schema.json": "63dc97e0fd364505ac89586d22363710aed08fcef9877c80cab8f188f1f200be",
+    "contracts/schemas/command-request.schema.json": "46a21ddc70f1cd7d66f54a55881770100e935031cba101fc9f2712714b9777a1",
+    "contracts/schemas/command-result-request.schema.json": "8ee51585007e2a5aea09038215a0a7091fe84a7cf52e1eb36250da99c7021241",
+    "contracts/schemas/command-result.schema.json": "ebda4aa84f3dbc0596c71cf11afa5919d01cd43bf3e74b80379e948db475b1e5",
+    "contracts/schemas/command-submission.schema.json": "38b2d3b2cae56658c448ab22afda0f470d96c96d018cdfa3f50884a08971e80d",
+    "contracts/schemas/event-page.schema.json": "aa0ecdc69d3a487865ec923948f3e4f62425e36b9dfb25470c802ce82fc8febd",
+    "contracts/schemas/event-read-error.schema.json": "57b662bcd66cbd00f21640e65db161e87766a44ccc35993993c273952321e221",
+    "contracts/schemas/event.schema.json": "3163d1e8d331445d3993394010a8cac531bbc7475f9a97762ff011725b5a042e",
+    "contracts/schemas/read-events-request.schema.json": "f950753e313a05c17b9bc6b4a5cf3920175ee229b88e06684ac0b8c4a43a5559",
+    "contracts/schemas/run-not-found.schema.json": "a4d3b483437f4f1bd66b365ff5db13a41333f1e4d99df361815c14f82f1e422c",
+    "contracts/schemas/run-summary-request.schema.json": "e36c0ee08cb43e50a4aca5d59c93d931de65539d393edc3c24e5f458a9148166",
+    "contracts/schemas/run-summary.schema.json": "e20c32f1969ee621b883f35e1ec5bf981d8f28944fcc28cda51556f03c45de80",
+    "contracts/schemas/transport-ack.schema.json": "35fb383752aed85fe372f2ee907c8192262d1af81f2da810aff397aab9aca866",
+    "contracts/schemas/transport-batch.schema.json": "10096c19199f5c99e1502baeb783dbb271cf5a09c1c9f46f9d47a039dfa1b15a",
+    "contracts/schemas/transport-screen.schema.json": "0412a4ff3262ec5ae7dfdc5d7726b9b898aca856b552033dfc625e07f0bee4ef",
+    "contracts/tags/tags.v1.json": "4643e8b4488a50dd0dbf734935922891b94b7b52dd178edef0a6cd4a6708ea13",
+    "contracts/tags/validate.py": "96c4d769cac767679cb9f5a62faabf904f31ef9eb236188a64510fcd05df614a",
+    "contracts/transport.py": "526d2bafb5caafd83a047cae6648d528316e6cf04a0d15de559fb85652479c81",
+    "deploy/backup_set.py": "e628b2190ab236494aefe4eebf42b81d3fb75b2df0a54dd41c379fc0712496f1",
+    "deploy/compose_runtime.py": "ea06161f1b10a13965ccaa9fdb40d3e01780902a8bd5cc2b88c78acbf11bf282",
+    "deploy/generate_gateway_setup.py": "a823ad6b8835c852236cd4046bb31bb6c00ba2e29232f34f92a33af49daaf572",
+    "deploy/generate_neon_demo.py": "48b14e7126385141450b1383b8e42f6c373b28ae2ae631f2a9d2bf97f407aa70",
+    "deploy/generate_neon_init.py": "c567bf6f75851afd119cd5bc2db387a7634539dcd3445fa3f01fafc2d00ed47d",
+    "deploy/neon-clock-grants.sql": "2107653ce5a4dce44bc56345423f2d8f4eaf31f8abf5dd55f1af27d2ef4a4298",
+    "deploy/neon-http/grants-0017.json": "2c316acb4783948c0deeff71016e2f1a3df42ff836996ad02f4e7e94d70edf38",
+    "deploy/neon-http/grants-0018.json": "800dbd5ce9cdb183f2753e88e34cb02b64f0a278c5a9335d77019663fcab392b",
+    "deploy/neon-http/upgrade-0014-0017.json": "7bf28e0c18667fe0b48d0569f37b88475141751b865dcd33a26e2ad8ab86d7cb",
+    "deploy/neon-http/upgrade-0017-0018.json": "cf8fc04e08bdffe2d1241384f7d26e880eb68185927c4475f5aef43dcd656796",
+    "deploy/neon-init.sql": "d542f65d080f92817de6ac4bb4fb7ca1f26eb35310a0174793b8475d0967bef5",
+    "deploy/neon-kuls-grants.sql": "dfe7cad4b15f73c6d075ee2c1b43a93f9bc4b45845f822335b285b82fb22f73b",
+    "deploy/plant_runtime.py": "680f4ef92b2456c61f6675f2af4f7948c7740ea4be7b112f47a51efab7d7c35d",
+    "deploy/plant_service.py": "1fe14a85f1aa08310d9f728bd08223b9c290890cb9e5600777f7ff9c76d338d8",
+    "tests/e2e/acceptance_runtime.py": "15f07275748c1ed13a101dcb2d925b50900d1488d7c32c7b443c11546cb3370e",
+    "tests/e2e/browser_boundary.py": "9adefe0ca0a04757e93f479db52216583fbd9acf5398abb6f872e2d56f334b0d",
+    "tests/e2e/conftest.py": "1d53a448235780b6948bf6e9d6ee7d356486f08392a92bdfddf09db5e2201c45",
+    "tests/e2e/long_run_runtime.py": "c35cef72930a60105761f7077d937ee18b1b5606b15b72e7c23b9603570f7d2e",
+    "tests/e2e/test_backup_cli.py": "95d46bedff9bf6e4f89b64594b9a99ffd38fb5cea6739362946e9421b440cb8e",
+    "tests/e2e/test_browser_acceptance.py": "dab40db37db364f628080fa4ee74dce1f90b90594e9658c1f48f83c141f782a3",
+    "tests/e2e/test_core_acceptance.py": "f59a66d33cf2986b0ed543902671c1f5b3b87259805df262e2478cc002402443",
+    "tests/e2e/test_operator_cli.py": "45efa30711ec99f0fdad9ba9d7e7d6a72779e240b1697ed3b91acca944b2f4b1",
+    "tests/e2e/test_restore_acceptance.py": "0254366f8d93897b745303cc5ec6002efba25e427ea293ccc72a7ea4e20831b6"
+  },
+  "git_diff_sha256": "b053537665b54fa0c53374990cc37ce5269e3fc1aeccbb702c744daf2ba297ba",
+  "commands": [],
+  "executions": [
+    {
+      "execution_id": "alarm-run",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "work_order_id": "alarm-order",
+      "recipe_version": "alarm-recipe",
+      "fixture_physics": "100ms ticker; short 1mm stages; ambient150C"
+    }
+  ],
+  "events": [
+    {
+      "seq": "1",
+      "kind": "STATE_CHANGED",
+      "payload": {
+        "state": "STOPPED",
+        "previous_state": "RECOVERY_REQUIRED",
+        "control_version": "1"
+      },
+      "event_id": "f0dff4b1-ff09-47e1-b32c-90c26265f21e",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:42.478810Z",
+      "equipment_id": "Line",
+      "execution_id": null,
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "2",
+      "kind": "STATE_CHANGED",
+      "payload": {
+        "state": "READY",
+        "previous_state": "STOPPED",
+        "control_version": "3"
+      },
+      "event_id": "3ea19f0a-8750-4aa9-b714-231d5e26c4fc",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:46.213366Z",
+      "equipment_id": "Line",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "3",
+      "kind": "STATE_CHANGED",
+      "payload": {
+        "state": "RUNNING",
+        "previous_state": "READY",
+        "control_version": "4"
+      },
+      "event_id": "bedf702e-a254-43f7-ba79-337a8db02116",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:46.218368Z",
+      "equipment_id": "Line",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "4",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "154b79d8-fbe5-48d0-a937-ef0d6f2b3fc5",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:46.874400Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "5",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "78ec8f8e-d9db-4742-9099-a3091dd0a348",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:46.979649Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "6",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "a7e0fe17-757f-4cfd-a354-47dcd9dfccfe",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:47.299102Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "7",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "89230ac9-fcd7-4454-a43c-10687f92d689",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:47.401907Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "8",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "fb93604a-9fac-4eec-8b35-fd42afd5bc37",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:47.507591Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "9",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "92e97ebf-9a40-4508-8b45-4c096c5d9235",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:47.841248Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "10",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "1b5b4c3f-d9da-4043-97fb-8ae234869361",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:47.946050Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "11",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "7d0c9cd5-ab87-4f6a-bb75-2db7044dbebf",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:48.050201Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "12",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "63d45706-acbf-496f-939e-61f93de880ea",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:48.373887Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "13",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "4cb7517d-7bff-4570-8c00-0b76518da7f3",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:48.478242Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "14",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "5bcf15fa-d28d-401b-ba94-51eb150661d5",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:48.582531Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "15",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "1d5811f0-374e-49dd-a3f5-f10eff0f7dce",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:48.912184Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "16",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "b94a6926-cfb9-4dc8-be75-c542449da0e5",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:49.015739Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "17",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "e06ae553-27ef-4f3c-a770-d4b25aa4de7f",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:49.119862Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "18",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "02fa5de5-cbf7-456c-992c-3207b4170bd6",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:49.432717Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "19",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "ab70067c-b477-4096-b3ae-2287d58d181c",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:49.537334Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "20",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "841a9297-1cb9-4c5f-9564-aed30dd7dd4d",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:49.641351Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "21",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "da3da168-21a3-4996-a8d4-9ef4c75b3566",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:49.972764Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "22",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "e9c6c0b4-ec09-4b8c-87f2-0f161e6479c8",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:50.077156Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "23",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "fac98ec5-999e-4cb8-9720-d0099ac39da1",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:50.189957Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "24",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "3a46d47a-31c8-4376-bf03-422b581a81ee",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:50.530479Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "25",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "de4c9a90-22f7-43c6-a2d1-5d1de6881d91",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:50.634420Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "26",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "aec07474-c482-443c-9fc6-5aa60f779d38",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:50.739849Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "27",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "10009c5d-224a-413a-b124-5b3dbebace68",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:51.065585Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "28",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "7f2f5ab0-6579-42fe-97c6-cff380022c4e",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:51.168908Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "29",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "15b56283-e65b-4aaa-b4d2-1ed2fa4c1d97",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:51.272637Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "30",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "47bd8098-74a1-44ee-9edc-6065ed145468",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:51.591834Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "31",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "607af4b4-422d-4f2a-9c59-fa3608a0a073",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:51.696310Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "32",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "e770b8a8-5fbc-4fe4-8ba3-54a3bc1f0296",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:51.800161Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "33",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "662f324e-d592-408f-ae84-b69466145227",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:52.113934Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "34",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "3cabb6b7-ffc0-4fc1-bd1f-e308266d929a",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:52.217531Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "35",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "245bb4a6-c21f-46de-85ce-9a50d4467518",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:52.321226Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "36",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "b98c6574-fcb7-40a2-9ea0-bead67857758",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:52.630800Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "37",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "d3b20f43-a468-44e4-af5e-6e3aa1bab218",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:52.737161Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "38",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "ff61bdef-d40e-467f-80c7-e574fd89fa8d",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:52.840679Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "39",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "ada705b0-1bf6-4fed-ac13-29e4b3913205",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:53.144174Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "40",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "44b9fcd9-c912-41f1-b22d-4503b5b72c1e",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:53.299248Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "41",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "f824a047-52b8-49ac-ae8d-9bdbd2b14124",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:53.402734Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "42",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "c9591356-683d-49a9-bf1a-518437c56d1a",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:53.704323Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "43",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "39c53e02-e122-45ee-b098-f446ba62848f",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:53.808461Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "44",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "8a5aecc7-786f-4b89-8cc1-62576057a3b9",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:53.911879Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "45",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "ea538e7a-10f3-413d-ae70-213a4db7c3f5",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:54.098039Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "46",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "70bc8667-387f-4d5a-bd1e-83f2f173ecee",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:54.202189Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "47",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "ff8563ab-16c1-4d96-a395-3b57a1fcabca",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:54.306108Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "48",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "10ca4a57-ef7f-4f5f-8bdb-82c81774b321",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:54.497740Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "49",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "6e7daee5-0153-424e-aae8-0d0fbd2b49fd",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:54.601754Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "50",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "04d61b4b-49e2-4e14-9d9a-68200380a41c",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:54.706210Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "51",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "338d7aef-f4de-4a04-84f5-f5867901fd2b",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:54.899380Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "52",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "8327ed29-f2a6-4e38-9000-572593ea466c",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:55.003198Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "53",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "23a6143e-88c3-4ec1-9d95-188eb08b463e",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:55.106586Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "54",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "43911934-9d98-4061-a085-6f5523fc9c99",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:55.293087Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "55",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "165ba778-44ff-4c4b-84fc-9cab6b6aadaa",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:55.397243Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "56",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "40d4c388-f3ae-41d5-b88a-0ace309ae969",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:55.501638Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "57",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "5f98aafd-9ad4-42a6-a392-9ee7d86c0daa",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:55.684814Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "58",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "8746545a-415e-4e9b-8376-31984014ff7c",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:55.788232Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "59",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "ae7e5727-d051-41e3-843c-5f9113256154",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:55.892136Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "60",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "ba07d1b4-74da-42d7-aeb6-22c8cebfbd59",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:56.073943Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "61",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "8ed4b7d3-05dc-45a8-944a-0e998693fba4",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:56.177191Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "62",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "e3a1614b-6916-47c4-96e5-d61b2163a84c",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:56.280947Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "63",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "d9504486-421d-4e6a-9b32-426bac134c6b",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:56.489217Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "64",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "416e1472-6403-434e-8b34-7e3069acb14b",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:56.593096Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "65",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "052b97fa-7652-4adf-8696-13baf9ebf7b3",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:56.696933Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "66",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "b4a61843-54c3-4e39-9d84-90a09d33f43a",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:56.877902Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "67",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "ae4c1b9d-ba6b-40ca-8a9b-168ba9b83405",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:56.982257Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "68",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "8fea055b-81bd-4a5a-ae5c-b5626046dfbf",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:57.086004Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "69",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "e412b423-4307-4f80-907b-0c2653b80ddc",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:57.283769Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "70",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "20670006-1537-40ff-b555-0b5065a90d05",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:57.387319Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "71",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "8cfbdfbe-971a-46c6-9c49-838d30ce5236",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:57.490965Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "72",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "3edcc313-8ff0-4829-8564-825b3312a519",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:57.674234Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "73",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "7adf38ca-74cd-4f0e-8e7f-770a9938d8d8",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:57.780396Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "74",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "c143bd9b-7da1-4ac7-8807-273ff169d2e6",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:57.886404Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "75",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "5389b8a2-45e7-491f-8793-36480654495d",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:58.074109Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "76",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "576e3cf8-5118-4247-b6dc-5a13d4491b6c",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:58.179662Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "77",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "7eab7b83-bbee-4367-aa9a-c9cd84adc1b9",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:58.283555Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "78",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "cee9dc16-e95e-47cc-affd-cbb58de76c57",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:58.479205Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "79",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "89a17ac8-b55f-40a1-935b-7382f3db05a7",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:58.584327Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "80",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "361b0b6a-1331-4891-933e-d1a82874d8c4",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:58.693976Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "81",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "f6ab9567-6c19-4c78-8eae-e2ae41f540c8",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:58.883379Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "82",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "aad628ce-8e46-4376-b53e-7f8144f1bd9b",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:58.987075Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "83",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "8245d14e-fc93-433a-8f46-a48f1aba85bc",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:59.091331Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "84",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "ae91dec3-a9cf-4faf-82b0-0ebd6021309e",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:59.297339Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "85",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "20a73910-0c0d-4bed-a90f-b6fe94b5b768",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:03:59.626444Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "86",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "e423588a-a2f4-47b9-84f0-167ee28d03e2",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:04:00.507855Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "87",
+      "kind": "PRODUCTION_REJECT",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "a1899a39-b1eb-44a9-b633-5ae444be32b7",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:04:01.773507Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "88",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "74a14b20-4162-48bf-95dd-c32b6e06764a",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:04:01.877406Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    },
+    {
+      "seq": "89",
+      "kind": "PRODUCTION_GOOD",
+      "payload": {
+        "quantity": "1",
+        "counter_epoch": "b23ad64d-4acf-4a61-8f53-c62635f7cb21"
+      },
+      "event_id": "18c8ff5f-2729-4643-9731-9b0ba02a0524",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+      "occurred_at": "2026-10-23T14:04:01.981373Z",
+      "equipment_id": "Outfeed",
+      "execution_id": "alarm-run",
+      "schema_version": "1.0"
+    }
+  ],
+  "final_sequences": {
+    "source_last_seq": 91,
+    "gateway_capture": [
+      1,
+      18
+    ],
+    "verified_through_seq": 89,
+    "latest_ingested_seq": 89
+  },
+  "reports": {
+    "disconnect_boundary": "OPC",
+    "disconnect_timing": {
+      "last_fresh_capture": {
+        "batch_id": "559a517b-208b-4e9c-aad2-f3d901b91baf",
+        "completed_monotonic": 265093.733613566,
+        "completed_at_utc": "2026-10-23T14:03:53.407881+00:00",
+        "opc_health": {
+          "state": "GOOD",
+          "connected": true,
+          "read_age_seconds": 0.10456513799726963,
+          "heartbeat_ages_seconds": [
+            [
+              "Line.Heartbeat",
+              0.10456513799726963
+            ],
+            [
+              "Infeed.LinkHeartbeat",
+              0.10456513799726963
+            ],
+            [
+              "Sealer.LinkHeartbeat",
+              0.10456513799726963
+            ],
+            [
+              "Outfeed.LinkHeartbeat",
+              0.10456513799726963
+            ]
+          ]
+        }
+      },
+      "started_monotonic": 265093.733652825,
+      "started_at_utc": "2026-10-23T14:03:53.407919+00:00",
+      "stop_completed_monotonic": 265093.835186711
+    },
+    "real_seconds": [
+      {
+        "elapsed": 2.0008352429722436,
+        "heartbeat": "GOOD",
+        "line": "운전 중",
+        "start_disabled": true,
+        "pause_disabled": false
+      },
+      {
+        "elapsed": 3.6007615710259415,
+        "heartbeat": "DELAYED",
+        "line": "불명",
+        "start_disabled": true,
+        "pause_disabled": true
+      },
+      {
+        "elapsed": 5.800934188999236,
+        "heartbeat": "ALARM",
+        "line": "불명",
+        "start_disabled": true,
+        "pause_disabled": true
+      }
+    ],
+    "retained_alarm": {
+      "coverage": {
+        "scope": {
+          "line_id": "packaging-line-1",
+          "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+          "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+          "asset_id": "Sealer"
+        },
+        "implemented_kinds": [
+          "TEMPERATURE_DEVIATION",
+          "PRESSURE_LOW"
+        ],
+        "installed_channel_count": 1,
+        "installed_channels": [
+          {
+            "rule_id": "browser-temperature",
+            "rule_version": "v1",
+            "kind": "TEMPERATURE_DEVIATION",
+            "severity": "HIGH"
+          }
+        ],
+        "has_more_installed_channels": false,
+        "consumer_status": "UNKNOWN",
+        "runtime_configuration_status": "UNKNOWN"
+      },
+      "items": [
+        {
+          "instance": {
+            "alarm_id": "alarm:9f2e160adc663ea149c8a61f9bbe0dfa5852dc55f603bd4a537c36d1796eee16",
+            "scope": {
+              "line_id": "packaging-line-1",
+              "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+              "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+              "asset_id": "Sealer"
+            },
+            "rule": {
+              "rule_id": "browser-temperature",
+              "version": "v1",
+              "severity": "HIGH"
+            },
+            "raised_evidence": {
+              "observed_at": "2026-10-23T14:03:52.934015Z",
+              "references": [
+                "0e2fa400-3ded-40c4-beeb-bd29e3e9390a",
+                "75be53be-d3c1-493a-b57c-af94693450b7",
+                "d041fc0d-2c79-4554-90af-fac4d580e984",
+                "a4ecf5e6-4b5e-45d9-9b71-5b063af5ba0e",
+                "affad0f4-e85e-4986-8349-bc6da2110639",
+                "3641a05a-f1fc-4f78-a780-70781740250a",
+                "947b1dd0-dcbe-4553-bb2b-a74c78b2097d"
+              ],
+              "readings": [
+                {
+                  "name": "phase",
+                  "value": "PRODUCTION"
+                },
+                {
+                  "name": "clock_epoch",
+                  "value": "adf94a14-7636-4561-b4f3-a0579e66a256"
+                },
+                {
+                  "name": "monotonic_seconds",
+                  "value": 265093.25979503
+                },
+                {
+                  "name": "monotonic_span_seconds",
+                  "value": 4.891399294137955e-05
+                },
+                {
+                  "name": "input_time_quality",
+                  "value": "KNOWN"
+                },
+                {
+                  "name": "qualification_reason",
+                  "value": "DWELL_QUALIFIED"
+                },
+                {
+                  "name": "qualification_input_sha256",
+                  "value": "ec282cd0d67e70b41ab45da0dc110411c7a85378eed26f4978b12c2a4cd31b18"
+                },
+                {
+                  "name": "batch_sha256",
+                  "value": "71355bb52ad2b0a892cab632470c5706a88de1575a20f79972fcefe216208248"
+                },
+                {
+                  "name": "clock_assessment_sha256",
+                  "value": "cfed7a9cafa46db2dc224c910efeaf9c27e2f052ece854fc5a360292ad66d084"
+                },
+                {
+                  "name": "Sealer.TemperaturePV",
+                  "value": 175.0
+                },
+                {
+                  "name": "Sealer.TemperaturePV.status_code",
+                  "value": 0
+                },
+                {
+                  "name": "Sealer.TemperaturePV.acquired_at",
+                  "value": "2026-10-23T14:03:52.934015+00:00"
+                },
+                {
+                  "name": "Sealer.TemperaturePV.source_timestamp",
+                  "value": "2026-10-23T14:03:52.843690+00:00"
+                },
+                {
+                  "name": "Sealer.TemperaturePV.server_timestamp",
+                  "value": "2026-10-23T14:03:52.843922+00:00"
+                },
+                {
+                  "name": "Sealer.TemperatureSP",
+                  "value": 150.0
+                },
+                {
+                  "name": "Sealer.TemperatureSP.status_code",
+                  "value": 0
+                },
+                {
+                  "name": "Sealer.TemperatureSP.acquired_at",
+                  "value": "2026-10-23T14:03:52.934015+00:00"
+                },
+                {
+                  "name": "Sealer.TemperatureSP.source_timestamp",
+                  "value": "2026-10-23T14:03:52.843690+00:00"
+                },
+                {
+                  "name": "Sealer.TemperatureSP.server_timestamp",
+                  "value": "2026-10-23T14:03:52.843922+00:00"
+                },
+                {
+                  "name": "Line.State",
+                  "value": 2
+                },
+                {
+                  "name": "Line.State.status_code",
+                  "value": 0
+                },
+                {
+                  "name": "Line.State.acquired_at",
+                  "value": "2026-10-23T14:03:52.934015+00:00"
+                },
+                {
+                  "name": "Line.State.source_timestamp",
+                  "value": "2026-10-23T14:03:52.843690+00:00"
+                },
+                {
+                  "name": "Line.State.server_timestamp",
+                  "value": "2026-10-23T14:03:52.843922+00:00"
+                },
+                {
+                  "name": "Line.OperationMode",
+                  "value": 1
+                },
+                {
+                  "name": "Line.OperationMode.status_code",
+                  "value": 0
+                },
+                {
+                  "name": "Line.OperationMode.acquired_at",
+                  "value": "2026-10-23T14:03:52.934015+00:00"
+                },
+                {
+                  "name": "Line.OperationMode.source_timestamp",
+                  "value": "2026-10-23T14:03:52.843690+00:00"
+                },
+                {
+                  "name": "Line.OperationMode.server_timestamp",
+                  "value": "2026-10-23T14:03:52.843922+00:00"
+                },
+                {
+                  "name": "Line.ActiveExecutionId",
+                  "value": "alarm-run"
+                },
+                {
+                  "name": "Line.ActiveExecutionId.status_code",
+                  "value": 0
+                },
+                {
+                  "name": "Line.ActiveExecutionId.acquired_at",
+                  "value": "2026-10-23T14:03:52.934015+00:00"
+                },
+                {
+                  "name": "Line.ActiveExecutionId.source_timestamp",
+                  "value": "2026-10-23T14:03:52.843690+00:00"
+                },
+                {
+                  "name": "Line.ActiveExecutionId.server_timestamp",
+                  "value": "2026-10-23T14:03:52.843922+00:00"
+                },
+                {
+                  "name": "Sealer.State",
+                  "value": 2
+                },
+                {
+                  "name": "Sealer.State.status_code",
+                  "value": 0
+                },
+                {
+                  "name": "Sealer.State.acquired_at",
+                  "value": "2026-10-23T14:03:52.934015+00:00"
+                },
+                {
+                  "name": "Sealer.State.source_timestamp",
+                  "value": "2026-10-23T14:03:52.843690+00:00"
+                },
+                {
+                  "name": "Sealer.State.server_timestamp",
+                  "value": "2026-10-23T14:03:52.843922+00:00"
+                },
+                {
+                  "name": "Sealer.RunFeedback",
+                  "value": true
+                },
+                {
+                  "name": "Sealer.RunFeedback.status_code",
+                  "value": 0
+                },
+                {
+                  "name": "Sealer.RunFeedback.acquired_at",
+                  "value": "2026-10-23T14:03:52.934015+00:00"
+                },
+                {
+                  "name": "Sealer.RunFeedback.source_timestamp",
+                  "value": "2026-10-23T14:03:52.843690+00:00"
+                },
+                {
+                  "name": "Sealer.RunFeedback.server_timestamp",
+                  "value": "2026-10-23T14:03:52.843922+00:00"
+                }
+              ],
+              "quality": "KNOWN",
+              "time_quality": "KNOWN"
+            },
+            "condition_closed_at": null,
+            "closure_reason": null,
+            "closure_event_id": null,
+            "return_evidence": null,
+            "acknowledged_at": null,
+            "acknowledged_by": null
+          },
+          "status": "ACTIVE_UNACKNOWLEDGED"
+        }
+      ],
+      "has_more": false,
+      "next_before_alarm_id": null
+    },
+    "recovered_alarm": {
+      "instance": {
+        "alarm_id": "alarm:9f2e160adc663ea149c8a61f9bbe0dfa5852dc55f603bd4a537c36d1796eee16",
+        "scope": {
+          "line_id": "packaging-line-1",
+          "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+          "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+          "asset_id": "Sealer"
+        },
+        "rule": {
+          "rule_id": "browser-temperature",
+          "version": "v1",
+          "severity": "HIGH"
+        },
+        "raised_evidence": {
+          "observed_at": "2026-10-23T14:03:52.934015Z",
+          "references": [
+            "0e2fa400-3ded-40c4-beeb-bd29e3e9390a",
+            "75be53be-d3c1-493a-b57c-af94693450b7",
+            "d041fc0d-2c79-4554-90af-fac4d580e984",
+            "a4ecf5e6-4b5e-45d9-9b71-5b063af5ba0e",
+            "affad0f4-e85e-4986-8349-bc6da2110639",
+            "3641a05a-f1fc-4f78-a780-70781740250a",
+            "947b1dd0-dcbe-4553-bb2b-a74c78b2097d"
+          ],
+          "readings": [
+            {
+              "name": "phase",
+              "value": "PRODUCTION"
+            },
+            {
+              "name": "clock_epoch",
+              "value": "adf94a14-7636-4561-b4f3-a0579e66a256"
+            },
+            {
+              "name": "monotonic_seconds",
+              "value": 265093.25979503
+            },
+            {
+              "name": "monotonic_span_seconds",
+              "value": 4.891399294137955e-05
+            },
+            {
+              "name": "input_time_quality",
+              "value": "KNOWN"
+            },
+            {
+              "name": "qualification_reason",
+              "value": "DWELL_QUALIFIED"
+            },
+            {
+              "name": "qualification_input_sha256",
+              "value": "ec282cd0d67e70b41ab45da0dc110411c7a85378eed26f4978b12c2a4cd31b18"
+            },
+            {
+              "name": "batch_sha256",
+              "value": "71355bb52ad2b0a892cab632470c5706a88de1575a20f79972fcefe216208248"
+            },
+            {
+              "name": "clock_assessment_sha256",
+              "value": "cfed7a9cafa46db2dc224c910efeaf9c27e2f052ece854fc5a360292ad66d084"
+            },
+            {
+              "name": "Sealer.TemperaturePV",
+              "value": 175.0
+            },
+            {
+              "name": "Sealer.TemperaturePV.status_code",
+              "value": 0
+            },
+            {
+              "name": "Sealer.TemperaturePV.acquired_at",
+              "value": "2026-10-23T14:03:52.934015+00:00"
+            },
+            {
+              "name": "Sealer.TemperaturePV.source_timestamp",
+              "value": "2026-10-23T14:03:52.843690+00:00"
+            },
+            {
+              "name": "Sealer.TemperaturePV.server_timestamp",
+              "value": "2026-10-23T14:03:52.843922+00:00"
+            },
+            {
+              "name": "Sealer.TemperatureSP",
+              "value": 150.0
+            },
+            {
+              "name": "Sealer.TemperatureSP.status_code",
+              "value": 0
+            },
+            {
+              "name": "Sealer.TemperatureSP.acquired_at",
+              "value": "2026-10-23T14:03:52.934015+00:00"
+            },
+            {
+              "name": "Sealer.TemperatureSP.source_timestamp",
+              "value": "2026-10-23T14:03:52.843690+00:00"
+            },
+            {
+              "name": "Sealer.TemperatureSP.server_timestamp",
+              "value": "2026-10-23T14:03:52.843922+00:00"
+            },
+            {
+              "name": "Line.State",
+              "value": 2
+            },
+            {
+              "name": "Line.State.status_code",
+              "value": 0
+            },
+            {
+              "name": "Line.State.acquired_at",
+              "value": "2026-10-23T14:03:52.934015+00:00"
+            },
+            {
+              "name": "Line.State.source_timestamp",
+              "value": "2026-10-23T14:03:52.843690+00:00"
+            },
+            {
+              "name": "Line.State.server_timestamp",
+              "value": "2026-10-23T14:03:52.843922+00:00"
+            },
+            {
+              "name": "Line.OperationMode",
+              "value": 1
+            },
+            {
+              "name": "Line.OperationMode.status_code",
+              "value": 0
+            },
+            {
+              "name": "Line.OperationMode.acquired_at",
+              "value": "2026-10-23T14:03:52.934015+00:00"
+            },
+            {
+              "name": "Line.OperationMode.source_timestamp",
+              "value": "2026-10-23T14:03:52.843690+00:00"
+            },
+            {
+              "name": "Line.OperationMode.server_timestamp",
+              "value": "2026-10-23T14:03:52.843922+00:00"
+            },
+            {
+              "name": "Line.ActiveExecutionId",
+              "value": "alarm-run"
+            },
+            {
+              "name": "Line.ActiveExecutionId.status_code",
+              "value": 0
+            },
+            {
+              "name": "Line.ActiveExecutionId.acquired_at",
+              "value": "2026-10-23T14:03:52.934015+00:00"
+            },
+            {
+              "name": "Line.ActiveExecutionId.source_timestamp",
+              "value": "2026-10-23T14:03:52.843690+00:00"
+            },
+            {
+              "name": "Line.ActiveExecutionId.server_timestamp",
+              "value": "2026-10-23T14:03:52.843922+00:00"
+            },
+            {
+              "name": "Sealer.State",
+              "value": 2
+            },
+            {
+              "name": "Sealer.State.status_code",
+              "value": 0
+            },
+            {
+              "name": "Sealer.State.acquired_at",
+              "value": "2026-10-23T14:03:52.934015+00:00"
+            },
+            {
+              "name": "Sealer.State.source_timestamp",
+              "value": "2026-10-23T14:03:52.843690+00:00"
+            },
+            {
+              "name": "Sealer.State.server_timestamp",
+              "value": "2026-10-23T14:03:52.843922+00:00"
+            },
+            {
+              "name": "Sealer.RunFeedback",
+              "value": true
+            },
+            {
+              "name": "Sealer.RunFeedback.status_code",
+              "value": 0
+            },
+            {
+              "name": "Sealer.RunFeedback.acquired_at",
+              "value": "2026-10-23T14:03:52.934015+00:00"
+            },
+            {
+              "name": "Sealer.RunFeedback.source_timestamp",
+              "value": "2026-10-23T14:03:52.843690+00:00"
+            },
+            {
+              "name": "Sealer.RunFeedback.server_timestamp",
+              "value": "2026-10-23T14:03:52.843922+00:00"
+            }
+          ],
+          "quality": "KNOWN",
+          "time_quality": "KNOWN"
+        },
+        "condition_closed_at": null,
+        "closure_reason": null,
+        "closure_event_id": null,
+        "return_evidence": null,
+        "acknowledged_at": null,
+        "acknowledged_by": null
+      },
+      "status": "ACTIVE_UNACKNOWLEDGED"
+    },
+    "execution_reports": {
+      "items": [
+        {
+          "execution_id": "alarm-run",
+          "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+          "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+          "work_order_id": "alarm-order",
+          "item_id": null,
+          "recipe_version": "alarm-recipe",
+          "target_quantity": 1000,
+          "registered_at": "2026-10-23T14:03:46.194246Z",
+          "started_at": "2026-10-23T14:03:46.218368Z",
+          "ended_at": null,
+          "totals": {
+            "good": "58",
+            "reject": "28",
+            "scrap": "0"
+          },
+          "yield_ratio": 0.6744186046511628,
+          "settlement_status": "PENDING",
+          "provisional": true,
+          "provisional_reasons": [
+            "EXECUTION_NOT_SETTLED",
+            "UNKNOWN_TIME"
+          ],
+          "durations_seconds": {
+            "running": 0.0,
+            "stopped": 0.0,
+            "unknown": 16.310667,
+            "total": 16.310667
+          },
+          "stopped_by_state": {}
+        }
+      ],
+      "next_cursor": null
+    },
+    "scope": {
+      "line_id": "packaging-line-1",
+      "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+      "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2"
+    },
+    "capture_ids": [
+      "bd15427e-cfbb-4275-a65f-52c2bbf4e7b6",
+      "e3a18395-6135-4e0c-bcd7-ecc2a28c253b",
+      "7cac150c-aff9-4ca6-9915-863a11eb10bc",
+      "3bf89e38-0f16-4e40-b2c5-6f3b63e53608",
+      "e824fafe-3c34-4491-a9cc-2e48b3fbe88d",
+      "015d4edc-6264-45cb-a847-eaac2c521083",
+      "e91cfe08-530c-471c-8ad1-0c41648f489e",
+      "dfa07f47-b916-45fe-b303-428097a01c6a",
+      "4b848593-e037-4be7-b1d1-7de9e95eabb8",
+      "ffb40c5b-c53b-4380-92bf-e03e7a343a65",
+      "7cf0e9de-dcf3-4d42-92be-d201fc727e19",
+      "0da6683b-acc5-4b33-a286-136056268873",
+      "2c3709f2-a009-4831-917d-75eb5f993943",
+      "9c8fbcd3-aed9-47e5-8c59-5e77a97ba6f4",
+      "559a517b-208b-4e9c-aad2-f3d901b91baf",
+      "3e112bbb-4f15-4197-b2d3-68f1aab84bf1",
+      "715c9ee8-045b-48cc-bffa-2a2f769d7e03"
+    ],
+    "simulator_state": {
+      "target_id": "Line",
+      "state": "RUNNING",
+      "control_version": "5",
+      "control_mode": "REMOTE",
+      "operation_mode": "AUTO",
+      "inputs": {
+        "estop": false,
+        "guard_closed": true,
+        "fault_code": 0,
+        "fault_resettable": true,
+        "equipment_ready": true,
+        "temperature_c": 175.0,
+        "temperature_offset_c": 25.0,
+        "pressure_bar": 6.0,
+        "run_feedback": true,
+        "speed_m_per_min": 6.0
+      },
+      "recovery_required": false,
+      "latched_fault_code": 0,
+      "pressure_ready": true,
+      "permissive": true,
+      "ready": false,
+      "run_output": true,
+      "execution_id": "alarm-run",
+      "work_order_id": "alarm-order",
+      "recipe_version": "alarm-recipe",
+      "parameters": {
+        "temperature_c": 150.0,
+        "speed_m_per_min": 6.0
+      },
+      "target_quantity": 1000,
+      "run_state": "RUNNING",
+      "wip_quantity": 3,
+      "last_event_seq": "91",
+      "previous_execution_settled": false,
+      "unresolved_conflict": false,
+      "pending_command_id": null,
+      "pending_kind": null,
+      "stop_purpose": null
+    }
+  },
+  "assertions": [
+    {
+      "name": "real_3_second_delay_boundary",
+      "passed": true,
+      "timeline": [
+        {
+          "elapsed": 2.0008352429722436,
+          "heartbeat": "GOOD",
+          "line": "운전 중",
+          "start_disabled": true,
+          "pause_disabled": false
+        },
+        {
+          "elapsed": 3.6007615710259415,
+          "heartbeat": "DELAYED",
+          "line": "불명",
+          "start_disabled": true,
+          "pause_disabled": true
+        },
+        {
+          "elapsed": 5.800934188999236,
+          "heartbeat": "ALARM",
+          "line": "불명",
+          "start_disabled": true,
+          "pause_disabled": true
+        }
+      ]
+    },
+    {
+      "name": "real_5_second_alarm_boundary",
+      "passed": true,
+      "timeline": [
+        {
+          "elapsed": 2.0008352429722436,
+          "heartbeat": "GOOD",
+          "line": "운전 중",
+          "start_disabled": true,
+          "pause_disabled": false
+        },
+        {
+          "elapsed": 3.6007615710259415,
+          "heartbeat": "DELAYED",
+          "line": "불명",
+          "start_disabled": true,
+          "pause_disabled": true
+        },
+        {
+          "elapsed": 5.800934188999236,
+          "heartbeat": "ALARM",
+          "line": "불명",
+          "start_disabled": true,
+          "pause_disabled": true
+        }
+      ]
+    },
+    {
+      "name": "UNKNOWN_no_running_control_restricted",
+      "passed": true,
+      "timeline": [
+        {
+          "elapsed": 2.0008352429722436,
+          "heartbeat": "GOOD",
+          "line": "운전 중",
+          "start_disabled": true,
+          "pause_disabled": false
+        },
+        {
+          "elapsed": 3.6007615710259415,
+          "heartbeat": "DELAYED",
+          "line": "불명",
+          "start_disabled": true,
+          "pause_disabled": true
+        },
+        {
+          "elapsed": 5.800934188999236,
+          "heartbeat": "ALARM",
+          "line": "불명",
+          "start_disabled": true,
+          "pause_disabled": true
+        }
+      ]
+    },
+    {
+      "name": "no_zero_substitution",
+      "passed": true,
+      "tag_text": "현재 온도\n—\nGood · 오래된 관측 / 불명\n마지막 관측: 175"
+    },
+    {
+      "name": "disconnect_does_not_return_active_alarm",
+      "passed": true,
+      "alarms": {
+        "coverage": {
+          "scope": {
+            "line_id": "packaging-line-1",
+            "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+            "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+            "asset_id": "Sealer"
+          },
+          "implemented_kinds": [
+            "TEMPERATURE_DEVIATION",
+            "PRESSURE_LOW"
+          ],
+          "installed_channel_count": 1,
+          "installed_channels": [
+            {
+              "rule_id": "browser-temperature",
+              "rule_version": "v1",
+              "kind": "TEMPERATURE_DEVIATION",
+              "severity": "HIGH"
+            }
+          ],
+          "has_more_installed_channels": false,
+          "consumer_status": "UNKNOWN",
+          "runtime_configuration_status": "UNKNOWN"
+        },
+        "items": [
+          {
+            "instance": {
+              "alarm_id": "alarm:9f2e160adc663ea149c8a61f9bbe0dfa5852dc55f603bd4a537c36d1796eee16",
+              "scope": {
+                "line_id": "packaging-line-1",
+                "source_id": "909c95a0-f539-4e2c-b750-53e8a5cb2a96",
+                "stream_id": "f264fece-2245-415b-8a94-6f6ec08954e2",
+                "asset_id": "Sealer"
+              },
+              "rule": {
+                "rule_id": "browser-temperature",
+                "version": "v1",
+                "severity": "HIGH"
+              },
+              "raised_evidence": {
+                "observed_at": "2026-10-23T14:03:52.934015Z",
+                "references": [
+                  "0e2fa400-3ded-40c4-beeb-bd29e3e9390a",
+                  "75be53be-d3c1-493a-b57c-af94693450b7",
+                  "d041fc0d-2c79-4554-90af-fac4d580e984",
+                  "a4ecf5e6-4b5e-45d9-9b71-5b063af5ba0e",
+                  "affad0f4-e85e-4986-8349-bc6da2110639",
+                  "3641a05a-f1fc-4f78-a780-70781740250a",
+                  "947b1dd0-dcbe-4553-bb2b-a74c78b2097d"
+                ],
+                "readings": [
+                  {
+                    "name": "phase",
+                    "value": "PRODUCTION"
+                  },
+                  {
+                    "name": "clock_epoch",
+                    "value": "adf94a14-7636-4561-b4f3-a0579e66a256"
+                  },
+                  {
+                    "name": "monotonic_seconds",
+                    "value": 265093.25979503
+                  },
+                  {
+                    "name": "monotonic_span_seconds",
+                    "value": 4.891399294137955e-05
+                  },
+                  {
+                    "name": "input_time_quality",
+                    "value": "KNOWN"
+                  },
+                  {
+                    "name": "qualification_reason",
+                    "value": "DWELL_QUALIFIED"
+                  },
+                  {
+                    "name": "qualification_input_sha256",
+                    "value": "ec282cd0d67e70b41ab45da0dc110411c7a85378eed26f4978b12c2a4cd31b18"
+                  },
+                  {
+                    "name": "batch_sha256",
+                    "value": "71355bb52ad2b0a892cab632470c5706a88de1575a20f79972fcefe216208248"
+                  },
+                  {
+                    "name": "clock_assessment_sha256",
+                    "value": "cfed7a9cafa46db2dc224c910efeaf9c27e2f052ece854fc5a360292ad66d084"
+                  },
+                  {
+                    "name": "Sealer.TemperaturePV",
+                    "value": 175.0
+                  },
+                  {
+                    "name": "Sealer.TemperaturePV.status_code",
+                    "value": 0
+                  },
+                  {
+                    "name": "Sealer.TemperaturePV.acquired_at",
+                    "value": "2026-10-23T14:03:52.934015+00:00"
+                  },
+                  {
+                    "name": "Sealer.TemperaturePV.source_timestamp",
+                    "value": "2026-10-23T14:03:52.843690+00:00"
+                  },
+                  {
+                    "name": "Sealer.TemperaturePV.server_timestamp",
+                    "value": "2026-10-23T14:03:52.843922+00:00"
+                  },
+                  {
+                    "name": "Sealer.TemperatureSP",
+                    "value": 150.0
+                  },
+                  {
+                    "name": "Sealer.TemperatureSP.status_code",
+                    "value": 0
+                  },
+                  {
+                    "name": "Sealer.TemperatureSP.acquired_at",
+                    "value": "2026-10-23T14:03:52.934015+00:00"
+                  },
+                  {
+                    "name": "Sealer.TemperatureSP.source_timestamp",
+                    "value": "2026-10-23T14:03:52.843690+00:00"
+                  },
+                  {
+                    "name": "Sealer.TemperatureSP.server_timestamp",
+                    "value": "2026-10-23T14:03:52.843922+00:00"
+                  },
+                  {
+                    "name": "Line.State",
+                    "value": 2
+                  },
+                  {
+                    "name": "Line.State.status_code",
+                    "value": 0
+                  },
+                  {
+                    "name": "Line.State.acquired_at",
+                    "value": "2026-10-23T14:03:52.934015+00:00"
+                  },
+                  {
+                    "name": "Line.State.source_timestamp",
+                    "value": "2026-10-23T14:03:52.843690+00:00"
+                  },
+                  {
+                    "name": "Line.State.server_timestamp",
+                    "value": "2026-10-23T14:03:52.843922+00:00"
+                  },
+                  {
+                    "name": "Line.OperationMode",
+                    "value": 1
+                  },
+                  {
+                    "name": "Line.OperationMode.status_code",
+                    "value": 0
+                  },
+                  {
+                    "name": "Line.OperationMode.acquired_at",
+                    "value": "2026-10-23T14:03:52.934015+00:00"
+                  },
+                  {
+                    "name": "Line.OperationMode.source_timestamp",
+                    "value": "2026-10-23T14:03:52.843690+00:00"
+                  },
+                  {
+                    "name": "Line.OperationMode.server_timestamp",
+                    "value": "2026-10-23T14:03:52.843922+00:00"
+                  },
+                  {
+                    "name": "Line.ActiveExecutionId",
+                    "value": "alarm-run"
+                  },
+                  {
+                    "name": "Line.ActiveExecutionId.status_code",
+                    "value": 0
+                  },
+                  {
+                    "name": "Line.ActiveExecutionId.acquired_at",
+                    "value": "2026-10-23T14:03:52.934015+00:00"
+                  },
+                  {
+                    "name": "Line.ActiveExecutionId.source_timestamp",
+                    "value": "2026-10-23T14:03:52.843690+00:00"
+                  },
+                  {
+                    "name": "Line.ActiveExecutionId.server_timestamp",
+                    "value": "2026-10-23T14:03:52.843922+00:00"
+                  },
+                  {
+                    "name": "Sealer.State",
+                    "value": 2
+                  },
+                  {
+                    "name": "Sealer.State.status_code",
+                    "value": 0
+                  },
+                  {
+                    "name": "Sealer.State.acquired_at",
+                    "value": "2026-10-23T14:03:52.934015+00:00"
+                  },
+                  {
+                    "name": "Sealer.State.source_timestamp",
+                    "value": "2026-10-23T14:03:52.843690+00:00"
+                  },
+                  {
+                    "name": "Sealer.State.server_timestamp",
+                    "value": "2026-10-23T14:03:52.843922+00:00"
+                  },
+                  {
+                    "name": "Sealer.RunFeedback",
+                    "value": true
+                  },
+                  {
+                    "name": "Sealer.RunFeedback.status_code",
+                    "value": 0
+                  },
+                  {
+                    "name": "Sealer.RunFeedback.acquired_at",
+                    "value": "2026-10-23T14:03:52.934015+00:00"
+                  },
+                  {
+                    "name": "Sealer.RunFeedback.source_timestamp",
+                    "value": "2026-10-23T14:03:52.843690+00:00"
+                  },
+                  {
+                    "name": "Sealer.RunFeedback.server_timestamp",
+                    "value": "2026-10-23T14:03:52.843922+00:00"
+                  }
+                ],
+                "quality": "KNOWN",
+                "time_quality": "KNOWN"
+              },
+              "condition_closed_at": null,
+              "closure_reason": null,
+              "closure_event_id": null,
+              "return_evidence": null,
+              "acknowledged_at": null,
+              "acknowledged_by": null
+            },
+            "status": "ACTIVE_UNACKNOWLEDGED"
+          }
+        ],
+        "has_more": false,
+        "next_before_alarm_id": null
+      }
+    },
+    {
+      "name": "transport_recovers_without_auto_alarm_return",
+      "passed": true
+    },
+    {
+      "name": "original event prefix matches verified cursor",
+      "passed": true,
+      "progress": {
+        "verified_through_seq": 89,
+        "latest_ingested_seq": 89
+      }
+    },
+    {
+      "name": "actual execution report matches ingested three quantities",
+      "passed": true,
+      "report_totals": {
+        "good": "58",
+        "reject": "28",
+        "scrap": "0"
+      },
+      "ingested_totals": {
+        "good_quantity": 58,
+        "reject_quantity": 28,
+        "scrap_quantity": 0
+      }
+    }
+  ],
+  "pytest_phases": {
+    "setup": "passed",
+    "call": "passed",
+    "teardown": "passed"
+  },
+  "outcome": "passed",
+  "exit_code": 0,
+  "ended_at_utc": "2026-10-23T14:04:03.789479+00:00",
+  "failure": null
+}

@@ -1,0 +1,30 @@
+{
+  "scope": "private npm diagnosis; not release acceptance",
+  "directory": "/tmp/cx22-npm-diag-k6kzyten",
+  "container": "cx22-npm-diag-3cbf3911ed6b",
+  "target": "b744367be554534b4c00638a8a79d5325f2b30b5",
+  "fetch_controls": "diagnostic-only retries=0 timeout=15000ms",
+  "input_sha256": {
+    "package.json": "982fb885b2d10dca15d24c47ff98cb86ca50e7a43167d746769eac90952fbaca",
+    "package-lock.json": "bc4cbed4a846b3213031a73d3229b2683fe80cecb4c731bad29d8a3348fd328d"
+  },
+  "ca_sha256": "7fa2d7d439db8bfa7c191457e61af5e3f4eb412314eb148766ac09e93786e4c3",
+  "envfile_removed": true,
+  "work_removed": true,
+  "cleanup_exit_code": 0,
+  "outcome": "NPM_DIAGNOSTIC_PASSED",
+  "wrapper_bookkeeping_failure": "PermissionError during private-log permission normalization; resolved during cleanup",
+  "npm_exit_zero_in_log": true,
+  "installed_summary": [
+    "added 166 packages in 3s"
+  ],
+  "versions": [
+    "v22.23.4",
+    "10.9.9"
+  ],
+  "exit_handler_never_called": false,
+  "error_codes": [],
+  "output_sha256": "ed4cfedcc3a4f7221aa2318d97661b82ca525497bdfe535aa9c7568ac6573fba",
+  "proxy_hostname_mapping": "session proxy hostnames resolved by executor and preserved with --add-host",
+  "conclusion": "Same committed package inputs install successfully with session proxy and CA; source/quoting defect not reproduced. Original BuildKit/npm failure remains transient or environment-specific, unclassified. Diagnostic fetch controls do not change release acceptance."
+}

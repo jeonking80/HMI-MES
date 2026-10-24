@@ -1,0 +1,11 @@
+{
+  "at_utc": "2026-10-23T13:19:05.164362+00:00",
+  "source": "deploy/compose.Dockerfile",
+  "source_sha256": "cb342e3a0455c4e2366a3c83bd2ca774982c07d70390b8efafac903f1ee9e0d6",
+  "export_line_hex": "202020206578706f7274206e706d5f636f6e6669675f68747470735f70726f78793d22247b48545450535f50524f58593a2d7d22206e706d5f636f6e6669675f70726f78793d22247b485454505f50524f58593a2d7d223b205c",
+  "literal_backslash_quote_count": 0,
+  "dummy_proxy_values_match_exactly": true,
+  "shell": "/bin/sh",
+  "exit_code": 0,
+  "conclusion": "Source quoting failure hypothesis not reproduced; Dockerfile unchanged. Actual npm failure cause remains unknown."
+}

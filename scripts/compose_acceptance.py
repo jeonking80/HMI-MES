@@ -78,6 +78,15 @@ def exercise():
     )
     runtime = ROOT / "runtime"
     PHASE = "simulator commissioning"
+    with httpx.Client(base_url="http://127.0.0.1:8011", timeout=1, trust_env=False) as console:
+
+        def console_status():
+            try:
+                return console.get("/auth/me").status_code
+            except httpx.TransportError:
+                return None
+
+        wait(console_status, lambda status: status == 401, "Simulator console did not become ready")
     commission(
         runtime,
         password_file=runtime / "console-initial-password",

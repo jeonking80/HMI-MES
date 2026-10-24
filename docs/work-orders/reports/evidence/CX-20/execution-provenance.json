@@ -1,0 +1,31 @@
+{
+  "executed_sha256": "1fffb48c4cfbf858a1c47ef29176587e935170e5be255d898e135f6a5b08ef6c",
+  "failed_cold_sha256": "5d5acd8202c2766eaeea7537594a8026d90063eb804bedec3ebcb1f1866e8a6f",
+  "normalized_ast_equal": true,
+  "exact_runner_diff": [
+    "--- failed-cold-runner\n",
+    "+++ executed-runner\n",
+    "@@ -239,7 +239,8 @@\n",
+    "                  'synthetic_performance_fixture',true,",
+    "                  'basis','explicit fixture UTC, not per-capture measured proof',",
+    "                  'template_assessment',t.clock_assessment),true,at",
+    "-                FROM cx20_templates t CROSS JOIN generate_series(CAST(:first AS integer),CAST(:last AS integer)) n",
+    "+                FROM cx20_templates t CROSS JOIN",
+    "+                 generate_series(CAST(:first AS integer),CAST(:last AS integer)) n",
+    "                 CROSS JOIN LATERAL (SELECT CAST(:start AS timestamptz)",
+    "                  +(n-1)*interval '1 second' AS at) a\"\"\"),",
+    "                 dict(first=first, last=last, start=start),"
+  ],
+  "source_changed_during_full_run": false,
+  "image_digest": "postgres@sha256:3645570cccdfa447589da9f57dd740faa29b30938e861289a5574b6ca6b03826",
+  "runtime": {
+    "data_storage": "tmpfs RAM disk; not SSD",
+    "bind": "identical host/container /tmp task directory",
+    "private_env_mode": "0600",
+    "dsn_transport": "child environment only",
+    "publish": "OS-selected random port explicitly published on 127.0.0.1",
+    "label": {
+      "hmi.task": "cx20"
+    }
+  }
+}

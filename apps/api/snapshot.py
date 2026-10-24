@@ -137,26 +137,42 @@ def read_snapshot(
                 )
                 for item in sorted(observations, key=lambda item: item["tag_id"])
             ]
-    # DISTINCT ON returns one observation per tag without loading the entire
-    # retained batch history into Python. JSON values are parsed by TagSample.
+    # Limit each tag's ordered capture probe BEFORE expanding its sample array.
+    # This expands at most one batch per enabled tag, rather than every retained
+    # batch. The containment probe keeps all history: even an arbitrarily old BAD
+    # observation must survive unrelated partial captures. No quality predicate
+    # may skip a newer BAD/null/uncertain sample in favor of older GOOD evidence.
     rows = (
         complete_rows
         if complete_rows is not None
         else connection.execute(
             sa.text("""
-        SELECT DISTINCT ON (sample->>'tag_id') sample, b.batch_id,
+        SELECT sample, b.batch_id,
                b.capture_generation, b.capture_seq,
                b.body->>'captured_at' AS captured_at, b.stored_at
-        FROM ingest_batches AS b
-        JOIN source_streams AS s
-          ON s.source_id=b.source_id AND s.stream_id=b.stream_id
-         AND s.gateway_id=b.gateway_id AND s.capture_generation=b.capture_generation
+        FROM unnest(CAST(:expected_tags AS text[])) AS wanted(tag_id)
+        CROSS JOIN LATERAL (
+            SELECT body, batch_id, capture_generation, capture_seq, stored_at
+            FROM ingest_batches
+            WHERE source_id=:source_id AND stream_id=:stream_id
+              AND gateway_id=:gateway_id AND capture_generation=:capture_generation
+              AND body @> jsonb_build_object(
+                  'samples', jsonb_build_array(jsonb_build_object('tag_id', wanted.tag_id))
+              )
+            ORDER BY capture_seq DESC
+            LIMIT 1
+        ) AS b
         CROSS JOIN LATERAL jsonb_array_elements(b.body->'samples') AS sample
-        WHERE s.line_id=:line_id AND s.source_id=:source_id AND s.stream_id=:stream_id
-        ORDER BY sample->>'tag_id', b.capture_generation DESC, b.capture_seq DESC,
-                 b.gateway_id, b.batch_id
+        WHERE sample->>'tag_id'=wanted.tag_id
+        ORDER BY wanted.tag_id
     """),
-            {"line_id": line_id, "source_id": source_id, "stream_id": stream_id},
+            {
+                "expected_tags": sorted(expected),
+                "source_id": source_id,
+                "stream_id": stream_id,
+                "gateway_id": source["gateway_id"],
+                "capture_generation": source["capture_generation"],
+            },
         ).mappings()
     )
     samples, evidence = [], []

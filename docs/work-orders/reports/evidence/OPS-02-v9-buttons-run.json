@@ -1,0 +1,30 @@
+{
+  "stage": "complete",
+  "commands": {},
+  "start_attempted": false,
+  "end_succeeded": false,
+  "supervisor_log_start_offset": 1418022,
+  "runtime_started_at": "2026-10-24T09:06:32.493552+00:00",
+  "runtime_elapsed_seconds": 315.0,
+  "recipe_id": "000-v7-recipe-20261024T075220304749Z",
+  "work_order_id": "000-v7-order-20261024T075220304749Z",
+  "release_id": "43b472e6-0142-4ed5-b34d-ed79f95adf9b",
+  "target_quantity": 100000,
+  "ack_clicked": true,
+  "ack_processed": true,
+  "wait_failure_reason": "binding_prepare: button wait/click failed before request capture",
+  "binding_reason": "전체 48개 태그의 최신 정상 품질과 원본 시각을 확인해야 합니다.",
+  "start_reason": "전체 48개 태그의 최신 정상 품질과 원본 시각을 확인해야 합니다.",
+  "end_reason": "전체 48개 태그의 최신 정상 품질과 원본 시각을 확인해야 합니다.",
+  "screen_connection": {
+    "state": "stopped",
+    "text": "화면 연결 확인 필요"
+  },
+  "failed_stage": "binding_ready",
+  "error_class": "AssertionError",
+  "unresolved_execution": false,
+  "owned_runtime_stopped": true,
+  "runtime_ended_at": "2026-10-24T09:11:47.487973+00:00",
+  "processes_json_exists": false,
+  "result": "failed_before_execution_capture"
+}

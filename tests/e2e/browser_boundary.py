@@ -62,6 +62,7 @@ class BrowserBoundary:
         self.field_connected = True
         self.opc_connected = True
         self.worker_enabled = True
+        self.capture_lock = asyncio.Lock()
         self.fields = FieldChannels(self.controller.storage)
         self.server.field_channels = self.fields
         self.commands = []
@@ -235,6 +236,10 @@ class BrowserBoundary:
         self.worker = CommandWorker(self.opc, self.transport)
 
     async def capture(self):
+        async with self.capture_lock:
+            await self._capture()
+
+    async def _capture(self):
         if self.opc_connected:
             if self.field_connected:
                 self.heartbeat += 1
@@ -247,6 +252,19 @@ class BrowserBoundary:
             return
         assert await self.pump.deliver_once()
         self.captures.append(capture.batch_id)
+
+    async def stop_opc(self):
+        # Finish any in-flight read before changing the simulated transport.
+        async with self.capture_lock:
+            self.opc_connected = False
+            await self.opc.disconnect()
+            await self.server.stop()
+
+    async def restart_opc(self):
+        # A read begun while down must finish before the recovered flag changes.
+        async with self.capture_lock:
+            await self.server.start()
+            self.opc_connected = True
 
     async def loop(self):
         tick = 0

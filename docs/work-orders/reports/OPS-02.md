@@ -55,6 +55,11 @@ cmp /tmp/hmi-v3-grants-0018.json deploy/neon-http/grants-0018.json
 
 로컬 준비물 검증과 정적 위험 검토만 통과했다. 공개 배포 완료나 프로젝트 완료 판정은 하지 않는다.
 
+## 재개 시점 재확인 — 2026-10-23 11:21 UTC
+
+사용자가 8시간 시험을 제외한 미완료 항목 전체 재개를 지시했다. 최신 main `51f2383`을 병합한 `a3da06141aa2a6e9da5e77398fc58c4fdd437500`에서 두 JSON을 다시 생성해 각각 `cmp` exit0을 확인했고 SHA-256은 위 표와 동일했다. 공개 `/api/ready`는 HTTP200 `{"ready":true}`였으나 배포 SHA·DB revision의 증거로 사용하지 않는다.
+
+현재 환경도 관리 도구·secret/runtime/identity binding이 없고, 위 다섯 named 환경변수의 설정 여부는 모두 false다. 공개 연결 문자열을 비밀 파일에서 탐색하거나 보호된 실습 DB 자격 증명을 대신 사용하지 않았다. 공개 backup/migration/runtime DML/Vercel 재배포·실연은 여전히 미실행이다. 작업지시서 OPS-02.6에 따라 검증된 준비물과 위 운영 실행 순서를 Claude에게 인계한다. 이는 공개 적용 통과 판정이 아니다.
 ## 공개 적용 결과 (Claude, 2026-10-23)
 
 Codex 인계 후 Claude가 HTTPS `/sql` 배치로 실행했다. 이 환경은 Neon에 TCP로 접속할 수 없다.
@@ -74,3 +79,345 @@ Codex 인계 후 Claude가 HTTPS `/sql` 배치로 실행했다. 이 환경은 Ne
 | DB 용량 | 이관 전 33MB, 활성화 후 33 MB(실연 전) |
 
 새 캡처가 들어오기 전까지 공개 화면의 기존 데이터는 계속 "시간 불명"이다. 측정 이전 데이터를 GOOD으로 소급하지 않는다. 공개 실연과 runtime 실측이 끝나기 전에는 OPS-02를 완료로 표시하지 않는다.
+
+## 사용자 등록 후 실행환경 점검 — 2026-10-24 00:08 KST
+
+사용자가 백업·0018 이관·실제 권한 검사·재배포·공개 실연을 명시적으로 요청했다. 현재 프로세스에서 값의 존재 여부만 확인한 결과 `HMI_MIGRATION_DSN`, `VERCEL_TOKEN`, `NEON_API_KEY`는 존재하고 **`HMI_DATABASE_DSN`은 존재하지 않는다**. 비밀값은 출력하거나 문서에 저장하지 않았다.
+
+환경 상태는 spec/observed revision 5, observations_current=true이지만, 구성된 시크릿과 이관용 런타임 변수의 개별 state는 모두 unknown이다. 이 상태만으로 자격 증명 사용 가능 또는 실제 API 권한 확보를 판정하지 않았다. 현재 실행환경의 runtime_variables에는 이관용 변수만 나타난다. 저장된 구성에는 두 DSN 요구사항이 모두 있어도, 현재 프로세스에 앱 연결이 적용됐다는 증거는 아니다. 실행기의 TCP 허용 domain/IP 목록도 비어 있다.
+
+실제 `hmi_app` 연결을 사용한 권한 검사의 선행 조건이 충족되지 않아 공개 작업은 시작하지 않았다. 사용자의 실패 시 중단 지시에 따라 백업·이관·권한 SQL·재배포·실연은 모두 미실행으로 유지한다. 외부 API 인증 요청, 운영 DB 변경, 서비스 재시작, 기존 실패 시험 재실행과 8시간 시험도 하지 않았다. 앱 DSN을 현재 작업 실행환경에 적용한 뒤 재개 시점에 존재 여부와 실제 연결/네트워크 경로부터 다시 확인해야 한다.
+
+## 재실행 — 환경 revision 7
+
+사용자의 재실행 지시에 따라 확인했다. 현재 프로세스에는 두 DSN과 두 관리 API 토큰이 모두 존재한다. 이로써 앞선 앱 변수 누락은 해소됐다. 단, 환경 상태 도구의 개별 자격 증명 state는 여전히 unknown이다.
+
+DSN을 메모리에서 파싱한 결과 DB는 모두 `hmi_mes_demo`, 사용자는 각각 `hmi_migrator`와 `hmi_app`이었다. 이관용은 비풀링 호스트이나 URL password 구성요소가 없고, 앱용은 풀링 호스트이며 password 구성요소가 있다. 비밀번호·전체 DSN·토큰은 출력하지 않았다. 실제 DB 로그인은 실행하지 않았으므로 어느 연결도 인증 성공으로 판정하지 않는다.
+
+상속된 HTTPS 프록시 및 TLS 검증을 유지한 첫 Neon 관리 API `GET /v2/projects` 요청이 `urllib.error.URLError`로 실패했다. 예외 종류만 기록했으며 하위 원인은 수집하지 않아 TLS·네트워크·인증 중 하나로 단정할 수 없다. 사용자 지시에 따라 재시도 및 뒤이은 Vercel 요청을 실행하지 않았다. 백업·0018 이관·실제 runtime 권한 검사·재배포·공개 실연은 모두 미실행이며 운영 변경은 없다. 재개 전 이관용 연결 문자열의 비밀번호 포함 여부와 API 연결 경로를 확인해야 한다.
+
+## 연결 문자열 수정 후 공개 작업 재개 시도
+
+사용자가 이관용 비밀번호·DB 이름·풀링 설정을 수정한 뒤 진행을 지시했다. 직전 형식 점검에서 이관용은 `hmi_migrator` / `hmi_mes_demo` / 비밀번호 있음 / 비풀링, 앱용은 `hmi_app` / `hmi_mes_demo` / 비밀번호 있음 / 풀링이었다. 앞선 비밀번호 누락·잘못된 DB·풀링 설정 문제는 현재 문자열 점검에서 해소됐으나 실제 DB 인증 성공과는 구분한다.
+
+상속된 프록시와 TLS 검증을 유지해 Neon 관리 API `GET /v2/projects`를 한 번 실행했다. 결과는 `URLError`, 하위 예외는 `OSError`이며 errno는 없었다. `SSLCertVerificationError`나 `socket.gaierror`로 분류되지 않았지만, 이것이 TLS 또는 DNS 정상의 증거는 아니다. HTTP 상태나 실제 API 응답을 얻지 못해 토큰의 유효성도 미검증이다. 예외 전체에는 비밀값이 포함될 수 있어 출력하지 않았다. API 접근 경로가 현재 차단 항목이며, 자격 증명 자체가 잘못됐다고 단정하지 않는다.
+
+첫 실패 후 재시도하지 않고 중단했다. 공개 DB 접속·전체 백업·0018 이관·권한 실측·Vercel 요청 및 재배포·공개 실연은 모두 미실행이고 운영 변경은 없다. 8시간 시험과 기존 실패 시험도 실행하지 않았다. 다음 재개에서는 DB 비밀번호를 다시 변경하기보다 환경의 관리 API/프록시 연결 오류 원인을 먼저 진단해야 한다.
+
+## 사용자 요청에 따른 연결 오류 원인 진단
+
+사용자가 원인 진단을 지시해 읽기 전용 네트워크 확인을 수행했다. 상속된 HTTP/HTTPS 프록시는 `proxy:8080`이고 지정 CA 파일은 존재한다. 기존 경로의 Neon API 요청 상세 예외는 `Tunnel connection failed: 403 Forbidden`이었다. 이어 같은 프록시에 자격 증명 없이 `CONNECT api.neon.tech:443`를 요청해 응답 원문에서 `HTTP/1.1 403 Forbidden`, 본문 **`No approved upstream IPv4 address`**를 확인했다. 이는 차단을 우회하는 직접 외부 접속이 아니라 동일한 프록시의 거절 응답 확인이다.
+
+따라서 이번 실패 지점은 Neon 인증 이전의 Codex 프록시 목적지 IPv4 승인 단계다. 연결 문자열이나 Neon 토큰 오류의 증거가 아니므로 비밀번호 재설정으로 해결된다고 안내하지 않는다. 환경의 원하는 허용 도메인 목록에는 `api.neon.tech`가 이미 있으나 실제 네트워크 적용 상태는 unknown이고 세부 network_diagnostics는 제공되지 않았다. 승인 IP가 없는 세부 이유(DNS 결과·IP 정책·설정 적용 불일치)는 이 응답만으로 확정하지 않는다. 지원되는 환경 네트워크 설정/플랫폼 경로에서 이 불일치를 해결해야 하며 프록시 우회·임의 IP 대체·TLS 검증 비활성화는 하지 않았다. 운영 DB와 배포는 변경하지 않았다.
+
+## 공개 실연 재개 결과 — 2026-10-24 01:19 KST
+
+사용자 지시에 따라 최신 main `bb45d01`을 `107ed81`로 병합하고 Claude의 위 공개 적용 결과를 보존했다. 백업·0018 이관·권한 변경·Vercel 설정 변경·재배포는 반복하지 않았다. DB 용량과 결과 확인은 Claude 담당으로 남겼다.
+
+기존 `.local/commissioning/runtime`에서 원래 gateway·simulator SQLite와 인증서, 별도 connection 디렉터리의 보호 토큰 파일을 확인했다. 기존 공개 연결 이력은 DEVELOPMENT_STATUS에 있으며 runtime의 source/stream/gateway/line 식별자 검증도 통과했다. 토큰은 소유자 전용 0600 파일이고 감독 잠금은 비어 있었으며 processes.json은 없었다. 시작 전 미전송 큐는 1건·15,074바이트였다. 공개 `/api/ready`는 HTTP200 ready=true였다. 신규 runtime·source·generation·인증서를 생성하거나 기존 큐를 삭제하지 않았다.
+
+문서의 295초 제한 명령에 `--clock-measured-round-trip`을 지정해 실행했다. 시작은 2026-10-23T16:19:21.933747Z, 종료는 16:19:25.898337Z(한국시간 10월 24일 01:19), 종료 코드는 1이었다. 감독 로그에 simulator와 gateway 시작 뒤 gateway의 command/settlement/capture blocked와 gateway exited code=1이 기록됐다. CLI는 상세 예외 대신 일반 오류만 출력하므로 정확한 내부 원인은 미확인이다. 5분 운전·GOOD 트렌드·가동 시간·수량 대조 성공으로 판정하지 않는다.
+
+사용자의 실패 시 중단 지시에 따라 재시도·복구 조작은 하지 않았다. 감독자의 정상 정리 후 두 자식 PID가 존재하지 않고 processes.json도 없음을 확인했다. 영속 SQLite·인증서·토큰은 보존했다. 비밀이 들어갈 수 있는 실행 로그는 Git 밖의 보호 경로 `/tmp/hmi-ops02-public-demo` 및 기존 runtime의 supervisor.log에 남겼다. 공개 수집 요청의 커밋 여부·DB 결과와 용량은 확인하지 않았으며 Claude에게 인계한다. 8시간 시험은 실행하지 않았다.
+
+## 실연 실패 읽기 전용 조사 — 사용자 지정 범위
+
+재실행·복구 조작·runtime 수정 없이 기존 로그와 두 SQLite를 읽었다. SQLite는 `mode=ro`, `PRAGMA query_only=ON`으로 열었다. 사용자의 명시적 결과 기록 요청에 따라 이 보고서만 수정했으며 프로그램·설정·상태 파일은 수정하지 않았다. 독립 medium 에이전트는 로그만 읽어 같은 결과를 확인했다.
+
+### 1. 종료 직전 로그의 증거와 한계
+
+`supervisor.log` 22707~22711행은 gateway 시작, command/settlement/capture의 blocked, gateway exited code=1만 기록한다. 22712행은 감독자 종료와 영속 scope 보존이다. `/tmp/hmi-ops02-public-demo/supervisor-output.log`에는 `Runtime operation failed; inspect private configuration and existing state.`만 있다. 두 로그에 `SourceCursorError`, `CURSOR_AHEAD`, `STREAM_MISMATCH`, `BufferCorruption` 또는 traceback은 없다.
+
+정적 코드 확인에서 gateway CLI는 예외 본문을 출력하지 않고 일반 종료 문구만 출력하며, plant 감독자의 `sanitized_line`은 구조화된 상태를 operation/state만 남겨 오류 클래스도 버린다. 따라서 **기존 로그로 실제 종료 오류 클래스·메시지를 복원할 수 없으며 SourceCursorError와 BufferCorruption을 구분할 수 없다.** blocked만으로 어느 예외라고 단정하지 않는다. 재현 실행이나 로깅 수정은 하지 않았다.
+
+### 2~3. 로컬 영속 상태 조회 결과
+
+| 대상 | 항목 | 읽은 값 |
+|---|---|---|
+| 시뮬레이터 | source_id / stream_id | demo-packaging-source-v1 / events-main |
+| 시뮬레이터 | simulator_identity.recovery_required | 1 |
+| 시뮬레이터 | runtime_state.snapshot_json.recovery_required | true |
+| 시뮬레이터 | simulator_identity.last_seq | 4 |
+| 시뮬레이터 | retained_from_seq | 1 |
+| 시뮬레이터 | 실제 source_events 건수 / 첫·마지막 seq | 4건 / 1~4 |
+| 게이트웨이 | source_progress source_id / stream_id | demo-packaging-source-v1 / events-main |
+| 게이트웨이 | source_progress.latest_read_seq | 3 |
+| 게이트웨이 | gateway_identity.last_capture_seq | 4267 |
+
+### 4. 비교 판정
+
+사용자가 제공한 공개 DB 상태는 verified_through_seq=3, max capture_seq=4267, gap=0이다. 이 조사에서는 공개 DB에 접속하지 않았으며 이 값은 독립 실측이 아닌 인계 정보다. 게이트웨이 사건 커서 3과 capture 4267은 각각 해당 공개 값과 일치한다. 시뮬레이터는 1~4를 보존하고 사건 head가 4이므로 게이트웨이 커서 3이 원본 head보다 앞서지 않으며, 다음 사건 4도 보존 범위 안이다. 로컬 source·stream도 서로 일치한다. 따라서 **현재 조회값에서는 CURSOR_AHEAD나 로컬 STREAM_MISMATCH를 뒷받침하는 증거가 없다.** 이는 실패 순간의 예외를 배제하는 판정은 아니다.
+
+recovery_required=true는 확인된 상태지만 이것만으로 gateway 종료의 직접 원인이라고 판정하지 않는다. BufferCorruption도 로그에 증거가 없으며 이번 조회는 전체 버퍼 무결성 검증이 아니므로 배제하지 않는다. 정확한 오류 클래스는 미확인으로 유지한다. 사용자 지시에 따라 이 기록 후 멈추며 재시작·큐 수정·커서 초기화·복구 승인·추가 시험을 하지 않는다.
+
+## 클래스 진단 보강 및 사용자 승인 실연 1회 — 2026-10-24 01:34 KST
+
+사용자가 오류 클래스 보강과 단일 재실연, 실행 중 commission 복구 확인 항목을 명시적으로 승인했다. gateway CLI의 최종 stderr와 `_run_workers` 상태 출력, 감독자 `sanitized_line`에 오류 클래스 이름을 보존했다. ASCII 식별자 `[A-Za-z_][A-Za-z0-9_]{0,127}`만 허용하고 메시지 본문·추가 필드·잘못된 클래스 이름은 제외한다. supervisor.log에 최종 종료 클래스를 남기기 위해 gateway/stopped 상태도 허용했다. 단위 시험은 신규 2개를 한 번 실행해 2개 통과했으며 변경 Python 3개 파일의 Ruff check 및 format --check를 각각 한 번 실행해 통과했다. 테스트 실패에 따른 반복 실행은 없다.
+
+실연은 기존 영속 runtime으로 `serve --clock-measured-round-trip`을 295초 상한으로 한 번 시작했다. 로컬 콘솔 준비 직후 `plant-hosting.md`의 기존 console-password 파일과 승인된 다섯 확인 인자를 사용해 commission을 한 번 실행했다. **commission exit0**, `Runtime operation completed; no production command submitted.`를 확인했다. 새 작업이나 생산 START는 제출하지 않았다.
+
+| 항목 | 실측 결과 |
+|---|---|
+| 시작 UTC / 한국시간 | 2026-10-23T16:34:45.905289Z / 2026-10-24 01:34:45 KST |
+| 종료 UTC / 한국시간 | 2026-10-23T16:34:53.024598Z / 2026-10-24 01:34:53 KST |
+| 경과 | 7.119초 |
+| serve / commission 횟수 | 각각 1회 |
+| commission 결과 | exit0 |
+| 최종 gateway 오류 클래스 | **BufferFull** |
+| 종료 전 capture 오류 클래스 | GatewayReadError 이후 BufferFull |
+| serve 결과 | exit1, 5분 운전 실패 |
+
+추가된 감독 로그의 마지막 오류는 `{"operation":"gateway","state":"stopped","error":"BufferFull"}`다. 이번 종료 클래스는 SourceCursorError나 BufferCorruption이 아닌 **BufferFull**로 확인됐다. 메시지 본문은 의도적으로 저장하지 않았으므로 어떤 한도/내부 조건이 발동했는지는 확정하지 않는다. 초기 GatewayReadError와 최종 BufferFull 사이의 인과관계도 별도 추정하지 않는다.
+
+허용된 단일 시도 후 추가 재시도·복구·큐 삭제·커서 조작을 하지 않았다. 감독자 종료 후 두 자식 PID가 없어졌고 processes.json도 없음을 확인했다. 원래 영속 상태는 보존했다. 로그·실행 메타데이터는 Git 밖 보호 경로 `/tmp/hmi-ops02-public-demo-retry1`과 기존 supervisor.log에 있다. DB/권한/배포 설정을 변경하지 않았고 DB 결과·용량은 조회하지 않았다. GOOD·가동 시간·수량 대조·5분 실연은 통과로 표시하지 않으며 이 기록 후 중단한다.
+
+## 6차 지시서: 메타데이터 한도 조사 및 수정 준비 결과
+
+Claude 브랜치의 `CODEX_KULS_보강_v6.md`를 읽고 최신 origin/main을 fetch·병합 확인했다(Already up to date). 기존 미커밋 브라우저 시험 수정은 별도 보존 후 그대로 복구했으며 이번 작업에서 수정·실행하지 않았다.
+
+### 읽기 전용 사본 조사 1회
+
+원본 gateway.sqlite3를 읽기 전용으로 열어 SQLite backup API로 Git 밖 `/tmp/hmi-ops02-v6-diagnosis/gateway-snapshot.sqlite3` 사본을 만들고, 사본을 읽기 전용으로 한 번 열어 다음 값만 조회했다. 운영 원본에 정리·초기화·상태 변경을 하지 않았다.
+
+| 테이블 | 행 수 | sum(metadata_bytes) |
+|---|---:|---:|
+| batch_ledger | 4,267 | 4,335,235 |
+| source_progress | 1 | 652 |
+| missing_ranges | 453 | 5,664,074 |
+| loss_intervals | 0 | 0 |
+| 합계 | — | **9,999,961** |
+
+원장 상태는 ACKNOWLEDGED 3,813건, EVICTED 453건, QUEUED 1건이다. outbound_batches는 PENDING 1건이며 queued_at=`2026-10-23T02:03:35.145959+00:00`, accounted_bytes=15,074이다. 기본 메타데이터 한도 10,000,000바이트까지 **39바이트**만 남았다. 전송 acknowledge 경로는 ACK JSON을 원장에 더한 뒤 예산을 검사하므로 이 ACK의 저장 비용이 여유를 초과하는 `METADATA_FULL` 경로가 코드·저장 상태 비교로 확인됐다. 과거 로그에 사유 접두어가 실제 기록돼 있었다고 주장하지 않는다. 새 사유 코드의 운영 로그 검증은 미실행이다.
+
+### 최소 수정과 데이터 보존 검토
+
+- BufferFull의 콜론 앞 고정 대문자 식별자만 `error_code`로 worker 상태·최종 stderr·감독 로그에 전달한다. 다른 예외 본문·잘못된 코드·추가 메시지는 출력하지 않는다.
+- ACK 원장 행을 지우면 영구 batch ID 충돌 검사와 원래 ACK 중복 응답 근거가 사라진다는 독립 high 검토 결과에 따라 **행 삭제 대신 확정 ACK JSON의 무손실 압축**으로 저장 표현을 줄였다. 원장 ID·내용/봉투 해시·capture 연속성·원래 ACK 전체 바이트를 보존한다.
+- 메타데이터 압력 시 같은 ACK 트랜잭션 안에서만 압축한다. 서버 verified 범위 내의 확정 영수증만 대상으로 하며, 미확정·격리·gap 영수증과 missing_ranges/loss_intervals가 참조하는 대조 영수증은 건드리지 않는다. 한도는 늘리지 않았고 원장·유실 근거는 삭제하지 않는다. 새 ACK와 진행 커서·압축 결과는 함께 커밋 또는 롤백된다.
+- 버전 표식과 크기 제한을 둔 압축 복원 경로를 사용하고, 기존 TEXT ACK도 계속 읽는다. 변조된 압축·미완결 스트림·후행 데이터는 거절한다. 운영 SQLite에 새 표현을 적용한 것은 아니며 실제 절감량·5분 지속 가능성은 아직 검증하지 않았다.
+
+### 단일 검증 결과 및 중단
+
+신규 용량 회귀 시험은 1개이며 기존 진단 시험 2개를 사유 코드 검증으로 확장했다. 신규 회귀는 39바이트 여유 상황에서 확정분 압축 후 ACK 성공, 미확정·유실 근거 보존, 커밋 직전 오류의 원자적 롤백, 정확한 원래 영수증 복원·중복 ACK·변조 및 ID 재사용 거절·재개방을 검증한다.
+
+한 번의 pytest 실행으로 진단·신규 용량 회귀·기존 SQLite 버퍼 검사를 함께 실행했다: **37 passed in 1.49s**. Ruff check 한 번은 **실패**했다. `tests/unit/test_gateway_diagnostics.py:50` E501(102자), 같은 파일 69행 B023(반복문 stop 변수 캡처) 두 건이다. 연결된 format --check는 앞선 lint 실패로 실행되지 않았다. 구현 중 버퍼 담당자는 자신의 두 파일에 formatter를 한 번 적용했고, 앞선 uv 호출은 읽기 전용 홈 캐시로 실패했다. 검사 재실행이나 실패 후 수정을 하지 않았다.
+
+지시서의 실패 시 중단 규칙에 따라 여기서 멈췄다. 공개 실연은 별도 사용자 승인 이전이며 실행하지 않았다. 운영 큐 정리·복구·시작, DB/Vercel 변경, 8시간 시험은 모두 하지 않았다. 전체 수정 통과나 OPS-02 완료로 판정하지 않는다.
+
+### 사용자 승인 후 Ruff 수정·재검사
+
+사용자가 위 Ruff 두 건의 수정·재검사를 승인했다. 진단 시험 파일에서 긴 dict를 여러 줄로 정리하고, 반복문 내부 비동기 함수의 stop 이벤트를 기본 인자로 고정했다. 제품 코드와 운영 파일은 추가 변경하지 않았다.
+
+관련 세 시험 파일을 한 번 재검사해 **37 passed in 1.45s**, 변경 Python 6개 파일의 Ruff check와 format --check도 한 번씩 실행해 **모두 통과**했다. 운영 SQLite 추가 조회·정리·복구·공개 실연은 하지 않았다. 지시서의 별도 실연 승인 조건에 따라 공개 5분 실연은 아직 승인 대기이며 OPS-02 전체 완료는 아니다.
+
+### 6차 수정 후 사용자 승인 공개 실연 1회 — 2026-10-24
+
+사용자가 위 공개 5분 실연을 승인했다. 코드 `8ae8c98`의 기존 commissioning runtime·SQLite·인증서·토큰을 그대로 사용해 `serve --clock-measured-round-trip`을 한 번 실행했다. 콘솔 준비 후 승인된 다섯 확인 항목과 기존 console-password 파일로 commission을 한 번 실행해 exit0을 확인했다. 새 작업·생산 START는 제출하지 않았다. 백업·이관·권한 변경·재배포는 반복하지 않았다.
+
+| 항목 | 실측 결과 |
+|---|---|
+| 시작 | 2026-10-24T07:05:12.400184Z / 한국시간 16:05:12 |
+| 종료 | 2026-10-24T07:10:08.289396Z / 한국시간 16:10:08 |
+| 경과 | **295.889초** |
+| serve / commission 횟수 | 각 1회 |
+| commission | exit0 |
+| serve 종료 | **124: GNU timeout의 295초 상한 TERM** |
+| 새 capture collected | **290회** |
+| 새 delivery committed | **290회** |
+| METADATA_FULL / 최종 gateway 오류 종료 | 기록 없음 / 기록 없음 |
+| 종료 정리 | supervisor stopped; persistent scope retained, 두 자식 PID 없음, processes.json 없음 |
+
+새 로그는 시작 오프셋 1,203,567 이후만 집계했고 독립 medium 관찰자도 같은 수치를 확인했다. blocked는 capture 4회·command 1회·settlement 1회였다. capture 오류 클래스/코드는 GatewayReadError 1회, **BufferFull / INFLIGHT_PRESSURE 3회**이며 이후 수집·COMMITTED가 계속됐다. 이를 오류 0회로 표시하지 않는다. 이번 전체 실행의 재시작·수동 재시도는 없었고 supervisor는 상한까지 살아 있다가 정상 종료 신호로 자식을 정리했다. 큐 삭제·커서 초기화·source/generation 교체·추가 복구 조작은 하지 않았다.
+
+**판정: 약 5분의 공개 수집·전송 지속과 종료를 확인했다.** 이전처럼 METADATA_FULL로 즉시 종료되는 현상은 이번 실행에서 재발하지 않았다. 단, 로그의 COMMITTED는 새 캡처 GOOD 트렌드·가동 시간 >0·불명 근거·원래 실행 수량 대조를 대신하지 않는다. 이번에는 생산 START를 하지 않았으며 해당 업무 지표와 전후 공개 DB 용량은 조회하지 않았다. 사용자가 지정한 대로 Claude가 공개 결과·용량·화면을 확인할 항목으로 인계한다. 따라서 OPS-02 전체 수락 완료는 아직 판정하지 않는다.
+
+보호된 원본 메타데이터와 출력은 `/tmp/hmi-ops02-v6-public-demo-once`, 상태 로그는 기존 runtime의 supervisor.log에 보존했다. 이 보고서 기록 외에 추가 시험·실연 반복·운영 변경은 하지 않았다.
+
+## 7차 실연 — 생산 실행 연결 전 중단
+
+Claude 브랜치의 `CODEX_KULS_보강_v7.md`(`4c64649`)를 확인하고 최신 main 반영 상태를 확인했다. 사용자에게 생산 조작 대행 승인을 받았고, 모바일 설정 제약으로 **공개 DB 실행 전후 조회·용량 확인은 Claude 담당으로 유지**하는 범위 변경도 명시적으로 승인받았다. 따라서 이번 작업에서 SQL·이관·권한 변경·배포는 실행하지 않았고, 공개 DB 행 수·용량을 새로 실측했다고 표시하지 않는다.
+
+사용자가 제공한 운영계정 비밀번호는 숨김 표준입력으로 메모리에서만 사용했다. 코드·문서·환경변수·파일·실행 로그에 저장하거나 출력하지 않았다. 정상 Origin·로그인 challenge·CSRF·세션 쿠키를 거쳐 demo의 production_manager/operator 권한을 확인했고, 실연에서는 실제 공개 UI를 조작했다. Chromium 요청은 기존 정상 인증서 검증과 상속 프록시를 사용하는 HTTPS 브리지로 전달했으며 모의 응답·권한 우회·TLS 검증 해제는 하지 않았다.
+
+기존 runtime·SQLite·인증서·보호 토큰으로 `serve --clock-measured-round-trip`을 한 번 시작하고, 콘솔 준비 후 승인된 commission을 한 번 성공시켰다. 공개 UI에서 레시피·목표 100,000개 작업지시를 각각 한 건 만들고 배포(릴리스)를 확인했다. **배포 후 해당 작업지시를 선택했지만 `#binding-prepare`가 35초 안에 활성화되지 않아 AssertionError로 중단했다.** release_id를 확보했으므로 배포 자체의 실패라고 판정하지 않는다. helper의 단계 이름 `ui_release`는 배포 뒤 실행 연결 준비까지 포함한다. 버튼 비활성 사유 문구는 기존 결과에 저장되지 않았으므로 직접 원인은 미확인이다.
+
+| 항목 | 기록 |
+|---|---|
+| 시작 UTC / KST | 2026-10-24T07:52:11.236183Z / 16:52:11 |
+| 종료 UTC / KST | 2026-10-24T07:53:09.958969Z / 16:53:09 |
+| 경과 | **58.7초** |
+| 실행·commission | 각각 1회, commission 성공 |
+| 레시피 | 000-v7-recipe-20261024T075220304749Z |
+| 작업지시 | 000-v7-order-20261024T075220304749Z |
+| release_id | 43b472e6-0142-4ed5-b34d-ed79f95adf9b |
+| LOAD_JOB / START / END_RUN | **모두 미제출** |
+| execution_id / 수량 대조 | 실행 미생성·미확보 / 해당 없음 |
+| 종료 원인 | 실행 연결 준비 버튼 활성화 대기 실패(AssertionError), 직접 비활성 사유 미확인 |
+| 신규 capture / COMMITTED | 52 / 52 |
+
+이번 supervisor.log 구간(시작 byte 1,286,178)만 집계했다. capture blocked는 GatewayReadError 1회, **BufferFull / INFLIGHT_PRESSURE 3회**다. command·settlement에도 초기 blocked가 각각 1회 있고 클래스·코드는 없다. 이후 수집·COMMITTED가 계속됐고 최종 gateway 오류 종료는 없었다. **이번 중단을 METADATA_FULL이나 BufferFull에 의한 종료라고 해석하지 않는다.** 독립 medium 관찰자도 로그·실행 메타데이터만 읽어 같은 수치를 확인했다.
+
+허용된 한 번의 시도 후 재시도·수동 복구·큐 삭제·새 ID로 명령 재전송은 하지 않았다. 감독자 정상 종료 뒤 두 자식 PID가 존재하지 않고 processes.json이 없음을 확인했다. 이미 생성·배포된 작업지시와 영속 상태는 보존했고 취소·삭제하지 않았다. 원본 안전 메타데이터는 `/tmp/hmi-ops02-v7-production-once/run.json`에 남겼다.
+
+**판정: 7차 생산 실연 실패·미완료.** 생산 START를 제출하지 못해 가동 시간 >0·원래 실행의 수량 대조는 이번 시도로 검증하지 못했다. 공개 DB 용량·행 수·화면 확인은 승인된 분담대로 Claude에게 인계하며, 이 기록 후 중단한다. 제품 코드·UI·README·Vercel 설정과 보호된 기존 브라우저 시험 수정은 건드리지 않았다.
+
+### 7차 §2-1 수정 지시에 따른 기존 작업지시 재개 1회
+
+사용자가 전달한 `d4ddcad`의 수정 지시서를 읽고 기존 RELEASED 작업지시 `000-v7-order-20261024T075220304749Z`를 이어서 사용했다. 레시피·작업지시를 새로 만들거나 release POST를 다시 보내지 않았다. 기존 release ID `43b472e6-0142-4ed5-b34d-ed79f95adf9b`를 정상 공개 UI의 원래 요청 조회로 확인한 뒤 `#workflow-acknowledge`를 한 번 클릭했다. **확인 버튼이 사라지고 `#workflow-recovery` 폼이 다시 나타난 것을 명시적으로 기다려 ack_clicked=true, ack_processed=true를 기록했다.** 그 후 작업지시 목록 새로 조회 → 기존 작업지시 실행 연결 선택 순서로 진행했다.
+
+그러나 `#binding-prepare`는 35초 안에 활성화되지 않았다. 시작 직후와 대기 종료 뒤 `#binding-reason`의 같은 문구를 직접 읽어 기록했다.
+
+> 전체 48개 태그의 최신 정상 품질과 원본 시각을 확인해야 합니다.
+
+START 버튼 아래 사유도 같은 문구였다. 이번 실패를 배포 기록 미확인으로 판정하지 않는다. 위 문구는 UI의 품질·원본 시각 guard가 차단했다는 직접 증거이나, 48개 중 어떤 태그·시각 조건이 불충족이었는지까지는 이번 기록으로 특정하지 못한다. 이전 시도의 직접 원인을 이 결과로 소급 확정하지 않는다. 버튼 상태를 우회하거나 요청을 직접 전송하지 않았다.
+
+| 항목 | 결과 |
+|---|---|
+| 시작 UTC / KST | 2026-10-24T08:00:35.147803Z / 17:00:35 |
+| 종료 UTC / KST | 2026-10-24T08:01:22.373643Z / 17:01:22 |
+| 경과 | **47.2초** |
+| runtime / commission | 각 1회, commission 성공 |
+| 배포 기록 확인 | 클릭 및 처리 완료 확인 |
+| 실행 연결 | binding_ready / AssertionError |
+| LOAD_JOB / START / END_RUN | **모두 미제출** |
+| 실행 ID·수량 대조 | 없음 / 해당 없음 |
+| capture | collected 42, uncertain 2, blocked 1 |
+| delivery | COMMITTED 44, idle 16 |
+| 오류 클래스·코드 | GatewayReadError 1회, 사유 코드 기록 없음 |
+
+command·settlement에는 초기 blocked가 각각 1회 있고 상세 클래스·코드는 없다. BufferFull이나 최종 gateway 오류 종료 기록은 없었다. 독립 medium 관찰자는 이번 시작 byte 1,297,561 이후의 supervisor.log와 `/tmp/hmi-ops02-v7-existing-order-once/run.json`만 읽어 위 수치를 확인했다. 최종 `supervisor stopped; persistent scope retained`, 두 자식 PID 없음, processes.json 없음도 확인했다.
+
+허용된 이번 1회 재개 이후에는 재시도·복구 조작·큐/커서 수정 없이 멈췄다. 기존 작업지시·runtime을 보존했으며 앱 코드·UI·이관·권한·배포는 변경하지 않았다. 공개 DB 전후 확인은 앞선 사용자 승인대로 Claude 담당으로 유지한다. **생산 START와 원래 실행 수량 대조는 여전히 미완료**다.
+
+### 7차 §2-2: 60초 안정화·120초 버튼 대기 재개 1회
+
+사용자가 `ae4141e`의 §2-2대로 한 번 재개하도록 지시했다. 최신 main 반영 상태를 확인했고, 기존 runtime·RELEASED 작업지시·release ID를 유지했다. 앱 코드·안전 조건·한도는 변경하지 않았다. 기존 정상 로그인·Origin·CSRF 절차와 숨김 메모리 입력을 사용했고, 운영계정 비밀번호는 출력·파일 저장하지 않았다.
+
+| 항목 | 실측 |
+|---|---|
+| runtime 시작 | 2026-10-24T08:13:00.322340Z / 17:13:00 KST |
+| commission | 1회, exit0 |
+| 안정화 완료 | 08:14:00.324683Z, 시작 후 **60.002초** |
+| 배포 기록 확인 | 기존 기록 조회 후 클릭·처리 완료 확인 |
+| 버튼 대기 시작 | 08:14:10.390076Z |
+| 버튼 대기 종료 | 08:16:10.410237Z |
+| 실제 버튼 대기 | **120.020초** |
+| runtime 종료 | 08:16:12.102939Z / 17:16:12 KST |
+| 전체 경과 | 191.8초 |
+| LOAD_JOB / START / END_RUN | **모두 미제출** |
+| execution_id·수량 대조 | 없음 / 해당 없음 |
+
+`#binding-prepare`는 시한 안에 활성화되지 않았다. 대기 시작과 종료 시의 직접 사유는 동일했다.
+
+> 전체 48개 태그의 최신 정상 품질과 원본 시각을 확인해야 합니다.
+
+**추가 운영 증거: 이번 수집 로그에서 BufferFull / METADATA_FULL이 88회 기록됐다.** 새 로그 구간(시작 byte 1,306,539)은 capture collected 98회·uncertain 2회·GatewayReadError blocked 1회와 METADATA_FULL blocked 88회, delivery COMMITTED 101회를 포함한다. command 초기 blocked 1회에는 클래스·코드가 없고 이후 idle 134회다. 이는 capture에서 한도 오류를 잡아 blocked로 남긴 경우이며 최종 gateway 오류 종료 기록은 없다. 감독자는 버튼 대기 실패 뒤 정상 종료됐다. 시작 적체만으로 이번 전체 결과를 설명하거나, 6차 압축만으로 운영 메타데이터 한도가 해소됐다고 판정하지 않는다. 어떤 저장 항목·전이에서 다시 한도를 초과했는지 추가 SQLite 조회나 재현은 하지 않았다.
+
+독립 medium 관찰자가 `/tmp/hmi-ops02-v7-stabilized-once/run.json`과 해당 supervisor.log 구간만 읽어 수치·시각·사유를 확인했다. 최종 `supervisor stopped; persistent scope retained`, 두 자식 PID 없음, processes.json 없음도 확인했다. 기존 작업지시·영속 상태는 보존했고 새 recipe/order/release를 생성하지 않았다.
+
+**판정: 승인된 1회 재개 실패.** 60초 안정화와 최대 120초 대기를 실행했지만 생산 실행 연결까지 진행하지 못했다. 안전 조건 우회·추가 시도·큐/커서 변경·원장 정리·추가 복구·DB/배포 변경은 하지 않고 이 기록 후 멈췄다. 공개 DB 전후 수치·화면 확인은 기존 사용자 승인대로 Claude 담당이며, 가동 시간 >0·원래 실행 수량 대조와 OPS-02 전체 수락은 미완료다.
+
+## 현재 보고 종합 및 Codex 의견
+
+사용자 요청으로 기존 보고와 현재 코드를 읽어 정리했다. 이번에는 SQLite·공개 DB·네트워크 조회나 실연·시험을 추가로 실행하지 않았다. 독립 `gpt-6.1-sol medium` 검토도 같은 코드 경로와 추론의 한계를 확인했다.
+
+### 확인된 사실
+
+| 쟁점 | 확인된 내용 |
+|---|---|
+| 대기 배치 15KB인데 BufferFull 발생 | payload 대기열과 별개인 10MB 메타데이터 한도다. 최초 사본 실측은 9,999,961바이트로 여유 39바이트였다. 이는 당시 값이며 현재 사용량을 다시 측정한 값은 아니다. |
+| 큰 보존 항목 | 당시 missing_ranges 453행이 5,664,074바이트였다. ACK 원장 압축은 이 유실 근거를 줄이지 않는다. |
+| 클릭 순서 | 후속 두 시도는 acknowledge 클릭과 처리 완료를 명시적으로 확인했다. 현재 실패를 해당 버튼 누락으로 설명할 수 없다. |
+| 안정화·대기 확대 | 60.002초 안정화와 120.020초 대기 후에도 48개 태그 품질·원본 시각 guard가 남았다. |
+| 최신 운영 오류 | 수집 METADATA_FULL 88회가 기록됐다. COMMITTED 101회는 전송 성공을 뜻하지만, 계속 새 capture가 저장되거나 UI 최신성 조건을 만족한다는 보증은 아니다. |
+| 업무 결과 | LOAD_JOB·START를 제출하지 못했다. 생산·가동·수량 대조는 여전히 미완료다. |
+
+### 제 판단: 메타데이터 관리의 불완전성이 가장 유력하다
+
+가장 유력한 흐름은 **메타데이터 압력 → 새 capture 저장 차단 → 최신 관측 확보 저하 → UI의 품질·시각 guard 유지**다. 앞의 저장 차단과 마지막 guard 표시는 각각 로그·화면에서 확인됐지만, 중간 인과를 태그별 시각으로 직접 대조한 것은 아니다. 따라서 UI guard의 모든 원인이 메타데이터라고 확정하지 않는다. 어떤 태그의 captured_at/stored_at/acquired_at 또는 화면 emitted_at 조건이 실패했는지도 아직 미확인이다. 정상 status/값이 존재하더라도 화면에서 모두 3초 미만이라는 조건을 만족하지 않을 수 있다(`apps/web/src/SnapshotPanel.tsx:91`).
+
+코드상 압축 발동 위치에 빈틈이 있다. `enqueue()`는 새 원장·payload를 추가한 후 예산만 검사한다(`apps/gateway/buffer.py:652`). 반면 압축은 `acknowledge()`에서만 호출한다(865행). **큐가 비었거나 남은 ACK 처리가 없는 상태에서 enqueue가 먼저 한도를 넘으면**, 해당 트랜잭션은 롤백되고 새 배치는 전송되지 않는다. 그러면 새 ACK도 생기지 않아 압축을 호출할 기회가 없어진다. 이는 가능한 정체 경로이며, 당시 큐·압축 대상 상태를 조회하지 않았으므로 이번 재발의 확정 경로는 아니다.
+
+별도로 **압축만으로 무기한 보존 문제를 해결할 수는 없다.** 압축 후에도 capture별 원장 행·ID·해시·영수증은 남고 계속 증가한다. 기존 유실 근거 5.66MB도 반드시 보존한다. 이미 압축 가능한 ACK가 모두 압축됐거나, 미확정·유실 관련 영수증만 남으면 추가 회수량이 없을 수 있다. 이 경우는 호출 위치만 바꿔도 해결되지 않는다. 두 가능성은 함께 존재할 수도 있다.
+
+제가 넣은 6차 수정은 ACK 처리 중 여유를 회수하는 경로는 검증했으나, **다음 enqueue의 진행 가능성과 장기 보존 용량을 보장하는 완결된 수정은 아니었다.** 37개 시험과 5분 수집 통과를 운영 용량 문제 전체 해결로 확대하면 안 된다. 최신 METADATA_FULL 재발이 그 한계를 보여준다.
+
+### 다음 작업에 대한 권고 — 아직 실행하지 않음
+
+우선 운영 사본을 한 번만 읽어 메타데이터 표별 크기, PENDING/INFLIGHT 유무, ACK의 TEXT/BLOB별 건수·크기, 미압축 확정 ACK의 회수 가능량을 함께 확인하면 위 두 경우를 구분할 수 있다. 실연 반복보다 이 확인이 먼저다.
+
+미압축 확정 ACK가 충분하면 enqueue 이전에도 기존 확정 근거를 이용해 같은 트랜잭션 안에서 공간을 회수하는 경로와 그 정체 회귀를 검토할 수 있다. 회수 가능한 근거가 없다면, ID·원장·유실 근거의 보존과 제한된 저장 용량을 함께 만족시키는 보관·복원 설계를 먼저 정해야 한다. 한도 확대·유실 근거 삭제·UI 3초 조건 완화로 통과시키는 방법은 권고하지 않는다.
+
+**종합 판정: 현재 우선 조사 대상은 gateway 메타데이터의 회수 시점과 회수 가능한 잔여량이다.** UI 클릭 누락이나 시작 직후 일시 지연만으로 현재 실패를 설명하는 근거는 부족하다. 이번 요청 범위는 의견 정리이며 코드 수정·추가 조회·실연은 하지 않았다.
+
+## 8차 운영 적용 선행 설계 검토
+
+8차 사본 조회 1회에서 메타데이터 9,999,697바이트·여유 303바이트·빈 대기열과 미압축 확정 ACK 487건(회수 가능 67,314바이트)을 확인했다. 현재 enqueue가 먼저 한도에 막히고 ACK 전용 압축에 진입하지 못하는 정체를 설명한다. 유실 근거 453행의 capture 구간은 102~554이며, 원문 전체를 보존한 가역 압축 크기는 696,532바이트였다.
+
+high 검토는 순번 checkpoint만으로 영구 batch-ID 충돌 검사를 대체하거나, 유실 원문을 범위·해시만으로 대체하는 방법을 채택하지 않았다. 8차 §2의 불변 조건 보호 조항에 따라 이유와 필요한 보관 계약 변경을 [CX-27.md](CX-27.md)에 기록했다. 원본의 일회성 이관·사본 이관 검증·추가 실연은 아직 실행하지 않았다. 코드·원본 SQLite·source/generation·배포 설정 변경은 없고, 허용량 확대나 근거 삭제도 하지 않았다. 구현·시험·원본 이관을 완료했다고 판정하지 않는다.
+
+## 9차 운영 적용 상태
+
+유실 본문 가역 압축과 enqueue 압축 경로·오프라인 CLI를 준비했으나 단일 검사에서 신규 시험 2개가 잘못된 태그 fixture로 실패했다(기존 37개·Ruff 통과). [CX-27의 9차 구현 절](CX-27.md)에 책임·오류와 미실행 범위를 기록했다. 실패 후 추가 수정·재시도 없이 중단했으며 사본 이관 검증, 원본 승인·적용, 생산 실연은 모두 미실행이다. 현재 운영 SQLite와 공개 배포에는 새 표현을 적용하지 않았다.
+
+### 9차 사본 검증 후 원본 승인 대기
+
+사용자의 후속 지시로 시험 데이터만 수정해 신규 2개·해당 Ruff가 통과했다. 제품 코드는 추가 변경하지 않았다. 운영 DB의 새 사본에서 이관 1회가 성공했고, 메타데이터는 9,999,697→5,413,421바이트로 줄었다. ACK 487행·유실 453행의 원문과 모든 의미 행·참조·커서가 동일했다. 상세 수치와 한계는 [CX-27](CX-27.md)의 후속 절을 따른다.
+
+9차 §2.4의 “그다음 사용자 승인을 받아 원본에 1회 적용한다”에 따라 원본 적용 승인을 요청할 단계다. 원본 gateway SQLite는 아직 바꾸지 않았고 생산 실연도 하지 않았다. 승인 뒤에는 정지 상태에서 보호 백업을 보존하고 동일 이관을 원본에 한 번 적용한 다음, 기존 RELEASED 작업지시를 사용해 안정화·지연 확인 후 정상 권한·Origin·CSRF를 거치는 생산 실연을 한 번 수행할 계획이다. 공개 DB 수량·화면 확인은 기존 승인대로 Claude 담당이다.
+
+### 9차 원본 적용 및 승인 실연 1회 결과
+
+사용자 승인 후 원본 이관을 한 번 성공시켰다. 보호 백업·정확한 의미 bytes·크기·행 보존 결과는 [CX-27](CX-27.md)의 원본 적용 절과 [안전 결과 JSON](evidence/CX-27-v9-original.json)을 따른다. 원본 표현은 이관된 상태로 유지하며 이후 새 수집이 있으므로 과거 백업으로 되돌리지 않았다.
+
+기존 runtime으로 measured-round-trip 실연을 한 번 시작하고 commission을 한 번 성공시켰다. 60.001초 안정화 후 기존 배포 기록을 조회·acknowledge했고 처리 완료도 확인했다. 새 작업지시·release는 만들지 않았다.
+
+9차의 “수집 지연이 1초 안팎으로 안정됐는지 확인”을 위해 실제 브라우저 `/api/v1/screen` 응답의 Line.State captured_at/stored_at을 기록했다. 이번 운영 진행 판단 기준은 **서로 다른 최근 capture 3개가 모두 저장 지연 0~1초이고 마지막 capture가 현재 3초 미만**, 최대 120초 확인이었다. 이는 앱의 안전 조건을 바꾼 것이 아니라 이번 조작 진행을 위한 추가 확인 기준이다. UI의 binding 활성 대기까지 도달하지 못했다.
+
+| 항목 | 결과 |
+|---|---|
+| runtime 시작 UTC / KST | 2026-10-24T08:56:00.715446Z / 17:56:00 |
+| runtime 종료 UTC / KST | 2026-10-24T08:59:12.447759Z / 17:59:12 |
+| 전체 경과 | 191.7초 |
+| commission / acknowledge | 성공 / 클릭·처리 완료 확인 |
+| 기록된 화면 지연 | 0.446255, 0.496125, 4.448240, 4.898420, 2.559740, 0.374463초 |
+| 수집 / delivery COMMITTED | 186 / 187 |
+| capture 오류 | GatewayReadError 2회, uncertain 1회 |
+| BufferFull / METADATA_FULL | **기록 없음** |
+| LOAD_JOB / START / END_RUN | **모두 미제출** |
+| 실행·수량 대조 | 실행 없음 / 해당 없음 |
+
+120초 확인 안에 위 안정화 기준을 만족하지 못해 collection_delay_stability_wait / RuntimeError로 중단했다. 전체 기간을 연속 측정한 것이 아니라 화면에서 확보한 **6개 표본**이므로 후반의 실제 수집 지연 전체를 단정하지 않는다. 이 결과를 앱 자체가 120초 동안 계속 버튼을 막았다는 증거로 사용하지 않는다. ACK 압축 용량 정체가 재발했다고도 판정하지 않는다. 공개 화면/전송의 지연 원인 및 최종 가동 시간 확인은 미완료다.
+
+command·settlement에 초기 blocked가 각각 1회 있었고 클래스/코드는 없었다. 마지막 supervisor 로그는 정상 종료·영속 상태 보존이며 두 자식 PID 없음과 processes.json 없음도 확인했다. 독립 medium 관찰자는 새 로그(시작 byte 1,369,060)와 [실행 메타데이터](evidence/OPS-02-v9-run.json)만 읽어 수치를 확인했다. 비밀번호는 숨김 입력으로 메모리에서만 사용했고 코드·파일·로그에 저장하지 않았다.
+
+원본 이관은 성공, 승인된 생산 실연은 START 전 실패로 구분한다. 추가 실연·재시도·복구·큐/커서 초기화·한도 확대·UI 변경·재배포는 하지 않았다. 공개 DB 전후 수치·화면 확인은 기존 사용자 승인대로 Claude 담당이며, 실제 생산·원래 execution 수량 대조와 OPS-02 전체 수락은 미완료다.
+
+### 사용자 수정 지시: 안정화 판정 없이 버튼별 5분 대기 1회
+
+사용자가 추가 안정화 판정을 제거하고 각 실행 연결·START·종료 버튼이 활성화될 때까지 최대 5분 기다리도록 지시했다. 화면이 막아 POST가 생성되지 않은 클릭만 다시 허용하고, POST가 생성되면 원래 ID 조회만 하도록 승인했다. 이에 따라 별도 지연/표본 판정과 60초 대기를 모두 제거했다. 기존 runtime·작업지시·정상 로그인·Origin·CSRF를 유지했고, 요청 이벤트에서 원래 command_id를 먼저 기록해 재클릭 가능 여부를 나누도록 실행했다.
+
+복구 확인과 원래 배포 기록 확인을 마친 뒤 실행 연결 준비 버튼을 **최대 300초** 기다렸다. 버튼은 활성화되지 않았고 AssertionError로 중단했다. 따라서 허용된 미전송 클릭의 재시도나 원래 ID 조회 분기에도 도달하지 않았다. 연결/생산 POST가 없으므로 commands는 빈 객체다.
+
+| 항목 | 결과 |
+|---|---|
+| 시작 UTC / KST | 2026-10-24T09:06:32.493552Z / 18:06:32 |
+| 종료 UTC / KST | 2026-10-24T09:11:47.487973Z / 18:11:47 |
+| 전체 runtime 경과 | 315.0초 |
+| 안정화 추가 판정 | 없음 |
+| 실패 단계 | binding_ready, 300초 버튼 활성 대기 |
+| LOAD_JOB / START / END_RUN | **모두 미제출** |
+| 종료 시 화면 연결 | **stopped / 화면 연결 확인 필요** |
+| capture | collected 309, uncertain 2, GatewayReadError blocked 1 |
+| delivery COMMITTED | 311 |
+| BufferFull / METADATA_FULL | 기록 없음 |
+
+버튼 아래 직접 사유는 다음과 같다.
+
+> 전체 48개 태그의 최신 정상 품질과 원본 시각을 확인해야 합니다.
+
+**이번에는 종료 시 화면 연결이 stopped인 것을 직접 확인했다.** 게이트웨이는 수집·전송을 계속했지만 조작 화면은 갱신을 확인하지 못하는 상태였다는 서로 다른 관측이다. 버튼 비활성을 추가 안정화 판정 때문이라고 해석하면 안 된다. 화면이 왜 stopped가 됐는지는 현재 결과에 남지 않았으므로 API 실패·시간 초과·브라우저 전송 경로 등으로 단정하지 않는다. stopped 전환 시각도 별도로 기록하지 않았으므로 300초 내내 stopped였다고 주장하지 않는다.
+
+command·settlement 초기 blocked는 각각 1회이며 클래스·코드는 없다. 독립 medium 관찰자가 시작 byte 1,418,022 이후 로그와 [안전 실행 메타데이터](evidence/OPS-02-v9-buttons-run.json)를 읽어 수치를 확인했다. 마지막 로그는 supervisor 정상 종료·영속 상태 보존이며, 두 자식 PID와 processes.json이 없음을 확인했다.
+
+승인된 1회 종료 후 화면 재연결·추가 실행·큐/커서 수정·DB 이관·재배포는 하지 않았다. 비밀번호·세션 쿠키는 출력하거나 파일에 저장하지 않았다. START 후 8분 운전과 수량 대조는 시작하지 못했으며 OPS-02 생산 수락은 미완료다. 실패 기록 후 중단한다.

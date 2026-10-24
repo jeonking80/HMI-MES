@@ -85,7 +85,7 @@ print(json.dumps(result))
 
 
 # Separate child wrapper preserves the Claude-owned original and all other CLI
-# invocations. Its sole extension declares the actual same-host clock assumption.
+# invocations. It reuses or declares the actual same-host clock assumption.
 INDEPENDENT_DRIVER_WRAPPER = r"""
 import hashlib,importlib.util,json,subprocess,sys
 from pathlib import Path
@@ -105,11 +105,31 @@ def guarded_popen(arguments,*args,**kwargs):
     ]:
         if kwargs.get("shell"):
             raise RuntimeError("Internal API clock extension refuses shell execution")
-        if "--trend-clock-policy" in arguments:
-            raise RuntimeError("Original driver already defines clock policy; review required")
-        arguments=[*arguments,"--trend-clock-policy","same-host"]
+        policies=[index for index,value in enumerate(arguments)
+                  if isinstance(value,str) and (value.startswith("--trend-clock-policy")
+                  or (value.startswith("--") and len(value)>2
+                      and "--trend-clock-policy".startswith(value.split("=",1)[0])))]
+        if len(policies)>1:
+            raise RuntimeError("Internal API clock policy is duplicated")
+        action="appended"
+        appended=["--trend-clock-policy","same-host"]
+        if policies:
+            index=policies[0]
+            option=arguments[index]
+            if option=="--trend-clock-policy":
+                value=arguments[index+1] if index+1<len(arguments) else None
+            elif option.startswith("--trend-clock-policy="):
+                value=option.split("=",1)[1]
+            else:
+                value=None
+            if value!="same-host":
+                raise RuntimeError("Internal API clock policy conflicts or is malformed")
+            action="reused"
+            appended=[]
+        else:
+            arguments=[*arguments,*appended]
         extensions.append({"module":"apps.api","subcommand":"serve",
-                           "appended":["--trend-clock-policy","same-host"]})
+                           "action":action,"policy":"same-host","appended":appended})
     return original_popen(arguments,*args,**kwargs)
 subprocess.Popen=guarded_popen
 sys.argv=[str(driver_path),*arguments]
@@ -150,6 +170,64 @@ def environment():
     ):
         value.pop(name, None)
     return value
+
+
+def safe_compose_failure(stdout):
+    """Keep only known helper identifiers and fixed reasons, never arbitrary tool output."""
+    try:
+        value = json.loads(stdout)
+    except (ValueError, UnicodeDecodeError):
+        return None
+    if not isinstance(value, dict) or set(value) != {"failed_stage", "error_type", "reason"}:
+        return None
+    phases = {
+        "setup",
+        "operator bootstrap",
+        "simulator commissioning",
+        "operator authentication",
+        "simulator authentication",
+        "analytics config",
+        "recipe registration",
+        "order registration",
+        "order release",
+        "order binding",
+        "load result and preheat",
+        "start and production",
+        "pause",
+        "end and settlement",
+        "timeline",
+        "trend",
+    }
+    types = {
+        "ConnectError",
+        "ConnectTimeout",
+        "ReadError",
+        "ReadTimeout",
+        "WriteError",
+        "WriteTimeout",
+        "PoolTimeout",
+        "RemoteProtocolError",
+        "LocalProtocolError",
+        "HTTPStatusError",
+        "RuntimeError",
+        "CalledProcessError",
+        "TimeoutExpired",
+        "ValueError",
+        "KeyError",
+        "TypeError",
+        "OSError",
+    }
+    if not isinstance(value["failed_stage"], str) or value["failed_stage"] not in phases:
+        return None
+    if not isinstance(value["error_type"], str) or value["error_type"] not in types:
+        return None
+    reasons = {"operation failed", "Simulator console did not become ready"}
+    reason = value["reason"]
+    return {
+        "failed_stage": value["failed_stage"],
+        "error_type": value["error_type"],
+        "reason": reason if isinstance(reason, str) and reason in reasons else "operation failed",
+    }
 
 
 def main():
@@ -204,7 +282,7 @@ def main():
     code = 1
     current_phase = "clean_checkout"
 
-    def execute(phase, command, *, cwd=None, timeout=600, input_text=None):
+    def execute(phase, command, *, cwd=None, timeout=600, input_text=None, compose_helper=False):
         nonlocal current_phase
         current_phase = phase
         started = now()
@@ -229,6 +307,10 @@ def main():
             }
             if b"no space left on device" in combined.lower():
                 entry["known_failure"] = "ENOSPC"
+            if result.returncode and compose_helper:
+                detail = safe_compose_failure(result.stdout)
+                if detail:
+                    entry["safe_helper_failure"] = detail
             record["commands"].append(entry)
             if result.returncode:
                 raise RuntimeError("Command failed in " + phase)
@@ -377,6 +459,7 @@ def main():
                 cwd=clone,
                 timeout=300,
                 input_text=(clone / "scripts/compose_acceptance.py").read_text(),
+                compose_helper=True,
             )
         )
         if (
@@ -463,7 +546,8 @@ def main():
             "extension": {
                 "module": "apps.api",
                 "subcommand": "serve",
-                "append": ["--trend-clock-policy", "same-host"],
+                "policy": "same-host",
+                "strategy": "reuse-existing-or-append-if-absent",
             },
         }
         extension_proof = output / "independent-driver-extension.json"
@@ -490,7 +574,8 @@ def main():
             or len(proof.get("extensions", [])) != 1
             or proof.get("exit_code") != 0
         ):
-            raise RuntimeError("Independent driver clock extension was not applied exactly once")
+            raise RuntimeError("Independent driver clock policy was not verified exactly once")
+        record["independent_driver"]["extension"] = proof["extensions"][0]
         mark("independent_cli", extension_proof=proof)
         env["HMI_ACCEPTANCE_ARTIFACTS"] = str(output / "cx17")
         execute(

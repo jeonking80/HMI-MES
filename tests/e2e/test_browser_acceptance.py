@@ -23,6 +23,7 @@ async def test_t02_browser_start_refusal(pipeline, tmp_path, acceptance_evidence
     e = acceptance_evidence("T02-" + condition)
     async with BrowserBoundary(pipeline, tmp_path, e).running() as h:
         await h.command("PAUSE")
+        await expect(h.page.locator("#line-state")).to_have_text("일시 정지")
         if condition == "guard_open":
             h.inputs(guard_closed=False)
         elif condition == "LOCAL":
@@ -267,9 +268,7 @@ async def test_t06_browser_real_disconnect(pipeline, tmp_path, acceptance_eviden
         if boundary == "field":
             h.field_mode("LINK_DOWN")
         else:
-            h.opc_connected = False
-            await h.opc.disconnect()
-            await h.server.stop()
+            await h.stop_opc()
         start = asyncio.get_running_loop().time()
         timeline = []
         for target in (2.0, 3.6, 5.8):
@@ -318,11 +317,12 @@ async def test_t06_browser_real_disconnect(pipeline, tmp_path, acceptance_eviden
         if boundary == "field":
             h.field_mode("NORMAL")
         else:
-            await h.server.start()
-            h.opc_connected = True
-        await expect(h.page.locator("#heartbeat-state")).to_have_attribute(
-            "data-state", "GOOD", timeout=20_000
-        )
+            await h.restart_opc()
+
+        async def recovered_health():
+            return await h.page.locator("#heartbeat-state").get_attribute("data-state") == "GOOD"
+
+        await h.wait(recovered_health, timeout=20)
         recovered = await h.alarm("Sealer", "ACTIVE_UNACKNOWLEDGED", alarm_id)
         e.check(
             "transport_recovers_without_auto_alarm_return",

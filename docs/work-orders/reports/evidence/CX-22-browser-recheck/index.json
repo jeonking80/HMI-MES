@@ -1,0 +1,14 @@
+{
+  "T02-LOCAL-b87af3dbcba645159a84e98c6f039560.json": {
+    "bytes": 34944,
+    "sha256": "12cc631666c6f7e933d5a248188c25713e9262f84dc2fece12b4bde877dc65d5"
+  },
+  "T06-OPC-e2b2a04f4b214729bed73bdde0de0073.json": {
+    "bytes": 96716,
+    "sha256": "130632d8bc8e2d4f4937334767965bc5a85b208ac90de804e9916cdb1fb97e7c"
+  },
+  "hmi-browser-release-fixed.xml": {
+    "bytes": 13075,
+    "sha256": "a7a2c7c49ce57e138f887eba1fe56fd90171a24d4eb5b322cfe6fcb09dea18d5"
+  }
+}

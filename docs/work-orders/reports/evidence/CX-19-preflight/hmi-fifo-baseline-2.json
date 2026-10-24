@@ -1,0 +1,97 @@
+{
+  "preloaded": 1800,
+  "scope": "synthetic historical preload; real FIFO HTTP/PG and live OPC48tags1Hz",
+  "deadline_seconds": 300,
+  "outcome": "passed",
+  "preload_seconds": 27.035920780996094,
+  "seconds": 184.79438605500036,
+  "queue": {
+    "pending_batches": 0,
+    "inflight_batches": 0,
+    "queue_bytes": 0,
+    "metadata_bytes": 2568582,
+    "loss_records": 0,
+    "oldest_queued_at": null,
+    "age_limit_reached": false,
+    "database_bytes": 26710016,
+    "wal_bytes": 4185952,
+    "shared_memory_bytes": 32768
+  },
+  "progress": {
+    "source_id": "7c056795-19af-4273-a9b9-16c4a465bbff",
+    "stream_id": "a71099e5-a131-4e3d-9788-9c1c4b2fd08e",
+    "verified_through_seq": "10",
+    "latest_ingested_seq": "10",
+    "unresolved_gaps": []
+  },
+  "measurements": {
+    "enqueue": {
+      "calls": 180,
+      "seconds": 2.860712726833299,
+      "max": 0.03051921198493801
+    },
+    "lease_next": {
+      "calls": 1984,
+      "seconds": 7.757882638223236,
+      "max": 0.039497322984971106
+    },
+    "acknowledge": {
+      "calls": 1980,
+      "seconds": 4.823135550395818,
+      "max": 0.014705053006764501
+    },
+    "deliver": {
+      "calls": 1980,
+      "seconds": 149.56731655291514,
+      "max": 0.35744128498481587
+    },
+    "read_tags": {
+      "calls": 180,
+      "seconds": 1.0177677121537272,
+      "max": 0.02170195899088867
+    }
+  },
+  "observer_seconds": 4.541878954245476,
+  "observer_calls": 181,
+  "api": {
+    "ingest": {
+      "calls": 1981,
+      "seconds": 133.71028667554492,
+      "max": 0.24697352899238467
+    },
+    "sql": {
+      "other": {
+        "calls": 20844,
+        "seconds": 5.753385759075172
+      },
+      "ingest_batches": {
+        "calls": 5944,
+        "seconds": 3.46423004247481
+      },
+      "event_inbox": {
+        "calls": 3977,
+        "seconds": 0.9638061574078165
+      },
+      "stream_progress": {
+        "calls": 3962,
+        "seconds": 1.156799335120013
+      },
+      "stream_gaps": {
+        "calls": 5763,
+        "seconds": 1.5646479894057848
+      },
+      "capture_clock_evidence": {
+        "calls": 3962,
+        "seconds": 1.6117906193539966
+      },
+      "analog_history_raw": {
+        "calls": 57269,
+        "seconds": 57.42784082470462
+      },
+      "analog_history_minutes": {
+        "calls": 19720,
+        "seconds": 6.604073816008167
+      }
+    }
+  }
+}

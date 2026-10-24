@@ -1,0 +1,142 @@
+{
+  "preloaded": 1800,
+  "scope": "synthetic historical preload; real FIFO HTTP/PG and live OPC48tags1Hz",
+  "deadline_seconds": 300,
+  "outcome": "profiled_incomplete",
+  "preload_seconds": 28.025826583994785,
+  "seconds": 15.218320637010038,
+  "queue": {
+    "pending_batches": 1661,
+    "inflight_batches": 1,
+    "queue_bytes": 25356613,
+    "metadata_bytes": 1197262,
+    "loss_records": 0,
+    "oldest_queued_at": "2026-10-23 11:33:08.434543+00:00",
+    "age_limit_reached": false,
+    "database_bytes": 30400512,
+    "wal_bytes": 4181832,
+    "shared_memory_bytes": 32768
+  },
+  "progress": {
+    "source_id": "34b53cfd-67fe-4034-a5df-9976bf736505",
+    "stream_id": "34f51497-6cc0-4ee6-81cd-d90ee38ce230",
+    "verified_through_seq": "4",
+    "latest_ingested_seq": "262",
+    "unresolved_gaps": [
+      {
+        "from_seq": "5",
+        "through_seq": "10",
+        "irrecoverable": false,
+        "detected_at": "2026-10-23T11:03:05.436722Z",
+        "reason_code": "BUFFER_AGE_LIMIT",
+        "reason": "Profile original source history replay required",
+        "affected_execution_ids": []
+      }
+    ]
+  },
+  "measurements": {
+    "enqueue": {
+      "calls": 16,
+      "seconds": 0.4743726830056403,
+      "max": 0.03678311500698328
+    },
+    "lease_next": {
+      "calls": 156,
+      "seconds": 0.9903898268821649,
+      "max": 0.010352752986364067
+    },
+    "acknowledge": {
+      "calls": 155,
+      "seconds": 0.3326031129108742,
+      "max": 0.004968141991412267
+    },
+    "deliver": {
+      "calls": 156,
+      "seconds": 12.241373145050602,
+      "max": 0.149242780986242
+    },
+    "read_tags": {
+      "calls": 16,
+      "seconds": 0.06168361793970689,
+      "max": 0.012570733000757173
+    },
+    "user_snapshot_dom": {
+      "calls": 14,
+      "seconds": 1.3758873580081854,
+      "max": 0.12824683397775516
+    }
+  },
+  "observer_seconds": 0.6982422150031198,
+  "observer_calls": 14,
+  "source_head": 2932,
+  "user_api": {
+    "ingest": {
+      "calls": 0,
+      "seconds": 0,
+      "max": 0
+    },
+    "sql": {
+      "other": {
+        "calls": 123,
+        "seconds": 0.4260070412128698
+      },
+      "analog_history_raw": {
+        "calls": 1,
+        "seconds": 0.0021188289974816144
+      },
+      "analog_history_minutes": {
+        "calls": 1,
+        "seconds": 0.000782911985879764
+      },
+      "capture_clock_evidence": {
+        "calls": 1,
+        "seconds": 0.0006716340139973909
+      },
+      "ingest_batches": {
+        "calls": 28,
+        "seconds": 0.5322509589896072
+      }
+    }
+  },
+  "api": {
+    "ingest": {
+      "calls": 157,
+      "seconds": 11.176151011808543,
+      "max": 0.1421775860071648
+    },
+    "sql": {
+      "other": {
+        "calls": 3368,
+        "seconds": 1.1603618931258097
+      },
+      "ingest_batches": {
+        "calls": 472,
+        "seconds": 0.2413260398316197
+      },
+      "event_inbox": {
+        "calls": 1189,
+        "seconds": 0.37595777938258834
+      },
+      "stream_progress": {
+        "calls": 314,
+        "seconds": 0.08217353405780159
+      },
+      "stream_gaps": {
+        "calls": 471,
+        "seconds": 0.12234110865392722
+      },
+      "capture_clock_evidence": {
+        "calls": 314,
+        "seconds": 0.12162597785936669
+      },
+      "analog_history_raw": {
+        "calls": 4553,
+        "seconds": 3.96918969595572
+      },
+      "analog_history_minutes": {
+        "calls": 1570,
+        "seconds": 0.5002057111414615
+      }
+    }
+  }
+}

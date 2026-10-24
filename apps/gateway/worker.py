@@ -1,12 +1,13 @@
 """One bounded collection/delivery cycle; no simulator database or automatic control retry."""
 
 import asyncio
+import re
 from dataclasses import dataclass
 from uuid import uuid4
 
 from pydantic import TypeAdapter
 
-from apps.gateway.buffer import GatewayBuffer
+from apps.gateway.buffer import BufferFull, GatewayBuffer
 from apps.gateway.http_client import DeliveryRejected, DeliveryUncertain, IntakeClient
 from apps.gateway.opcua_client import GatewayMethodUncertain, GatewayOPCUAClient
 from contracts.clock_evidence import ClockProbeRequest, MeasuredClockEvidence
@@ -22,6 +23,14 @@ from contracts.transport import (
 
 class SourceCursorError(ValueError):
     """Configured source identity or persisted cursor requires explicit reconciliation."""
+
+
+def buffer_full_error_code(error):
+    if isinstance(error, BufferFull):
+        prefix, separator, _ = str(error).partition(":")
+        if separator and re.fullmatch(r"[A-Z][A-Z0-9_]{0,63}", prefix):
+            return prefix
+    return None
 
 
 @dataclass(frozen=True)
@@ -257,7 +266,7 @@ class GatewayPump:
     async def run(self, stop_event: asyncio.Event, *, on_status=None) -> None:
         """Independent collectors/uploaders: a slow or unavailable API cannot stall polling.
 
-        Callback receives only operation/state/error class, never exception contents or secrets.
+        Callback receives operation/state/error class and a validated BufferFull reason code.
         Storage corruption and source identity mismatches stop both loops for reconciliation.
         """
         from apps.gateway.buffer import BufferCorruption
@@ -265,13 +274,15 @@ class GatewayPump:
 
         def report(operation, state, error=None):
             if on_status is not None:
-                on_status(
-                    {
-                        "operation": operation,
-                        "state": state,
-                        "error": type(error).__name__ if error else None,
-                    }
-                )
+                output = {
+                    "operation": operation,
+                    "state": state,
+                    "error": type(error).__name__ if error else None,
+                }
+                error_code = buffer_full_error_code(error)
+                if error_code is not None:
+                    output["error_code"] = error_code
+                on_status(output)
 
         async def pause(seconds):
             try:

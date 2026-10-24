@@ -39,6 +39,43 @@ def test_late_recovery_cannot_pass_after_final_await(monkeypatch, tmp_path):
     assert evidence.data["assertions"][-1]["seconds"] == 301
 
 
+@pytest.mark.parametrize(("usable_tags", "finished"), [(48, 299), (48, 300), (48, 301), (47, 299)])
+def test_screen_recovery_reads_dom_once_and_checks_deadline_after_await(
+    monkeypatch, tmp_path, usable_tags, finished
+):
+    evidence = AcceptanceEvidence("CX-19", tmp_path)
+    events = []
+
+    class Locator:
+        async def count(self):
+            events.append("dom_await_finished")
+            return usable_tags
+
+    class Page:
+        def locator(self, selector):
+            assert selector == "[data-tag-id].usable"
+            return Locator()
+
+    def clock():
+        events.append("deadline_checked")
+        return finished
+
+    monkeypatch.setattr(long_run_runtime, "time", SimpleNamespace(monotonic=clock))
+    call = long_run_runtime.recovered_screen_elapsed(evidence, Page(), 0)
+    if usable_tags == 48 and finished > 300:
+        with pytest.raises(AssertionError, match="recovery_completed_within_300_seconds"):
+            asyncio.run(call)
+        assert not any(
+            a["name"] == "latest_48_tag_screen_recovered" for a in evidence.data["assertions"]
+        )
+    else:
+        result = asyncio.run(call)
+        assert result == (finished if usable_tags == 48 else None)
+    assert events.count("dom_await_finished") == 1
+    if usable_tags == 48:
+        assert events.index("dom_await_finished") < events.index("deadline_checked")
+
+
 def test_driver_hook_is_read_only_and_preserves_default_physics(tmp_path):
     path = ROOT / "scripts/check-operable-system.py"
     before = path.read_bytes()

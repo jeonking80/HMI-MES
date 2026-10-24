@@ -1,0 +1,32 @@
+{
+  "T05-77b5eb05c1584cd3bb3741155e50fbc8.json": {
+    "original_path": "/tmp/hmi-browser-release5-targeted/T05-77b5eb05c1584cd3bb3741155e50fbc8.json",
+    "bytes": 29551,
+    "sha256": "c6afb7451de7813bb49d4ceef34ad47c588a2e23fef81382c5cd9091fe07c181",
+    "case_id": "T05",
+    "outcome": "failed",
+    "target_sha": "31c8e1416d4d671912c9439ee8cf1d2225759962",
+    "dirty": true,
+    "started_at_utc": "2026-10-23T14:03:32.468863+00:00",
+    "ended_at_utc": "2026-10-23T14:03:41.716498+00:00",
+    "assertions": 5
+  },
+  "T06-OPC-4dee495d16924953b91bed37007945fa.json": {
+    "original_path": "/tmp/hmi-browser-release5-targeted/T06-OPC-4dee495d16924953b91bed37007945fa.json",
+    "bytes": 97768,
+    "sha256": "a5d6a3c0273112ce6ed79acfbf4fd6b4f832da0d5a926813fb0f92487966d5cd",
+    "case_id": "T06-OPC",
+    "outcome": "passed",
+    "target_sha": "31c8e1416d4d671912c9439ee8cf1d2225759962",
+    "dirty": true,
+    "started_at_utc": "2026-10-23T14:03:44.142191+00:00",
+    "ended_at_utc": "2026-10-23T14:04:03.789479+00:00",
+    "assertions": 8
+  },
+  "junit.xml.gz": {
+    "original_path": "/tmp/hmi-browser-release5-targeted.xml",
+    "original_bytes": 13919,
+    "original_sha256": "a3feb3c6a411ba1edecad8a131ba4aac6476b2eff725972edde6c414bcd44b69",
+    "gzip_sha256": "eeefbdb1596790c5d8fc458c6fb758dfdcc288c11240bd32930712ed65d48d0f"
+  }
+}

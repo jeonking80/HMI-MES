@@ -336,6 +336,15 @@ def recovery_elapsed(evidence, started):
     return elapsed
 
 
+async def recovered_screen_elapsed(evidence, page, started, **details):
+    usable_tags = await page.locator("[data-tag-id].usable").count()
+    if usable_tags != 48:
+        return None
+    elapsed = recovery_elapsed(evidence, started)
+    evidence.check("latest_48_tag_screen_recovered", usable_tags == 48, **details)
+    return elapsed
+
+
 async def outage(live, evidence, output):
     observer = Observation(live, output)
     try:
@@ -459,22 +468,22 @@ async def _outage(live, evidence, output, observer):
             and response.status == 200
             and len(snapshot.get("evidence", [])) == 48
             and all(item["fresh"] for item in snapshot["evidence"])
-            and await live["page"].locator("[data-tag-id].usable").count() == 48
         ):
-            elapsed = recovery_elapsed(evidence, recovered)
-            evidence.record(
-                recovery_seconds=elapsed,
-                latest_snapshot=snapshot,
-                outage_seconds=disconnected,
-                losses_at_reconnect=last["losses"],
-            )
-            evidence.check(
-                "latest_48_tag_screen_recovered",
-                await live["page"].locator("[data-tag-id].usable").count() == 48,
+            elapsed = await recovered_screen_elapsed(
+                evidence,
+                live["page"],
+                recovered,
                 snapshot_status=response.status,
                 snapshot_bytes=len(latest),
             )
-            return
+            if elapsed is not None:
+                evidence.record(
+                    recovery_seconds=elapsed,
+                    latest_snapshot=snapshot,
+                    outage_seconds=disconnected,
+                    losses_at_reconnect=last["losses"],
+                )
+                return
         await asyncio.sleep(1)
     raise AssertionError(
         "Original events/cursor/gaps, backlog and latest state did not recover in 300 real seconds"

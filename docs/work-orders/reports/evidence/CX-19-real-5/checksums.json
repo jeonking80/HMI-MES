@@ -1,0 +1,42 @@
+{
+  "acceptance.json": {
+    "bytes": 61426,
+    "sha256": "16ee6a2e3626cd10290e95b76b8db392f441d52b49e2706bb8340e03c3fe5301"
+  },
+  "final-settlement.json": {
+    "bytes": 1352,
+    "sha256": "7f15206b216d0a0fbd1b237704dec6989bf97a4eb9dee606f31113e149d1173f"
+  },
+  "gateway.log.gz": {
+    "bytes": 3544,
+    "sha256": "f417f915943031d1fd20d1720824d1495dedfe7d89ff98e7eda46926aaefb8bd"
+  },
+  "internal-api.log.gz": {
+    "bytes": 208,
+    "sha256": "2c1fa43c4d8b49a6dfb31478ad1f7ade71c26bf32edde0110633f9cecba67799"
+  },
+  "junit.xml": {
+    "bytes": 135,
+    "sha256": "ad5c06a16489ddec671c57deab4970bdc63a5813ae396c275eab962fb3f5ee6a"
+  },
+  "reconciliation.json.gz": {
+    "bytes": 261750,
+    "sha256": "6ccfa60d7f7a8cbfb8fbbd89b6a1981ea1a2296868307cba05b5b406fd8397ad"
+  },
+  "resources.jsonl.gz": {
+    "bytes": 1661484,
+    "sha256": "948d1f03647873c81880de88347ba22b79a5bc95537aac0a064c203e2a9cb650"
+  },
+  "simulator.log.gz": {
+    "bytes": 866,
+    "sha256": "209ef163ad59cd6190b53be5de279a4e07ca0882ecdfa6ed529dadf5055aeedc"
+  },
+  "summary.json": {
+    "bytes": 8045,
+    "sha256": "964329f5c798a6bae00b1397cced9b9a460a04e589a4bd51e13e5dca979e5876"
+  },
+  "user-api.log.gz": {
+    "bytes": 195,
+    "sha256": "a7e81a8c8878de21c40e5701e12d39893b15120a46a1cb9765f41f814eecbb0e"
+  }
+}

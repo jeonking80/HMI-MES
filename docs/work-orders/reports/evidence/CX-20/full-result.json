@@ -1,0 +1,1307 @@
+{
+  "status": "passed",
+  "preflight": {
+    "utc": "2026-10-23T13:01:59.151694Z",
+    "platform": "Linux-6.18.55-x86_64-with-glibc2.41",
+    "cpu_count": 5,
+    "memory": [
+      "MemTotal:       34906016 kB",
+      "MemFree:        16251220 kB",
+      "MemAvailable:   32496096 kB"
+    ],
+    "disk_path": "/tmp/cx20-20261023T130153Z",
+    "free_bytes": 17209106432,
+    "filesystem": "tmpfs none\ntmpfs none",
+    "reserve_bytes": 15032385536,
+    "reserve_is_estimate": true,
+    "seconds": 604800,
+    "expected_raw": 5443200,
+    "expected_minutes": 90720,
+    "tags": [
+      "Infeed.MotorCurrent",
+      "Infeed.ActualSpeed",
+      "Sealer.MotorCurrent",
+      "Sealer.ActualSpeed",
+      "Sealer.TemperaturePV",
+      "Sealer.TemperatureSP",
+      "Sealer.AirPressure",
+      "Outfeed.MotorCurrent",
+      "Outfeed.ActualSpeed"
+    ],
+    "concurrency": 10,
+    "target_p95_seconds": 3
+  },
+  "fixture_kind": "synthetic retained history; one actual clock-assessed intake template",
+  "source_sha256": {
+    "apps/api/__init__.py": "b0fdfcd4a54746cbcfb127f590b938e9b391bcefb788f9183073340d4ecef16a",
+    "apps/api/__main__.py": "357fcaa152d4313ce014cbf9253f0a5af90a82edb6861314e45623eaddfaa9f5",
+    "apps/api/alarm_capture.py": "fa65cc1ea313c7dfa562da5c85437dab36d67c0d10f6b4bb8e913bc0d452fe99",
+    "apps/api/alarm_consumer.py": "60c1a638317fd0d729a513c6d58a3d406b2b794665ff56a7095680c7f1e04cda",
+    "apps/api/alarm_coordinator.py": "ee7b4e820da9b8aa067bcab34174a9777a74ede5458fd69c692fb4005248c846",
+    "apps/api/alarm_fault.py": "eeaf98d67a24be938b4334f6fb4e4ea402693cfb64107835c322b0c5e550528a",
+    "apps/api/alarm_http.py": "d3ef4d1b8d600cd4b3bcf5d56b3924268000dc6734aea398306fafbcb3cc803f",
+    "apps/api/alarm_lifecycle.py": "f0e32487511888de0a918576e59ce60526ab8af5bab9f86cf835f90412e22677",
+    "apps/api/alarm_qualification.py": "3cafd9a3a6d7913d9be21f1839c23fa7e326910923d7771780f2af73c855967a",
+    "apps/api/alarm_rules.py": "7b35521338206f57df9b341cfd92dac3e7fc40a109314568fa9dcf7bc9cb2c80",
+    "apps/api/alarm_runtime.py": "f6d4674fdcda8a123758a99e1459b59d0256b8455e3c8f21f1da7d400494a9cb",
+    "apps/api/alarm_store.py": "aa7242a2499a29357415d57138e4fc555e929448b9501677a633b6dcb19775b0",
+    "apps/api/analytics_availability.py": "163ac4b0818fb1e04beae014db0e2e3631ff7bcf17790c545371fab0e2dde7ea",
+    "apps/api/assistant.py": "2b414393ae22c76300a151222418dba42ab5110985c717a28ab370c942b07fe8",
+    "apps/api/auth.py": "4b6e9b66f951207c8ca7d35f5a45392cdeff8b866d7f58663bdf1f63f0606955",
+    "apps/api/bootstrap.py": "800bdf101bdcea70b295e9975b856e05da422c73f4c5a508d27d81abf8399bd4",
+    "apps/api/capture_clock.py": "1c8e48dbda8f7caa8e363c50d9236f59110fa15aae329b42602f8e067b881751",
+    "apps/api/commands.py": "c2cd4364b25634ca9b0758e2a8df17c428b51803838f0f1d438e038ffdfd64fd",
+    "apps/api/control_http.py": "28c117515fdb7b79262062a28b0f11e2507f4375c64a36fbfeaf4523e394ac5a",
+    "apps/api/dashboard.py": "8fe654a6e1e68417abfac2150cbac24c9f3126e4c210058e7f64c8ead96b3d5a",
+    "apps/api/dashboard_http.py": "2ce20c8bda7ae984ae3cea9284f7b8b9c43693048732d5772d57fec1a6aa45ea",
+    "apps/api/database.py": "84d71fd5954c2caba911ac6332aed4c340816d86066f571adef7f4c21fbc73e2",
+    "apps/api/downtime.py": "0a641f4060d7b1598ac266d08b49a9e45cbab1955f0dcbd4dc0aa734781228ec",
+    "apps/api/downtime_http.py": "e8dd692258b11b3c531d9ebbfb009c67beef92106ea440a6512e3157cd99b5ae",
+    "apps/api/execution_http.py": "616f4944d06ede59a3dbaf20d3dd31271db74fa27a2fb0055ab8d60cdda810be",
+    "apps/api/execution_plan.py": "7b432d5e2b8a04a04fa1965b3ba255c77749c916219864049d2ae170ca8ab6df",
+    "apps/api/execution_read.py": "5eb1cff2b17ab93278656e0e89eef87249d1226c724f39ba4115da1916b46ea5",
+    "apps/api/guest.py": "061a78113768f48622b5bab42afff6bcae95a640fe34a68f4e0ed48cc1494660",
+    "apps/api/ingestion.py": "2fda6da8899be9a110ad6091875645ab1c90f362232393b67331da1ee620dea3",
+    "apps/api/internal.py": "87782b36dacc86d34597276ca6f956d5bb1cdf22f7dea4ff7eab60c237c43758",
+    "apps/api/measured_clock.py": "e0667a87534c944c0fcf2cfc3d4961cbddd5be5cc3d8c05e2e9e35ddcf013d31",
+    "apps/api/migrations/env.py": "fe6a49b940cd9e15058b773e6985a6b477dfdc0148bc9d65f51b538cfc1f85a1",
+    "apps/api/migrations/versions/0001_reference_data.py": "66ea8a187911d4eb884be4db223dd482b3599ced7887a6425aece6fd6c955301",
+    "apps/api/migrations/versions/0002_ingestion.py": "a1875aa13bdb30433aff52e9bdc535a2f0ee25cae5faa84a8b812f4091d77d91",
+    "apps/api/migrations/versions/0003_user_auth.py": "8d96dbccac22313eef8d27a28cfebb24c21694f8e9e70e569ffb4a793f89698b",
+    "apps/api/migrations/versions/0004_commands.py": "ad9f3e65f2a0dae379fa897ee0396b6d4eb6a636e6abd64f21140446d12b197b",
+    "apps/api/migrations/versions/0005_command_dispatch.py": "71a2369d814865eba40430f6b89f556848510d104eb8ff96f5f27c3416b6fc2d",
+    "apps/api/migrations/versions/0006_settlement.py": "3e63ab091af67e010959539344575d67cf87969e20fb425dc4080932b6301aa0",
+    "apps/api/migrations/versions/0007_execution_plan.py": "d21c7afc5ae152663d3e2fab1ac17e5bfb6233ec1b9419c51b21efbbc8ee35bd",
+    "apps/api/migrations/versions/0008_work_orders.py": "58e0874df66a776fc8314ff683af9fcf697fe9acb0b55eedaed49f33d9e38fab",
+    "apps/api/migrations/versions/0009_work_order_binding.py": "7afe335349a4bad8d11f3455dac5f0289a5804b744a03cfaed748739f5dfd65d",
+    "apps/api/migrations/versions/0010_alarm_store.py": "dff1b4ca45d4960ab04e7b193080c61bed0368a31827a8591b9a71074d13e62b",
+    "apps/api/migrations/versions/0011_alarm_capture_context.py": "4360573bcd245d6067c35351386a251080173de9919e993d663245ecb4ca02ba",
+    "apps/api/migrations/versions/0012_alarm_line_fault.py": "563f8ba50718d028d2ded82baac6ef6245e470e3624bb0e490afbb0188b59b09",
+    "apps/api/migrations/versions/0013_work_order_cancel.py": "fb2f465def63c240971a1846a6b5f09fa8d01a74b85351b6cfbfaf83db9e138c",
+    "apps/api/migrations/versions/0014_mixed_alarm_runtime.py": "c4898f7aece61d441068354af165e375bdd1b9f17ad769a0bdfe5c215fdfdf95",
+    "apps/api/migrations/versions/0015_analog_history.py": "b8d41a973503094709559554174f1c1ac324afbb592beaca10b08e5064da1f78",
+    "apps/api/migrations/versions/0016_downtime_reasons.py": "436dc44040600e348af0f3a1e0d014bbc2c977f7df2a5162abf2e7d3169f8712",
+    "apps/api/migrations/versions/0017_guest_viewer.py": "ff709d193b450a8fc2fa24fcb49e7697197f9e577eae3980c6bfb1488ad61656",
+    "apps/api/migrations/versions/0018_clock_evidence.py": "62c3742558f26258e54d5c57e8c054064f78dec264917dd8494fe66d367acaed",
+    "apps/api/minute_aggregation.py": "65f41c74faa53c7f1de85b1113ef973c4fe2a7bd2c11ab2ef59dbfedcd37c0d0",
+    "apps/api/models.py": "854a255862b99339070420a2306413efb166455bf04ad66642a6b7d6428ae4e8",
+    "apps/api/recovery.py": "d3c67384499faf81af04e68fbdde17703deec9c1257714e93a980992bc67ec66",
+    "apps/api/reports.py": "ef4a37e7c292451f80b741c5342a6f13114f07a7efa0f5792efb17ab6c1eb5dc",
+    "apps/api/reports_http.py": "154fd48f4829e7788a1ce3273e846c4ba234fc9f62a602082454b5464c34b1c3",
+    "apps/api/screen_frames.py": "cfde040a28a895f1044fdfad3dd3eb9066c8db33c13826bf26c21a55ae20b274",
+    "apps/api/screen_ws.py": "52bb4492f5f6a7e60b0472f8d5f5c11a0cf32b88d7b75d5588d973a29cd47074",
+    "apps/api/serverless.py": "756e5ca654c31e970598e2629fb8cc45b7d0ebe8698069f33100ecfe7d59a87a",
+    "apps/api/settlement.py": "6d491b610452bb05cc84457b1f7ec82925638d20e834a749f352e82d73fcadfa",
+    "apps/api/settlement_http.py": "c761a49e7df06790bbd6ccbae253096f21854295734e78a4b8e9e28280438126",
+    "apps/api/snapshot.py": "0a704a16159314e9d2109bdccaeb1e55966032ab7009d1eec62b5682dad91585",
+    "apps/api/spc.py": "797342c129a27b44b34b25e075c968ba478f9638ed1a460bf9b4c076acbbb984",
+    "apps/api/spc_http.py": "b925d589409a905e747ecf8eb0e4dae027fd50674896ad935f34acd05c2478e1",
+    "apps/api/trend_history.py": "1d9c080edfa6f9f20ff9696cd28b4ea6efa8ad6d5842adce122b18f1ecf41123",
+    "apps/api/trend_http.py": "9acc1238ec58cec9cd843e8d6c5b6b38948885fdca3627cefc2c41aa1b195ab2",
+    "apps/api/user_http.py": "499e42792c8652c6dd52bf8a609af2ac2c7d7c2cc882b8f6dbf7cc36514fed11",
+    "apps/api/web.py": "4bfc19362d6cf038ed2880b1331d857bb702e1678200b39b6d69770f7edba16d",
+    "apps/api/work_order_cancel.py": "49ef2068f5e54e4542688e1782d9b29b78376b7de4644dd24d2b82ee346a8d9d",
+    "apps/api/work_order_cancel_http.py": "8d6e7830f1350f5f81f63c74a3faef0f0c7ab93ecb79c16c4520883870fa0ce6",
+    "apps/api/work_order_workflow.py": "db14f5a5dbfa28cfd7aa4bf5aa12fb86ca19605db7cf9c1def022d8170d1ed3c",
+    "apps/api/work_orders.py": "d4c36e8db726c10cc8a86aaf620465bc42b87f92454e4c44f9041471f9519874",
+    "apps/api/work_orders_http.py": "491179b4dc67416689967fc034beecc88248b75400b684abd5f3a6943b931239",
+    "contracts/__init__.py": "dcc00f93465d84e6862541a34bb8676dadda00ae151a9f8c7c6f81d32a9cb663",
+    "contracts/clock_evidence.py": "dc2c0e40be5343466410b0fc8d82b6088a2483023f19dde34e0f8fb13aabaefc",
+    "contracts/examples/command-expired.json": "03fa92289b72d8a73655154216d5cf7c9441baeab1d58fe5fa24e98e1962ed21",
+    "contracts/examples/command-not-found.json": "e5b8be1bd23e3eb1fc75e69578f8b909df459916f75fcc320654866e2d61f02a",
+    "contracts/examples/command-outcome-unknown.json": "05f1e7cb82406ea968e94f10de5dc4c89199ea9ef55622ff0aa530eabd163d15",
+    "contracts/examples/command-rejected.json": "b0057c9c863cf58c166851f945a223786a22d7121cdbc24180492630be57da54",
+    "contracts/examples/command-request.json": "eb128da1c184be8b85ade53377fd944f0e5d1d32b1ba8aebd59ba1366284cb6e",
+    "contracts/examples/command-result-request.json": "1ab32713ac62bb2722dec475886044734bcfa7b76af5835064cfe747d5f2be7d",
+    "contracts/examples/command-result.json": "fed8541d384a2d23cfd93a201001ca27ae92e3b012f774d59fb3138e76b86931",
+    "contracts/examples/command-submission.json": "564f590c3f4841874744c1eda2de395cdf8784850f4e64b1a5ea2e79ff1aa7d2",
+    "contracts/examples/commands.json": "b346bef6fe7435906714f268e8ad49ef37a9209eb3a51be3aae18b9657a89b9e",
+    "contracts/examples/event-page.json": "59fd205d15ccd8ed5d05362b10bcf35a206645bc21d6db2ba18c5ff0499f9c68",
+    "contracts/examples/event-read-error.json": "436fdc9e012709fb351e61c4940f32ca2633b205c1b8c5adbe2e2eb19f8b16e4",
+    "contracts/examples/event.json": "1f3724879001faacea8c5fe56ed764c7bd1a78c667321cde7dc065a3874655a2",
+    "contracts/examples/read-events-request.json": "85d552e2d3438a5c4c93bbb078d7f57b62d90ea8a02608dd3091b63e21b791ab",
+    "contracts/examples/run-not-found.json": "1981f7bebde9f21d312d59fc0f0dddc2fc71f3fa81f601ee4df500011645c7ca",
+    "contracts/examples/run-summary-request.json": "90a510ed2d96b16a6687b8036525fbbcb0be5a6ba929c42cda2d994ab5ca8df1",
+    "contracts/examples/run-summary.json": "c12de019c2c930179fa2b4b12a57fcd2039f0287779319fef1c3a9ef58b330de",
+    "contracts/examples/transport-ack-gap.json": "24c35b381f5165d6781dea119b7ea4d09b9b2a2a3155b61459775073839c453f",
+    "contracts/examples/transport-ack-quarantined.json": "cdd2aea8ef474a92601cf6252311ec59e85de516bffa1573c7343efd15918b5b",
+    "contracts/examples/transport-ack.json": "84cee3b2397f23c59db2a8b2e55387eeb489bfef48b2eb0d63ce31779509f7bb",
+    "contracts/examples/transport-batch-capture-time.json": "59b2a6c6bbe413e41f4b6d7e80dd7d8f9181e1734f41ef8efde26563cee43805",
+    "contracts/examples/transport-batch-gap.json": "308cabf6dcbd50d011579e4c2d91cebed5ae132778aeca3b6c8d58046a8beff7",
+    "contracts/examples/transport-batch.json": "cabc1e55f085e880752c5133615e2d9515d855512abd6568acecc69ac3be2245",
+    "contracts/examples/transport-screen-resync.json": "851bc6fb2f3f3f94463d68b723e99fd63b725ccc8a771d815bcb48afd2e97bd0",
+    "contracts/examples/transport-screen-update.json": "cb81d9adeffbdf686ad63b7d72a8275c086b52f2d073abdf9e386b3a1e884852",
+    "contracts/examples/transport-screen.json": "eaa79bc766fb2bf1b61d7a29fee5c4f840f8df2735e72b5f7236c913e2c955ee",
+    "contracts/models.py": "8e586c6f0e67e35804af28cf3db75ddf77394775a0912c2944a4c9de38836323",
+    "contracts/schemas/app-screen.schema.json": "a0ca37ffb33918f2e61a4d4c7ed0fc5b75b736ed2c7c040c55111a2fb58d0d56",
+    "contracts/schemas/command-not-found.schema.json": "63dc97e0fd364505ac89586d22363710aed08fcef9877c80cab8f188f1f200be",
+    "contracts/schemas/command-request.schema.json": "46a21ddc70f1cd7d66f54a55881770100e935031cba101fc9f2712714b9777a1",
+    "contracts/schemas/command-result-request.schema.json": "8ee51585007e2a5aea09038215a0a7091fe84a7cf52e1eb36250da99c7021241",
+    "contracts/schemas/command-result.schema.json": "ebda4aa84f3dbc0596c71cf11afa5919d01cd43bf3e74b80379e948db475b1e5",
+    "contracts/schemas/command-submission.schema.json": "38b2d3b2cae56658c448ab22afda0f470d96c96d018cdfa3f50884a08971e80d",
+    "contracts/schemas/event-page.schema.json": "aa0ecdc69d3a487865ec923948f3e4f62425e36b9dfb25470c802ce82fc8febd",
+    "contracts/schemas/event-read-error.schema.json": "57b662bcd66cbd00f21640e65db161e87766a44ccc35993993c273952321e221",
+    "contracts/schemas/event.schema.json": "3163d1e8d331445d3993394010a8cac531bbc7475f9a97762ff011725b5a042e",
+    "contracts/schemas/read-events-request.schema.json": "f950753e313a05c17b9bc6b4a5cf3920175ee229b88e06684ac0b8c4a43a5559",
+    "contracts/schemas/run-not-found.schema.json": "a4d3b483437f4f1bd66b365ff5db13a41333f1e4d99df361815c14f82f1e422c",
+    "contracts/schemas/run-summary-request.schema.json": "e36c0ee08cb43e50a4aca5d59c93d931de65539d393edc3c24e5f458a9148166",
+    "contracts/schemas/run-summary.schema.json": "e20c32f1969ee621b883f35e1ec5bf981d8f28944fcc28cda51556f03c45de80",
+    "contracts/schemas/transport-ack.schema.json": "35fb383752aed85fe372f2ee907c8192262d1af81f2da810aff397aab9aca866",
+    "contracts/schemas/transport-batch.schema.json": "10096c19199f5c99e1502baeb783dbb271cf5a09c1c9f46f9d47a039dfa1b15a",
+    "contracts/schemas/transport-screen.schema.json": "0412a4ff3262ec5ae7dfdc5d7726b9b898aca856b552033dfc625e07f0bee4ef",
+    "contracts/tags/tags.v1.json": "4643e8b4488a50dd0dbf734935922891b94b7b52dd178edef0a6cd4a6708ea13",
+    "contracts/tags/validate.py": "96c4d769cac767679cb9f5a62faabf904f31ef9eb236188a64510fcd05df614a",
+    "contracts/transport.py": "526d2bafb5caafd83a047cae6648d528316e6cf04a0d15de559fb85652479c81",
+    "deploy/backup_set.py": "e628b2190ab236494aefe4eebf42b81d3fb75b2df0a54dd41c379fc0712496f1",
+    "scripts/benchmark-history.py": "1fffb48c4cfbf858a1c47ef29176587e935170e5be255d898e135f6a5b08ef6c"
+  },
+  "git_sha": "fc6296ec9bd618388b1b5dfe6dda05342e94f06a",
+  "git_dirty": true,
+  "postgresql_data_preflight": {
+    "utc": "2026-10-23T13:01:59.300522Z",
+    "platform": "Linux-6.18.55-x86_64-with-glibc2.41",
+    "cpu_count": 5,
+    "memory": [
+      "MemTotal:       34906016 kB",
+      "MemFree:        16242904 kB",
+      "MemAvailable:   32487780 kB"
+    ],
+    "disk_path": "/tmp/cx20-20261023T130153Z/data",
+    "free_bytes": 17208909824,
+    "filesystem": "tmpfs none\ntmpfs none",
+    "reserve_bytes": 15032385536,
+    "reserve_is_estimate": true,
+    "seconds": 604800,
+    "expected_raw": 5443200,
+    "expected_minutes": 90720,
+    "tags": [
+      "Infeed.MotorCurrent",
+      "Infeed.ActualSpeed",
+      "Sealer.MotorCurrent",
+      "Sealer.ActualSpeed",
+      "Sealer.TemperaturePV",
+      "Sealer.TemperatureSP",
+      "Sealer.AirPressure",
+      "Outfeed.MotorCurrent",
+      "Outfeed.ActualSpeed"
+    ],
+    "concurrency": 10,
+    "target_p95_seconds": 3
+  },
+  "seed_started_utc": "2026-10-23T13:01:59.303257Z",
+  "template_bytes": {
+    "Infeed.MotorCurrent": 936,
+    "Infeed.ActualSpeed": 936,
+    "Sealer.MotorCurrent": 936,
+    "Sealer.ActualSpeed": 936,
+    "Sealer.TemperaturePV": 936,
+    "Sealer.TemperatureSP": 936,
+    "Sealer.AirPressure": 936,
+    "Outfeed.MotorCurrent": 936,
+    "Outfeed.ActualSpeed": 936
+  },
+  "projected_heap_bytes_before_overhead": 5094835200,
+  "raw_through_seq": 604800,
+  "seed_ended_utc": "2026-10-23T13:06:13.151383Z",
+  "inventory": {
+    "raw": [
+      [
+        "Infeed.ActualSpeed",
+        604800
+      ],
+      [
+        "Infeed.MotorCurrent",
+        604800
+      ],
+      [
+        "Outfeed.ActualSpeed",
+        604800
+      ],
+      [
+        "Outfeed.MotorCurrent",
+        604800
+      ],
+      [
+        "Sealer.ActualSpeed",
+        604800
+      ],
+      [
+        "Sealer.AirPressure",
+        604800
+      ],
+      [
+        "Sealer.MotorCurrent",
+        604800
+      ],
+      [
+        "Sealer.TemperaturePV",
+        604800
+      ],
+      [
+        "Sealer.TemperatureSP",
+        604800
+      ]
+    ],
+    "minutes": [
+      [
+        "Infeed.ActualSpeed",
+        10080,
+        0
+      ],
+      [
+        "Infeed.MotorCurrent",
+        10080,
+        0
+      ],
+      [
+        "Outfeed.ActualSpeed",
+        10080,
+        0
+      ],
+      [
+        "Outfeed.MotorCurrent",
+        10080,
+        0
+      ],
+      [
+        "Sealer.ActualSpeed",
+        10080,
+        0
+      ],
+      [
+        "Sealer.AirPressure",
+        10080,
+        0
+      ],
+      [
+        "Sealer.MotorCurrent",
+        10080,
+        0
+      ],
+      [
+        "Sealer.TemperaturePV",
+        10080,
+        0
+      ],
+      [
+        "Sealer.TemperatureSP",
+        10080,
+        0
+      ]
+    ],
+    "relation_bytes": {
+      "ingest_batches": 81920,
+      "analog_history_minutes": 42082304,
+      "capture_clock_evidence": 65536,
+      "analog_history_raw": 10421608448
+    },
+    "database_bytes": 10474501811,
+    "postgresql": "PostgreSQL 17.11 (Debian 17.11-1.pgdg12+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14+deb12u1) 12.2.0, 64-bit"
+  },
+  "measurement": {
+    "cold_condition": "PostgreSQL shared buffers cold after restart; OS tmpfs cache warm",
+    "cold_state": {
+      "container_id": "36b83f4f45e601c4e62bfb4a69823b1226f26cfe1eccb23275c41280cb33ed13",
+      "started_utc": "2026-10-23T13:06:29.712827Z",
+      "ready_utc": "2026-10-23T13:06:30.177726Z",
+      "condition": "PostgreSQL shared buffers cold after restart; OS tmpfs cache warm",
+      "os_cache_evicted": false,
+      "postgres_restarted": true,
+      "history_read_after_restart_before_measurement": false
+    },
+    "cold": {
+      "samples": 10,
+      "p50_seconds": 1.1772432609868702,
+      "p95_seconds": 1.3986918709997553,
+      "max_seconds": 1.3986918709997553,
+      "durations_seconds": [
+        0.39431289298227057,
+        1.2956525110057555,
+        1.3986918709997553,
+        1.38145688502118,
+        1.256893971003592,
+        1.1600413339911029,
+        1.380569425993599,
+        1.1772432609868702,
+        0.7258082890184596,
+        1.0953457909927238
+      ]
+    },
+    "warm": {
+      "samples": 100,
+      "p50_seconds": 1.1618374719982967,
+      "p95_seconds": 1.343585056019947,
+      "max_seconds": 1.3897471459931694,
+      "durations_seconds": [
+        0.6356753369909711,
+        0.6161125669896137,
+        1.2506416430114768,
+        1.2284052830073051,
+        0.7666068630060181,
+        1.1345321840199176,
+        1.262064239999745,
+        1.1282433969900012,
+        1.1825220639875624,
+        1.072962717997143,
+        1.2955537909874693,
+        1.2176842089975253,
+        0.42410337200271897,
+        1.2576128529908601,
+        0.5236214160104282,
+        1.2509819809929468,
+        1.2146888159913942,
+        1.0649881099816412,
+        0.7364947280148044,
+        0.8162890459934715,
+        1.0980996019789018,
+        1.2829991189937573,
+        1.1621235579950735,
+        1.2209086390212178,
+        1.2084315239917487,
+        1.028998149005929,
+        1.1809770000108983,
+        1.1376779320125934,
+        1.248194527986925,
+        1.2168957740068436,
+        1.1098944959812798,
+        1.346994743013056,
+        1.2856060859921854,
+        0.9712690769811161,
+        1.3098822869942524,
+        0.4729116380040068,
+        0.9720237419824116,
+        1.2643960200075526,
+        1.0917044899833854,
+        1.3360422700061463,
+        1.2263921879930422,
+        0.8109133329999167,
+        0.9383459159871563,
+        1.3714119670039508,
+        1.305596168996999,
+        1.3897471459931694,
+        0.6210878120036796,
+        1.3400987249915488,
+        1.216445002995897,
+        0.9227310949936509,
+        0.9937848300032783,
+        1.213521274010418,
+        0.4262178819917608,
+        1.136780519009335,
+        1.189051029010443,
+        1.1839418449962977,
+        1.2437289600202348,
+        1.135563493007794,
+        1.268071543017868,
+        0.8292800810013432,
+        1.149784314999124,
+        1.18089316500118,
+        1.1544776550144888,
+        0.7951776810223237,
+        1.001326818979578,
+        1.1280652880086564,
+        1.0018599439936224,
+        0.9330782449978869,
+        1.021874616999412,
+        1.2086320610251278,
+        1.265979724994395,
+        1.1898789269907866,
+        1.2337636580050457,
+        1.2187194179859944,
+        1.1618374719982967,
+        1.1853909250057768,
+        0.9887851690000389,
+        1.2827369210135657,
+        0.909361097990768,
+        0.4364482339879032,
+        0.8989288129960187,
+        0.7388468319841195,
+        1.3509610280161723,
+        1.2849911519733723,
+        1.3789472850039601,
+        0.7567744159896392,
+        1.343585056019947,
+        1.2891724000219256,
+        1.0017588989867363,
+        1.3289807660039514,
+        1.1662463510001544,
+        1.2224786459992174,
+        1.1937889109831303,
+        1.1124167100060731,
+        1.0889268979954068,
+        1.1843351820134558,
+        1.1294061660009902,
+        0.477586886001518,
+        0.8382216820027679,
+        1.1513457279943395
+      ]
+    },
+    "requests": [
+      [
+        {
+          "worker": 0,
+          "seconds": 0.39431289298227057,
+          "bytes": 688822
+        },
+        {
+          "worker": 1,
+          "seconds": 1.2956525110057555,
+          "bytes": 688822
+        },
+        {
+          "worker": 2,
+          "seconds": 1.3986918709997553,
+          "bytes": 688822
+        },
+        {
+          "worker": 3,
+          "seconds": 1.38145688502118,
+          "bytes": 688822
+        },
+        {
+          "worker": 4,
+          "seconds": 1.256893971003592,
+          "bytes": 688822
+        },
+        {
+          "worker": 5,
+          "seconds": 1.1600413339911029,
+          "bytes": 688822
+        },
+        {
+          "worker": 6,
+          "seconds": 1.380569425993599,
+          "bytes": 688822
+        },
+        {
+          "worker": 7,
+          "seconds": 1.1772432609868702,
+          "bytes": 688822
+        },
+        {
+          "worker": 8,
+          "seconds": 0.7258082890184596,
+          "bytes": 688822
+        },
+        {
+          "worker": 9,
+          "seconds": 1.0953457909927238,
+          "bytes": 688822
+        }
+      ],
+      [
+        {
+          "worker": 0,
+          "seconds": 0.6356753369909711,
+          "bytes": 688822
+        },
+        {
+          "worker": 1,
+          "seconds": 0.6161125669896137,
+          "bytes": 688822
+        },
+        {
+          "worker": 2,
+          "seconds": 1.2506416430114768,
+          "bytes": 688822
+        },
+        {
+          "worker": 3,
+          "seconds": 1.2284052830073051,
+          "bytes": 688822
+        },
+        {
+          "worker": 4,
+          "seconds": 0.7666068630060181,
+          "bytes": 688822
+        },
+        {
+          "worker": 5,
+          "seconds": 1.1345321840199176,
+          "bytes": 688822
+        },
+        {
+          "worker": 6,
+          "seconds": 1.262064239999745,
+          "bytes": 688822
+        },
+        {
+          "worker": 7,
+          "seconds": 1.1282433969900012,
+          "bytes": 688822
+        },
+        {
+          "worker": 8,
+          "seconds": 1.1825220639875624,
+          "bytes": 688822
+        },
+        {
+          "worker": 9,
+          "seconds": 1.072962717997143,
+          "bytes": 688822
+        }
+      ],
+      [
+        {
+          "worker": 0,
+          "seconds": 1.2955537909874693,
+          "bytes": 688822
+        },
+        {
+          "worker": 1,
+          "seconds": 1.2176842089975253,
+          "bytes": 688822
+        },
+        {
+          "worker": 2,
+          "seconds": 0.42410337200271897,
+          "bytes": 688822
+        },
+        {
+          "worker": 3,
+          "seconds": 1.2576128529908601,
+          "bytes": 688822
+        },
+        {
+          "worker": 4,
+          "seconds": 0.5236214160104282,
+          "bytes": 688822
+        },
+        {
+          "worker": 5,
+          "seconds": 1.2509819809929468,
+          "bytes": 688822
+        },
+        {
+          "worker": 6,
+          "seconds": 1.2146888159913942,
+          "bytes": 688822
+        },
+        {
+          "worker": 7,
+          "seconds": 1.0649881099816412,
+          "bytes": 688822
+        },
+        {
+          "worker": 8,
+          "seconds": 0.7364947280148044,
+          "bytes": 688822
+        },
+        {
+          "worker": 9,
+          "seconds": 0.8162890459934715,
+          "bytes": 688822
+        }
+      ],
+      [
+        {
+          "worker": 0,
+          "seconds": 1.0980996019789018,
+          "bytes": 688822
+        },
+        {
+          "worker": 1,
+          "seconds": 1.2829991189937573,
+          "bytes": 688822
+        },
+        {
+          "worker": 2,
+          "seconds": 1.1621235579950735,
+          "bytes": 688822
+        },
+        {
+          "worker": 3,
+          "seconds": 1.2209086390212178,
+          "bytes": 688822
+        },
+        {
+          "worker": 4,
+          "seconds": 1.2084315239917487,
+          "bytes": 688822
+        },
+        {
+          "worker": 5,
+          "seconds": 1.028998149005929,
+          "bytes": 688822
+        },
+        {
+          "worker": 6,
+          "seconds": 1.1809770000108983,
+          "bytes": 688822
+        },
+        {
+          "worker": 7,
+          "seconds": 1.1376779320125934,
+          "bytes": 688822
+        },
+        {
+          "worker": 8,
+          "seconds": 1.248194527986925,
+          "bytes": 688822
+        },
+        {
+          "worker": 9,
+          "seconds": 1.2168957740068436,
+          "bytes": 688822
+        }
+      ],
+      [
+        {
+          "worker": 0,
+          "seconds": 1.1098944959812798,
+          "bytes": 688822
+        },
+        {
+          "worker": 1,
+          "seconds": 1.346994743013056,
+          "bytes": 688822
+        },
+        {
+          "worker": 2,
+          "seconds": 1.2856060859921854,
+          "bytes": 688822
+        },
+        {
+          "worker": 3,
+          "seconds": 0.9712690769811161,
+          "bytes": 688822
+        },
+        {
+          "worker": 4,
+          "seconds": 1.3098822869942524,
+          "bytes": 688822
+        },
+        {
+          "worker": 5,
+          "seconds": 0.4729116380040068,
+          "bytes": 688822
+        },
+        {
+          "worker": 6,
+          "seconds": 0.9720237419824116,
+          "bytes": 688822
+        },
+        {
+          "worker": 7,
+          "seconds": 1.2643960200075526,
+          "bytes": 688822
+        },
+        {
+          "worker": 8,
+          "seconds": 1.0917044899833854,
+          "bytes": 688822
+        },
+        {
+          "worker": 9,
+          "seconds": 1.3360422700061463,
+          "bytes": 688822
+        }
+      ],
+      [
+        {
+          "worker": 0,
+          "seconds": 1.2263921879930422,
+          "bytes": 688822
+        },
+        {
+          "worker": 1,
+          "seconds": 0.8109133329999167,
+          "bytes": 688822
+        },
+        {
+          "worker": 2,
+          "seconds": 0.9383459159871563,
+          "bytes": 688822
+        },
+        {
+          "worker": 3,
+          "seconds": 1.3714119670039508,
+          "bytes": 688822
+        },
+        {
+          "worker": 4,
+          "seconds": 1.305596168996999,
+          "bytes": 688822
+        },
+        {
+          "worker": 5,
+          "seconds": 1.3897471459931694,
+          "bytes": 688822
+        },
+        {
+          "worker": 6,
+          "seconds": 0.6210878120036796,
+          "bytes": 688822
+        },
+        {
+          "worker": 7,
+          "seconds": 1.3400987249915488,
+          "bytes": 688822
+        },
+        {
+          "worker": 8,
+          "seconds": 1.216445002995897,
+          "bytes": 688822
+        },
+        {
+          "worker": 9,
+          "seconds": 0.9227310949936509,
+          "bytes": 688822
+        }
+      ],
+      [
+        {
+          "worker": 0,
+          "seconds": 0.9937848300032783,
+          "bytes": 688822
+        },
+        {
+          "worker": 1,
+          "seconds": 1.213521274010418,
+          "bytes": 688822
+        },
+        {
+          "worker": 2,
+          "seconds": 0.4262178819917608,
+          "bytes": 688822
+        },
+        {
+          "worker": 3,
+          "seconds": 1.136780519009335,
+          "bytes": 688822
+        },
+        {
+          "worker": 4,
+          "seconds": 1.189051029010443,
+          "bytes": 688822
+        },
+        {
+          "worker": 5,
+          "seconds": 1.1839418449962977,
+          "bytes": 688822
+        },
+        {
+          "worker": 6,
+          "seconds": 1.2437289600202348,
+          "bytes": 688822
+        },
+        {
+          "worker": 7,
+          "seconds": 1.135563493007794,
+          "bytes": 688822
+        },
+        {
+          "worker": 8,
+          "seconds": 1.268071543017868,
+          "bytes": 688822
+        },
+        {
+          "worker": 9,
+          "seconds": 0.8292800810013432,
+          "bytes": 688822
+        }
+      ],
+      [
+        {
+          "worker": 0,
+          "seconds": 1.149784314999124,
+          "bytes": 688822
+        },
+        {
+          "worker": 1,
+          "seconds": 1.18089316500118,
+          "bytes": 688822
+        },
+        {
+          "worker": 2,
+          "seconds": 1.1544776550144888,
+          "bytes": 688822
+        },
+        {
+          "worker": 3,
+          "seconds": 0.7951776810223237,
+          "bytes": 688822
+        },
+        {
+          "worker": 4,
+          "seconds": 1.001326818979578,
+          "bytes": 688822
+        },
+        {
+          "worker": 5,
+          "seconds": 1.1280652880086564,
+          "bytes": 688822
+        },
+        {
+          "worker": 6,
+          "seconds": 1.0018599439936224,
+          "bytes": 688822
+        },
+        {
+          "worker": 7,
+          "seconds": 0.9330782449978869,
+          "bytes": 688822
+        },
+        {
+          "worker": 8,
+          "seconds": 1.021874616999412,
+          "bytes": 688822
+        },
+        {
+          "worker": 9,
+          "seconds": 1.2086320610251278,
+          "bytes": 688822
+        }
+      ],
+      [
+        {
+          "worker": 0,
+          "seconds": 1.265979724994395,
+          "bytes": 688822
+        },
+        {
+          "worker": 1,
+          "seconds": 1.1898789269907866,
+          "bytes": 688822
+        },
+        {
+          "worker": 2,
+          "seconds": 1.2337636580050457,
+          "bytes": 688822
+        },
+        {
+          "worker": 3,
+          "seconds": 1.2187194179859944,
+          "bytes": 688822
+        },
+        {
+          "worker": 4,
+          "seconds": 1.1618374719982967,
+          "bytes": 688822
+        },
+        {
+          "worker": 5,
+          "seconds": 1.1853909250057768,
+          "bytes": 688822
+        },
+        {
+          "worker": 6,
+          "seconds": 0.9887851690000389,
+          "bytes": 688822
+        },
+        {
+          "worker": 7,
+          "seconds": 1.2827369210135657,
+          "bytes": 688822
+        },
+        {
+          "worker": 8,
+          "seconds": 0.909361097990768,
+          "bytes": 688822
+        },
+        {
+          "worker": 9,
+          "seconds": 0.4364482339879032,
+          "bytes": 688822
+        }
+      ],
+      [
+        {
+          "worker": 0,
+          "seconds": 0.8989288129960187,
+          "bytes": 688822
+        },
+        {
+          "worker": 1,
+          "seconds": 0.7388468319841195,
+          "bytes": 688822
+        },
+        {
+          "worker": 2,
+          "seconds": 1.3509610280161723,
+          "bytes": 688822
+        },
+        {
+          "worker": 3,
+          "seconds": 1.2849911519733723,
+          "bytes": 688822
+        },
+        {
+          "worker": 4,
+          "seconds": 1.3789472850039601,
+          "bytes": 688822
+        },
+        {
+          "worker": 5,
+          "seconds": 0.7567744159896392,
+          "bytes": 688822
+        },
+        {
+          "worker": 6,
+          "seconds": 1.343585056019947,
+          "bytes": 688822
+        },
+        {
+          "worker": 7,
+          "seconds": 1.2891724000219256,
+          "bytes": 688822
+        },
+        {
+          "worker": 8,
+          "seconds": 1.0017588989867363,
+          "bytes": 688822
+        },
+        {
+          "worker": 9,
+          "seconds": 1.3289807660039514,
+          "bytes": 688822
+        }
+      ],
+      [
+        {
+          "worker": 0,
+          "seconds": 1.1662463510001544,
+          "bytes": 688822
+        },
+        {
+          "worker": 1,
+          "seconds": 1.2224786459992174,
+          "bytes": 688822
+        },
+        {
+          "worker": 2,
+          "seconds": 1.1937889109831303,
+          "bytes": 688822
+        },
+        {
+          "worker": 3,
+          "seconds": 1.1124167100060731,
+          "bytes": 688822
+        },
+        {
+          "worker": 4,
+          "seconds": 1.0889268979954068,
+          "bytes": 688822
+        },
+        {
+          "worker": 5,
+          "seconds": 1.1843351820134558,
+          "bytes": 688822
+        },
+        {
+          "worker": 6,
+          "seconds": 1.1294061660009902,
+          "bytes": 688822
+        },
+        {
+          "worker": 7,
+          "seconds": 0.477586886001518,
+          "bytes": 688822
+        },
+        {
+          "worker": 8,
+          "seconds": 0.8382216820027679,
+          "bytes": 688822
+        },
+        {
+          "worker": 9,
+          "seconds": 1.1513457279943395,
+          "bytes": 688822
+        }
+      ]
+    ],
+    "query": {
+      "start": "2026-10-22T13:00:00Z",
+      "end": "2026-10-23T13:00:00Z",
+      "tags": [
+        "Infeed.MotorCurrent",
+        "Infeed.ActualSpeed",
+        "Sealer.MotorCurrent",
+        "Sealer.ActualSpeed"
+      ]
+    },
+    "target_passed": true
+  },
+  "query_plans": {
+    "minutes": [
+      {
+        "Plan": {
+          "Node Type": "Index Scan",
+          "Parallel Aware": false,
+          "Async Capable": false,
+          "Scan Direction": "Forward",
+          "Index Name": "analog_history_minutes_pkey",
+          "Relation Name": "analog_history_minutes",
+          "Alias": "analog_history_minutes",
+          "Startup Cost": 0.42,
+          "Total Cost": 2243.72,
+          "Plan Rows": 1421,
+          "Plan Width": 180,
+          "Actual Startup Time": 0.023,
+          "Actual Total Time": 0.445,
+          "Actual Rows": 1440,
+          "Actual Loops": 1,
+          "Index Cond": "((line_id = 'packaging-line-1'::text) AND (source_id = 'cx20-source'::text) AND (stream_id = 'cx20-stream'::text) AND (tag_id = 'Infeed.MotorCurrent'::text) AND (minute >= '2026-10-22 13:00:00+00'::timestamp with time zone) AND (minute < '2026-10-23 13:00:00+00'::timestamp with time zone) AND (policy_version = 'utc-second-latest-capture-v1'::text))",
+          "Rows Removed by Index Recheck": 0,
+          "Shared Hit Blocks": 83,
+          "Shared Read Blocks": 0,
+          "Shared Dirtied Blocks": 0,
+          "Shared Written Blocks": 0,
+          "Local Hit Blocks": 0,
+          "Local Read Blocks": 0,
+          "Local Dirtied Blocks": 0,
+          "Local Written Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0
+        },
+        "Planning": {
+          "Shared Hit Blocks": 3,
+          "Shared Read Blocks": 0,
+          "Shared Dirtied Blocks": 0,
+          "Shared Written Blocks": 0,
+          "Local Hit Blocks": 0,
+          "Local Read Blocks": 0,
+          "Local Dirtied Blocks": 0,
+          "Local Written Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0
+        },
+        "Planning Time": 0.128,
+        "Triggers": [],
+        "Execution Time": 0.5
+      }
+    ],
+    "pending": [
+      {
+        "Plan": {
+          "Node Type": "Unique",
+          "Parallel Aware": false,
+          "Async Capable": false,
+          "Startup Cost": 5.92,
+          "Total Cost": 5.93,
+          "Plan Rows": 1,
+          "Plan Width": 8,
+          "Actual Startup Time": 0.016,
+          "Actual Total Time": 0.016,
+          "Actual Rows": 0,
+          "Actual Loops": 1,
+          "Shared Hit Blocks": 1,
+          "Shared Read Blocks": 0,
+          "Shared Dirtied Blocks": 0,
+          "Shared Written Blocks": 0,
+          "Local Hit Blocks": 0,
+          "Local Read Blocks": 0,
+          "Local Dirtied Blocks": 0,
+          "Local Written Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0,
+          "Plans": [
+            {
+              "Node Type": "Sort",
+              "Parent Relationship": "Outer",
+              "Parallel Aware": false,
+              "Async Capable": false,
+              "Startup Cost": 5.92,
+              "Total Cost": 5.92,
+              "Plan Rows": 1,
+              "Plan Width": 8,
+              "Actual Startup Time": 0.015,
+              "Actual Total Time": 0.016,
+              "Actual Rows": 0,
+              "Actual Loops": 1,
+              "Sort Key": [
+                "(date_trunc('minute'::text, COALESCE(canonical_utc, acquired_at)))"
+              ],
+              "Sort Method": "quicksort",
+              "Sort Space Used": 25,
+              "Sort Space Type": "Memory",
+              "Shared Hit Blocks": 1,
+              "Shared Read Blocks": 0,
+              "Shared Dirtied Blocks": 0,
+              "Shared Written Blocks": 0,
+              "Local Hit Blocks": 0,
+              "Local Read Blocks": 0,
+              "Local Dirtied Blocks": 0,
+              "Local Written Blocks": 0,
+              "Temp Read Blocks": 0,
+              "Temp Written Blocks": 0,
+              "Plans": [
+                {
+                  "Node Type": "Index Scan",
+                  "Parent Relationship": "Outer",
+                  "Parallel Aware": false,
+                  "Async Capable": false,
+                  "Scan Direction": "Forward",
+                  "Index Name": "ix_analog_history_raw_pending",
+                  "Relation Name": "analog_history_raw",
+                  "Alias": "analog_history_raw",
+                  "Startup Cost": 0.12,
+                  "Total Cost": 5.91,
+                  "Plan Rows": 1,
+                  "Plan Width": 8,
+                  "Actual Startup Time": 0.011,
+                  "Actual Total Time": 0.011,
+                  "Actual Rows": 0,
+                  "Actual Loops": 1,
+                  "Index Cond": "((line_id = 'packaging-line-1'::text) AND (source_id = 'cx20-source'::text) AND (stream_id = 'cx20-stream'::text))",
+                  "Rows Removed by Index Recheck": 0,
+                  "Filter": "((COALESCE(canonical_utc, acquired_at) >= '2026-10-22 13:00:00+00'::timestamp with time zone) AND (COALESCE(canonical_utc, acquired_at) < '2026-10-23 13:00:00+00'::timestamp with time zone) AND (tag_id = 'Infeed.MotorCurrent'::text))",
+                  "Rows Removed by Filter": 0,
+                  "Shared Hit Blocks": 1,
+                  "Shared Read Blocks": 0,
+                  "Shared Dirtied Blocks": 0,
+                  "Shared Written Blocks": 0,
+                  "Local Hit Blocks": 0,
+                  "Local Read Blocks": 0,
+                  "Local Dirtied Blocks": 0,
+                  "Local Written Blocks": 0,
+                  "Temp Read Blocks": 0,
+                  "Temp Written Blocks": 0
+                }
+              ]
+            }
+          ]
+        },
+        "Planning": {
+          "Shared Hit Blocks": 0,
+          "Shared Read Blocks": 0,
+          "Shared Dirtied Blocks": 0,
+          "Shared Written Blocks": 0,
+          "Local Hit Blocks": 0,
+          "Local Read Blocks": 0,
+          "Local Dirtied Blocks": 0,
+          "Local Written Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0
+        },
+        "Planning Time": 0.117,
+        "Triggers": [],
+        "Execution Time": 0.029
+      }
+    ]
+  },
+  "source_sha256_end": {
+    "apps/api/__init__.py": "b0fdfcd4a54746cbcfb127f590b938e9b391bcefb788f9183073340d4ecef16a",
+    "apps/api/__main__.py": "357fcaa152d4313ce014cbf9253f0a5af90a82edb6861314e45623eaddfaa9f5",
+    "apps/api/alarm_capture.py": "fa65cc1ea313c7dfa562da5c85437dab36d67c0d10f6b4bb8e913bc0d452fe99",
+    "apps/api/alarm_consumer.py": "60c1a638317fd0d729a513c6d58a3d406b2b794665ff56a7095680c7f1e04cda",
+    "apps/api/alarm_coordinator.py": "ee7b4e820da9b8aa067bcab34174a9777a74ede5458fd69c692fb4005248c846",
+    "apps/api/alarm_fault.py": "eeaf98d67a24be938b4334f6fb4e4ea402693cfb64107835c322b0c5e550528a",
+    "apps/api/alarm_http.py": "d3ef4d1b8d600cd4b3bcf5d56b3924268000dc6734aea398306fafbcb3cc803f",
+    "apps/api/alarm_lifecycle.py": "f0e32487511888de0a918576e59ce60526ab8af5bab9f86cf835f90412e22677",
+    "apps/api/alarm_qualification.py": "3cafd9a3a6d7913d9be21f1839c23fa7e326910923d7771780f2af73c855967a",
+    "apps/api/alarm_rules.py": "7b35521338206f57df9b341cfd92dac3e7fc40a109314568fa9dcf7bc9cb2c80",
+    "apps/api/alarm_runtime.py": "f6d4674fdcda8a123758a99e1459b59d0256b8455e3c8f21f1da7d400494a9cb",
+    "apps/api/alarm_store.py": "aa7242a2499a29357415d57138e4fc555e929448b9501677a633b6dcb19775b0",
+    "apps/api/analytics_availability.py": "163ac4b0818fb1e04beae014db0e2e3631ff7bcf17790c545371fab0e2dde7ea",
+    "apps/api/assistant.py": "2b414393ae22c76300a151222418dba42ab5110985c717a28ab370c942b07fe8",
+    "apps/api/auth.py": "4b6e9b66f951207c8ca7d35f5a45392cdeff8b866d7f58663bdf1f63f0606955",
+    "apps/api/bootstrap.py": "800bdf101bdcea70b295e9975b856e05da422c73f4c5a508d27d81abf8399bd4",
+    "apps/api/capture_clock.py": "1c8e48dbda8f7caa8e363c50d9236f59110fa15aae329b42602f8e067b881751",
+    "apps/api/commands.py": "c2cd4364b25634ca9b0758e2a8df17c428b51803838f0f1d438e038ffdfd64fd",
+    "apps/api/control_http.py": "28c117515fdb7b79262062a28b0f11e2507f4375c64a36fbfeaf4523e394ac5a",
+    "apps/api/dashboard.py": "8fe654a6e1e68417abfac2150cbac24c9f3126e4c210058e7f64c8ead96b3d5a",
+    "apps/api/dashboard_http.py": "2ce20c8bda7ae984ae3cea9284f7b8b9c43693048732d5772d57fec1a6aa45ea",
+    "apps/api/database.py": "84d71fd5954c2caba911ac6332aed4c340816d86066f571adef7f4c21fbc73e2",
+    "apps/api/downtime.py": "0a641f4060d7b1598ac266d08b49a9e45cbab1955f0dcbd4dc0aa734781228ec",
+    "apps/api/downtime_http.py": "e8dd692258b11b3c531d9ebbfb009c67beef92106ea440a6512e3157cd99b5ae",
+    "apps/api/execution_http.py": "616f4944d06ede59a3dbaf20d3dd31271db74fa27a2fb0055ab8d60cdda810be",
+    "apps/api/execution_plan.py": "7b432d5e2b8a04a04fa1965b3ba255c77749c916219864049d2ae170ca8ab6df",
+    "apps/api/execution_read.py": "5eb1cff2b17ab93278656e0e89eef87249d1226c724f39ba4115da1916b46ea5",
+    "apps/api/guest.py": "061a78113768f48622b5bab42afff6bcae95a640fe34a68f4e0ed48cc1494660",
+    "apps/api/ingestion.py": "2fda6da8899be9a110ad6091875645ab1c90f362232393b67331da1ee620dea3",
+    "apps/api/internal.py": "87782b36dacc86d34597276ca6f956d5bb1cdf22f7dea4ff7eab60c237c43758",
+    "apps/api/measured_clock.py": "e0667a87534c944c0fcf2cfc3d4961cbddd5be5cc3d8c05e2e9e35ddcf013d31",
+    "apps/api/migrations/env.py": "fe6a49b940cd9e15058b773e6985a6b477dfdc0148bc9d65f51b538cfc1f85a1",
+    "apps/api/migrations/versions/0001_reference_data.py": "66ea8a187911d4eb884be4db223dd482b3599ced7887a6425aece6fd6c955301",
+    "apps/api/migrations/versions/0002_ingestion.py": "a1875aa13bdb30433aff52e9bdc535a2f0ee25cae5faa84a8b812f4091d77d91",
+    "apps/api/migrations/versions/0003_user_auth.py": "8d96dbccac22313eef8d27a28cfebb24c21694f8e9e70e569ffb4a793f89698b",
+    "apps/api/migrations/versions/0004_commands.py": "ad9f3e65f2a0dae379fa897ee0396b6d4eb6a636e6abd64f21140446d12b197b",
+    "apps/api/migrations/versions/0005_command_dispatch.py": "71a2369d814865eba40430f6b89f556848510d104eb8ff96f5f27c3416b6fc2d",
+    "apps/api/migrations/versions/0006_settlement.py": "3e63ab091af67e010959539344575d67cf87969e20fb425dc4080932b6301aa0",
+    "apps/api/migrations/versions/0007_execution_plan.py": "d21c7afc5ae152663d3e2fab1ac17e5bfb6233ec1b9419c51b21efbbc8ee35bd",
+    "apps/api/migrations/versions/0008_work_orders.py": "58e0874df66a776fc8314ff683af9fcf697fe9acb0b55eedaed49f33d9e38fab",
+    "apps/api/migrations/versions/0009_work_order_binding.py": "7afe335349a4bad8d11f3455dac5f0289a5804b744a03cfaed748739f5dfd65d",
+    "apps/api/migrations/versions/0010_alarm_store.py": "dff1b4ca45d4960ab04e7b193080c61bed0368a31827a8591b9a71074d13e62b",
+    "apps/api/migrations/versions/0011_alarm_capture_context.py": "4360573bcd245d6067c35351386a251080173de9919e993d663245ecb4ca02ba",
+    "apps/api/migrations/versions/0012_alarm_line_fault.py": "563f8ba50718d028d2ded82baac6ef6245e470e3624bb0e490afbb0188b59b09",
+    "apps/api/migrations/versions/0013_work_order_cancel.py": "fb2f465def63c240971a1846a6b5f09fa8d01a74b85351b6cfbfaf83db9e138c",
+    "apps/api/migrations/versions/0014_mixed_alarm_runtime.py": "c4898f7aece61d441068354af165e375bdd1b9f17ad769a0bdfe5c215fdfdf95",
+    "apps/api/migrations/versions/0015_analog_history.py": "b8d41a973503094709559554174f1c1ac324afbb592beaca10b08e5064da1f78",
+    "apps/api/migrations/versions/0016_downtime_reasons.py": "436dc44040600e348af0f3a1e0d014bbc2c977f7df2a5162abf2e7d3169f8712",
+    "apps/api/migrations/versions/0017_guest_viewer.py": "ff709d193b450a8fc2fa24fcb49e7697197f9e577eae3980c6bfb1488ad61656",
+    "apps/api/migrations/versions/0018_clock_evidence.py": "62c3742558f26258e54d5c57e8c054064f78dec264917dd8494fe66d367acaed",
+    "apps/api/minute_aggregation.py": "65f41c74faa53c7f1de85b1113ef973c4fe2a7bd2c11ab2ef59dbfedcd37c0d0",
+    "apps/api/models.py": "854a255862b99339070420a2306413efb166455bf04ad66642a6b7d6428ae4e8",
+    "apps/api/recovery.py": "d3c67384499faf81af04e68fbdde17703deec9c1257714e93a980992bc67ec66",
+    "apps/api/reports.py": "ef4a37e7c292451f80b741c5342a6f13114f07a7efa0f5792efb17ab6c1eb5dc",
+    "apps/api/reports_http.py": "154fd48f4829e7788a1ce3273e846c4ba234fc9f62a602082454b5464c34b1c3",
+    "apps/api/screen_frames.py": "cfde040a28a895f1044fdfad3dd3eb9066c8db33c13826bf26c21a55ae20b274",
+    "apps/api/screen_ws.py": "52bb4492f5f6a7e60b0472f8d5f5c11a0cf32b88d7b75d5588d973a29cd47074",
+    "apps/api/serverless.py": "756e5ca654c31e970598e2629fb8cc45b7d0ebe8698069f33100ecfe7d59a87a",
+    "apps/api/settlement.py": "6d491b610452bb05cc84457b1f7ec82925638d20e834a749f352e82d73fcadfa",
+    "apps/api/settlement_http.py": "c761a49e7df06790bbd6ccbae253096f21854295734e78a4b8e9e28280438126",
+    "apps/api/snapshot.py": "0a704a16159314e9d2109bdccaeb1e55966032ab7009d1eec62b5682dad91585",
+    "apps/api/spc.py": "797342c129a27b44b34b25e075c968ba478f9638ed1a460bf9b4c076acbbb984",
+    "apps/api/spc_http.py": "b925d589409a905e747ecf8eb0e4dae027fd50674896ad935f34acd05c2478e1",
+    "apps/api/trend_history.py": "1d9c080edfa6f9f20ff9696cd28b4ea6efa8ad6d5842adce122b18f1ecf41123",
+    "apps/api/trend_http.py": "9acc1238ec58cec9cd843e8d6c5b6b38948885fdca3627cefc2c41aa1b195ab2",
+    "apps/api/user_http.py": "499e42792c8652c6dd52bf8a609af2ac2c7d7c2cc882b8f6dbf7cc36514fed11",
+    "apps/api/web.py": "4bfc19362d6cf038ed2880b1331d857bb702e1678200b39b6d69770f7edba16d",
+    "apps/api/work_order_cancel.py": "49ef2068f5e54e4542688e1782d9b29b78376b7de4644dd24d2b82ee346a8d9d",
+    "apps/api/work_order_cancel_http.py": "8d6e7830f1350f5f81f63c74a3faef0f0c7ab93ecb79c16c4520883870fa0ce6",
+    "apps/api/work_order_workflow.py": "db14f5a5dbfa28cfd7aa4bf5aa12fb86ca19605db7cf9c1def022d8170d1ed3c",
+    "apps/api/work_orders.py": "d4c36e8db726c10cc8a86aaf620465bc42b87f92454e4c44f9041471f9519874",
+    "apps/api/work_orders_http.py": "491179b4dc67416689967fc034beecc88248b75400b684abd5f3a6943b931239",
+    "contracts/__init__.py": "dcc00f93465d84e6862541a34bb8676dadda00ae151a9f8c7c6f81d32a9cb663",
+    "contracts/clock_evidence.py": "dc2c0e40be5343466410b0fc8d82b6088a2483023f19dde34e0f8fb13aabaefc",
+    "contracts/examples/command-expired.json": "03fa92289b72d8a73655154216d5cf7c9441baeab1d58fe5fa24e98e1962ed21",
+    "contracts/examples/command-not-found.json": "e5b8be1bd23e3eb1fc75e69578f8b909df459916f75fcc320654866e2d61f02a",
+    "contracts/examples/command-outcome-unknown.json": "05f1e7cb82406ea968e94f10de5dc4c89199ea9ef55622ff0aa530eabd163d15",
+    "contracts/examples/command-rejected.json": "b0057c9c863cf58c166851f945a223786a22d7121cdbc24180492630be57da54",
+    "contracts/examples/command-request.json": "eb128da1c184be8b85ade53377fd944f0e5d1d32b1ba8aebd59ba1366284cb6e",
+    "contracts/examples/command-result-request.json": "1ab32713ac62bb2722dec475886044734bcfa7b76af5835064cfe747d5f2be7d",
+    "contracts/examples/command-result.json": "fed8541d384a2d23cfd93a201001ca27ae92e3b012f774d59fb3138e76b86931",
+    "contracts/examples/command-submission.json": "564f590c3f4841874744c1eda2de395cdf8784850f4e64b1a5ea2e79ff1aa7d2",
+    "contracts/examples/commands.json": "b346bef6fe7435906714f268e8ad49ef37a9209eb3a51be3aae18b9657a89b9e",
+    "contracts/examples/event-page.json": "59fd205d15ccd8ed5d05362b10bcf35a206645bc21d6db2ba18c5ff0499f9c68",
+    "contracts/examples/event-read-error.json": "436fdc9e012709fb351e61c4940f32ca2633b205c1b8c5adbe2e2eb19f8b16e4",
+    "contracts/examples/event.json": "1f3724879001faacea8c5fe56ed764c7bd1a78c667321cde7dc065a3874655a2",
+    "contracts/examples/read-events-request.json": "85d552e2d3438a5c4c93bbb078d7f57b62d90ea8a02608dd3091b63e21b791ab",
+    "contracts/examples/run-not-found.json": "1981f7bebde9f21d312d59fc0f0dddc2fc71f3fa81f601ee4df500011645c7ca",
+    "contracts/examples/run-summary-request.json": "90a510ed2d96b16a6687b8036525fbbcb0be5a6ba929c42cda2d994ab5ca8df1",
+    "contracts/examples/run-summary.json": "c12de019c2c930179fa2b4b12a57fcd2039f0287779319fef1c3a9ef58b330de",
+    "contracts/examples/transport-ack-gap.json": "24c35b381f5165d6781dea119b7ea4d09b9b2a2a3155b61459775073839c453f",
+    "contracts/examples/transport-ack-quarantined.json": "cdd2aea8ef474a92601cf6252311ec59e85de516bffa1573c7343efd15918b5b",
+    "contracts/examples/transport-ack.json": "84cee3b2397f23c59db2a8b2e55387eeb489bfef48b2eb0d63ce31779509f7bb",
+    "contracts/examples/transport-batch-capture-time.json": "59b2a6c6bbe413e41f4b6d7e80dd7d8f9181e1734f41ef8efde26563cee43805",
+    "contracts/examples/transport-batch-gap.json": "308cabf6dcbd50d011579e4c2d91cebed5ae132778aeca3b6c8d58046a8beff7",
+    "contracts/examples/transport-batch.json": "cabc1e55f085e880752c5133615e2d9515d855512abd6568acecc69ac3be2245",
+    "contracts/examples/transport-screen-resync.json": "851bc6fb2f3f3f94463d68b723e99fd63b725ccc8a771d815bcb48afd2e97bd0",
+    "contracts/examples/transport-screen-update.json": "cb81d9adeffbdf686ad63b7d72a8275c086b52f2d073abdf9e386b3a1e884852",
+    "contracts/examples/transport-screen.json": "eaa79bc766fb2bf1b61d7a29fee5c4f840f8df2735e72b5f7236c913e2c955ee",
+    "contracts/models.py": "8e586c6f0e67e35804af28cf3db75ddf77394775a0912c2944a4c9de38836323",
+    "contracts/schemas/app-screen.schema.json": "a0ca37ffb33918f2e61a4d4c7ed0fc5b75b736ed2c7c040c55111a2fb58d0d56",
+    "contracts/schemas/command-not-found.schema.json": "63dc97e0fd364505ac89586d22363710aed08fcef9877c80cab8f188f1f200be",
+    "contracts/schemas/command-request.schema.json": "46a21ddc70f1cd7d66f54a55881770100e935031cba101fc9f2712714b9777a1",
+    "contracts/schemas/command-result-request.schema.json": "8ee51585007e2a5aea09038215a0a7091fe84a7cf52e1eb36250da99c7021241",
+    "contracts/schemas/command-result.schema.json": "ebda4aa84f3dbc0596c71cf11afa5919d01cd43bf3e74b80379e948db475b1e5",
+    "contracts/schemas/command-submission.schema.json": "38b2d3b2cae56658c448ab22afda0f470d96c96d018cdfa3f50884a08971e80d",
+    "contracts/schemas/event-page.schema.json": "aa0ecdc69d3a487865ec923948f3e4f62425e36b9dfb25470c802ce82fc8febd",
+    "contracts/schemas/event-read-error.schema.json": "57b662bcd66cbd00f21640e65db161e87766a44ccc35993993c273952321e221",
+    "contracts/schemas/event.schema.json": "3163d1e8d331445d3993394010a8cac531bbc7475f9a97762ff011725b5a042e",
+    "contracts/schemas/read-events-request.schema.json": "f950753e313a05c17b9bc6b4a5cf3920175ee229b88e06684ac0b8c4a43a5559",
+    "contracts/schemas/run-not-found.schema.json": "a4d3b483437f4f1bd66b365ff5db13a41333f1e4d99df361815c14f82f1e422c",
+    "contracts/schemas/run-summary-request.schema.json": "e36c0ee08cb43e50a4aca5d59c93d931de65539d393edc3c24e5f458a9148166",
+    "contracts/schemas/run-summary.schema.json": "e20c32f1969ee621b883f35e1ec5bf981d8f28944fcc28cda51556f03c45de80",
+    "contracts/schemas/transport-ack.schema.json": "35fb383752aed85fe372f2ee907c8192262d1af81f2da810aff397aab9aca866",
+    "contracts/schemas/transport-batch.schema.json": "10096c19199f5c99e1502baeb783dbb271cf5a09c1c9f46f9d47a039dfa1b15a",
+    "contracts/schemas/transport-screen.schema.json": "0412a4ff3262ec5ae7dfdc5d7726b9b898aca856b552033dfc625e07f0bee4ef",
+    "contracts/tags/tags.v1.json": "4643e8b4488a50dd0dbf734935922891b94b7b52dd178edef0a6cd4a6708ea13",
+    "contracts/tags/validate.py": "96c4d769cac767679cb9f5a62faabf904f31ef9eb236188a64510fcd05df614a",
+    "contracts/transport.py": "526d2bafb5caafd83a047cae6648d528316e6cf04a0d15de559fb85652479c81",
+    "deploy/backup_set.py": "e628b2190ab236494aefe4eebf42b81d3fb75b2df0a54dd41c379fc0712496f1",
+    "scripts/benchmark-history.py": "1fffb48c4cfbf858a1c47ef29176587e935170e5be255d898e135f6a5b08ef6c"
+  },
+  "source_changed_during_run": false,
+  "ended_utc": "2026-10-23T13:06:45.380695Z"
+}
