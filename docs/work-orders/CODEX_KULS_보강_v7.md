@@ -22,12 +22,13 @@
 ## 2. 할 일
 
 1. **실행 전 기록.** 공개 DB 용량과 `production_events`·`production_executions` 행 수를 읽기 전용으로 1회 기록한다.
-2. **실연 1회, 약 20분.** 6차와 같은 runtime·SQLite·인증서·토큰으로 `serve --clock-measured-round-trip`을 실행한다.
-   - 20분으로 정한 이유: README의 대시보드·SPC 미리보기를 실제 화면으로 바꾸는 데 쓸 데이터 기준이다. 예상 증가는 약 16~24MB로 무료 0.5GB 안이다.
+2. **실연 1회, 약 10분.** 6차와 같은 runtime·SQLite·인증서·토큰으로 `serve --clock-measured-round-trip`을 실행한다.
+   - 10분이면 가동 시간 > 0과 수량 대조를 확인하기에 충분하다. 예상 증가는 약 8~12MB로 무료 0.5GB 안이다.
+   - SPC 관리한계는 완전한 1분 부분군 20개가 있어야 계산된다. 그래서 이번 데이터로는 SPC가 `INSUFFICIENT_DATA`로 나온다. 이번 실연의 판정 대상이 아니다.
    - 시뮬레이터가 `recovery_required`로 멈춰 있으면 6차와 같은 방식으로 `commission`을 1회 실행한다.
 3. **생산 START.** 공개 업무 화면에서 정상 권한·Origin·CSRF를 통과해 작업지시 1건을 릴리스하고 START한다. 시작 명령이 START를 대신하지 않는다([PUBLIC_DEMO_RUN.md](../architecture/PUBLIC_DEMO_RUN.md) 63행).
    - 수행자는 사용자(운영자 계정)다. Codex가 대신할 경우 사용자 승인을 받는다. 계정 비밀번호는 채팅·문서·로그에 남기지 않는다.
-   - 목표 수량은 20분 안에 끝나지 않을 만큼 넉넉히 잡는다. 끝나기 전에 정상 STOP으로 마친다. 결과 불명이 생기면 새 ID로 다시 START하지 않고 그대로 기록한다.
+   - 목표 수량은 10분 안에 끝나지 않을 만큼 넉넉히 잡는다. 끝나기 전에 정상 STOP으로 마친다. 결과 불명이 생기면 새 ID로 다시 START하지 않고 그대로 기록한다.
 4. **실행 후 기록(읽기 전용 1회).**
    - DB 용량, 증가량
    - 이번 `execution_id`, 서버 집계 양품·불량·폐기
@@ -51,4 +52,4 @@
 - 수량 대조 결과
 - 오류 횟수
 
-`docs/DEVELOPMENT_STATUS.md`에 한 줄 요약을 남긴다. 미실행·실패를 통과로 적지 않는다. 공개 화면 확인(가동 시간 > 0, 트렌드, 대시보드·SPC)과 README 스크린샷 교체는 Claude가 한다.
+`docs/DEVELOPMENT_STATUS.md`에 한 줄 요약을 남긴다. 미실행·실패를 통과로 적지 않는다. 공개 화면 확인(가동 시간 > 0, 트렌드, 대시보드)과 README 대시보드 스크린샷 교체는 Claude가 한다. README의 SPC는 미리보기로 유지한다.
