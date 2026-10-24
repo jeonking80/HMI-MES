@@ -260,3 +260,31 @@ Claude 브랜치의 `CODEX_KULS_보강_v7.md`(`4c64649`)를 확인하고 최신 
 허용된 한 번의 시도 후 재시도·수동 복구·큐 삭제·새 ID로 명령 재전송은 하지 않았다. 감독자 정상 종료 뒤 두 자식 PID가 존재하지 않고 processes.json이 없음을 확인했다. 이미 생성·배포된 작업지시와 영속 상태는 보존했고 취소·삭제하지 않았다. 원본 안전 메타데이터는 `/tmp/hmi-ops02-v7-production-once/run.json`에 남겼다.
 
 **판정: 7차 생산 실연 실패·미완료.** 생산 START를 제출하지 못해 가동 시간 >0·원래 실행의 수량 대조는 이번 시도로 검증하지 못했다. 공개 DB 용량·행 수·화면 확인은 승인된 분담대로 Claude에게 인계하며, 이 기록 후 중단한다. 제품 코드·UI·README·Vercel 설정과 보호된 기존 브라우저 시험 수정은 건드리지 않았다.
+
+### 7차 §2-1 수정 지시에 따른 기존 작업지시 재개 1회
+
+사용자가 전달한 `d4ddcad`의 수정 지시서를 읽고 기존 RELEASED 작업지시 `000-v7-order-20261024T075220304749Z`를 이어서 사용했다. 레시피·작업지시를 새로 만들거나 release POST를 다시 보내지 않았다. 기존 release ID `43b472e6-0142-4ed5-b34d-ed79f95adf9b`를 정상 공개 UI의 원래 요청 조회로 확인한 뒤 `#workflow-acknowledge`를 한 번 클릭했다. **확인 버튼이 사라지고 `#workflow-recovery` 폼이 다시 나타난 것을 명시적으로 기다려 ack_clicked=true, ack_processed=true를 기록했다.** 그 후 작업지시 목록 새로 조회 → 기존 작업지시 실행 연결 선택 순서로 진행했다.
+
+그러나 `#binding-prepare`는 35초 안에 활성화되지 않았다. 시작 직후와 대기 종료 뒤 `#binding-reason`의 같은 문구를 직접 읽어 기록했다.
+
+> 전체 48개 태그의 최신 정상 품질과 원본 시각을 확인해야 합니다.
+
+START 버튼 아래 사유도 같은 문구였다. 이번 실패를 배포 기록 미확인으로 판정하지 않는다. 위 문구는 UI의 품질·원본 시각 guard가 차단했다는 직접 증거이나, 48개 중 어떤 태그·시각 조건이 불충족이었는지까지는 이번 기록으로 특정하지 못한다. 이전 시도의 직접 원인을 이 결과로 소급 확정하지 않는다. 버튼 상태를 우회하거나 요청을 직접 전송하지 않았다.
+
+| 항목 | 결과 |
+|---|---|
+| 시작 UTC / KST | 2026-10-24T08:00:35.147803Z / 17:00:35 |
+| 종료 UTC / KST | 2026-10-24T08:01:22.373643Z / 17:01:22 |
+| 경과 | **47.2초** |
+| runtime / commission | 각 1회, commission 성공 |
+| 배포 기록 확인 | 클릭 및 처리 완료 확인 |
+| 실행 연결 | binding_ready / AssertionError |
+| LOAD_JOB / START / END_RUN | **모두 미제출** |
+| 실행 ID·수량 대조 | 없음 / 해당 없음 |
+| capture | collected 42, uncertain 2, blocked 1 |
+| delivery | COMMITTED 44, idle 16 |
+| 오류 클래스·코드 | GatewayReadError 1회, 사유 코드 기록 없음 |
+
+command·settlement에는 초기 blocked가 각각 1회 있고 상세 클래스·코드는 없다. BufferFull이나 최종 gateway 오류 종료 기록은 없었다. 독립 medium 관찰자는 이번 시작 byte 1,297,561 이후의 supervisor.log와 `/tmp/hmi-ops02-v7-existing-order-once/run.json`만 읽어 위 수치를 확인했다. 최종 `supervisor stopped; persistent scope retained`, 두 자식 PID 없음, processes.json 없음도 확인했다.
+
+허용된 이번 1회 재개 이후에는 재시도·복구 조작·큐/커서 수정 없이 멈췄다. 기존 작업지시·runtime을 보존했으며 앱 코드·UI·이관·권한·배포는 변경하지 않았다. 공개 DB 전후 확인은 앞선 사용자 승인대로 Claude 담당으로 유지한다. **생산 START와 원래 실행 수량 대조는 여전히 미완료**다.
