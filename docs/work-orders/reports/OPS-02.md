@@ -209,3 +209,26 @@ Claude 브랜치의 `CODEX_KULS_보강_v6.md`를 읽고 최신 origin/main을 fe
 사용자가 위 Ruff 두 건의 수정·재검사를 승인했다. 진단 시험 파일에서 긴 dict를 여러 줄로 정리하고, 반복문 내부 비동기 함수의 stop 이벤트를 기본 인자로 고정했다. 제품 코드와 운영 파일은 추가 변경하지 않았다.
 
 관련 세 시험 파일을 한 번 재검사해 **37 passed in 1.45s**, 변경 Python 6개 파일의 Ruff check와 format --check도 한 번씩 실행해 **모두 통과**했다. 운영 SQLite 추가 조회·정리·복구·공개 실연은 하지 않았다. 지시서의 별도 실연 승인 조건에 따라 공개 5분 실연은 아직 승인 대기이며 OPS-02 전체 완료는 아니다.
+
+### 6차 수정 후 사용자 승인 공개 실연 1회 — 2026-10-24
+
+사용자가 위 공개 5분 실연을 승인했다. 코드 `8ae8c98`의 기존 commissioning runtime·SQLite·인증서·토큰을 그대로 사용해 `serve --clock-measured-round-trip`을 한 번 실행했다. 콘솔 준비 후 승인된 다섯 확인 항목과 기존 console-password 파일로 commission을 한 번 실행해 exit0을 확인했다. 새 작업·생산 START는 제출하지 않았다. 백업·이관·권한 변경·재배포는 반복하지 않았다.
+
+| 항목 | 실측 결과 |
+|---|---|
+| 시작 | 2026-10-24T07:05:12.400184Z / 한국시간 16:05:12 |
+| 종료 | 2026-10-24T07:10:08.289396Z / 한국시간 16:10:08 |
+| 경과 | **295.889초** |
+| serve / commission 횟수 | 각 1회 |
+| commission | exit0 |
+| serve 종료 | **124: GNU timeout의 295초 상한 TERM** |
+| 새 capture collected | **290회** |
+| 새 delivery committed | **290회** |
+| METADATA_FULL / 최종 gateway 오류 종료 | 기록 없음 / 기록 없음 |
+| 종료 정리 | supervisor stopped; persistent scope retained, 두 자식 PID 없음, processes.json 없음 |
+
+새 로그는 시작 오프셋 1,203,567 이후만 집계했고 독립 medium 관찰자도 같은 수치를 확인했다. blocked는 capture 4회·command 1회·settlement 1회였다. capture 오류 클래스/코드는 GatewayReadError 1회, **BufferFull / INFLIGHT_PRESSURE 3회**이며 이후 수집·COMMITTED가 계속됐다. 이를 오류 0회로 표시하지 않는다. 이번 전체 실행의 재시작·수동 재시도는 없었고 supervisor는 상한까지 살아 있다가 정상 종료 신호로 자식을 정리했다. 큐 삭제·커서 초기화·source/generation 교체·추가 복구 조작은 하지 않았다.
+
+**판정: 약 5분의 공개 수집·전송 지속과 종료를 확인했다.** 이전처럼 METADATA_FULL로 즉시 종료되는 현상은 이번 실행에서 재발하지 않았다. 단, 로그의 COMMITTED는 새 캡처 GOOD 트렌드·가동 시간 >0·불명 근거·원래 실행 수량 대조를 대신하지 않는다. 이번에는 생산 START를 하지 않았으며 해당 업무 지표와 전후 공개 DB 용량은 조회하지 않았다. 사용자가 지정한 대로 Claude가 공개 결과·용량·화면을 확인할 항목으로 인계한다. 따라서 OPS-02 전체 수락 완료는 아직 판정하지 않는다.
+
+보호된 원본 메타데이터와 출력은 `/tmp/hmi-ops02-v6-public-demo-once`, 상태 로그는 기존 runtime의 supervisor.log에 보존했다. 이 보고서 기록 외에 추가 시험·실연 반복·운영 변경은 하지 않았다.
