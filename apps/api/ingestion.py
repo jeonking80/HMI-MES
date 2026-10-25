@@ -19,6 +19,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 
 from apps.api.capture_clock import CLOCK_EVIDENCE_REVISIONS
 from apps.api.database import SCHEMA_LOCK_ID, SUPPORTED_INGESTION_REVISIONS
+from apps.api.ingest_retention import check_retention_expired
 from apps.api.models import Asset, Line
 from contracts.models import (
     EVENT_ADAPTER,
@@ -981,11 +982,11 @@ class IngestionService:
         with self._transaction() as connection:
             self._advisory(connection, "gateway", body.gateway_id)
             source = self._lock_stream(connection, body.source_id, body.stream_id)
-            if (source["gateway_id"], _exact(source["capture_generation"])) != (
-                body.gateway_id,
-                body.capture_generation,
-            ):
-                raise SourceBindingError("Gateway/capture generation is not explicitly registered")
+            if source["gateway_id"] != body.gateway_id:
+                raise SourceBindingError("Gateway is not explicitly registered")
+            check_retention_expired(connection, body)
+            if _exact(source["capture_generation"]) != body.capture_generation:
+                raise SourceBindingError("Capture generation is not explicitly registered")
             for event_id in sorted(event.event_id for event in body.events):
                 self._advisory(connection, "event", event_id)
             collision = self._collision(connection, batch)

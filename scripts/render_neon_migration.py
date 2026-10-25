@@ -243,6 +243,29 @@ def item_grant_statements():
     return _grant_statements(ROOT / "deploy/neon-item-grants.sql")
 
 
+def retention_statements():
+    """Exact 0021 -> 0022 statements; preserve PL/pgSQL statement boundaries."""
+    config = Config(str(ROOT / "alembic.ini"))
+    script = ScriptDirectory.from_config(config)
+    module = script.get_revision("0022_ingest_retention").module
+    # Reuse the reviewed dedicated database/role/owner preflight unchanged,
+    # replacing only this new target's starting and ending revisions.
+    preflight = item_statements()[:5]
+    preflight[2] = preflight[2].replace("0020_line_queue", "0021_item_master")
+    return [
+        *preflight,
+        *module.upgrade_statements(),
+        "SET LOCAL search_path = pg_catalog, public, pg_temp",
+        "UPDATE public.alembic_version SET version_num='0022_ingest_retention' "
+        "WHERE version_num='0021_item_master'",
+    ]
+
+
+def retention_grant_statements():
+    """Reviewed schema22 grants, applied in one HTTP batch transaction."""
+    return _grant_statements(ROOT / "deploy/neon-ingest-retention-grants.sql")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -260,6 +283,8 @@ def main(argv=None):
             "queue-grants",
             "item-upgrade",
             "item-grants",
+            "retention-upgrade",
+            "retention-grants",
         ),
     )
     target = parser.parse_args(argv).target
@@ -274,6 +299,8 @@ def main(argv=None):
         "queue-grants": queue_grant_statements,
         "item-upgrade": item_statements,
         "item-grants": item_grant_statements,
+        "retention-upgrade": retention_statements,
+        "retention-grants": retention_grant_statements,
     }[target]
     json.dump(renderer(), sys.stdout, ensure_ascii=False, indent=1)
 

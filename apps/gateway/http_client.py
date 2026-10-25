@@ -1,5 +1,6 @@
 """Authenticated immutable batch delivery; ambiguous delivery never releases disk data."""
 
+import json
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
@@ -14,6 +15,12 @@ class DeliveryUncertain(RuntimeError):
 
 class DeliveryRejected(RuntimeError):
     """API explicitly rejected this batch; retain it for diagnosis/reconciliation."""
+
+
+class DeliveryRetentionExpired(DeliveryRejected):
+    """Permanent raw expiry: stop delivery and require explicit recovery."""
+
+    reason_code = "RETENTION_EXPIRED"
 
 
 @dataclass(frozen=True)
@@ -79,6 +86,22 @@ class IntakeClient:
                 content=validated.model_dump_json(),
                 headers={"Content-Type": "application/json"},
             ) as response:
+                if response.status_code == 410:
+                    rejection = bytearray()
+                    async for chunk in response.aiter_bytes():
+                        if len(rejection) + len(chunk) > min(8192, self.config.max_response_bytes):
+                            raise DeliveryUncertain("Intake rejection exceeds configured bound")
+                        rejection.extend(chunk)
+                    try:
+                        reason = json.loads(bytes(rejection))
+                    except (ValueError, UnicodeError, RecursionError):
+                        raise DeliveryUncertain("Invalid intake rejection") from None
+                    if (
+                        isinstance(reason, dict)
+                        and reason.get("reason_code") == "RETENTION_EXPIRED"
+                    ):
+                        raise DeliveryRetentionExpired("Original capture retention expired")
+                    raise DeliveryUncertain("Unrecognized intake rejection")
                 if response.status_code in {400, 401, 403, 409, 413, 422}:
                     raise DeliveryRejected(f"Intake rejected batch (HTTP {response.status_code})")
                 if response.status_code != 200:

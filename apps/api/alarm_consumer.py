@@ -32,6 +32,7 @@ from apps.api.alarm_store import (
     apply_observation,
     break_continuity,
 )
+from apps.api.capture_clock import capture_frontier_table
 from apps.api.database import SCHEMA_LOCK_ID, SUPPORTED_ALARM_CAPTURE_REVISIONS
 from apps.api.ingestion import IngestConflict, IngestionUnavailable, SourceBindingError
 from contracts.models import ContractModel, Identifier, Reason, UInt64, UTCTimestamp
@@ -285,7 +286,9 @@ class AlarmConsumer:
         return int(
             connection.execute(
                 text(
-                    "SELECT COALESCE(max(capture_seq),0) FROM ingest_batches WHERE gateway_id=:g "
+                    "SELECT COALESCE(max(capture_seq),0) FROM "
+                    f"{capture_frontier_table(connection)} "
+                    "WHERE gateway_id=:g "
                     "AND source_id=:s AND stream_id=:t AND capture_generation=:generation"
                 ),
                 {

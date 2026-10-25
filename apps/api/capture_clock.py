@@ -16,7 +16,13 @@ from contracts.transport import batch_digest as digest_body
 
 CLOCK_EVIDENCE_REVISION = "0018_clock_evidence"
 CLOCK_EVIDENCE_REVISIONS = frozenset(
-    {CLOCK_EVIDENCE_REVISION, "0019_registration_ids", "0020_line_queue", "0021_item_master"}
+    {
+        CLOCK_EVIDENCE_REVISION,
+        "0019_registration_ids",
+        "0020_line_queue",
+        "0021_item_master",
+        "0022_ingest_retention",
+    }
 )
 NORMALIZATION_VERSION = "api-interval-midpoint-v1"
 UNKNOWN_MINUTE = json.dumps(
@@ -40,6 +46,15 @@ def schema_revision(connection):
 
 def clock_evidence_available(connection):
     return schema_revision(connection) in CLOCK_EVIDENCE_REVISIONS
+
+
+def capture_frontier_table(connection):
+    """Permanent identity history supplies frontiers after original batches expire."""
+    return (
+        "ingest_receipts"
+        if schema_revision(connection) == "0022_ingest_retention"
+        else "ingest_batches"
+    )
 
 
 @dataclass(frozen=True)
@@ -393,6 +408,48 @@ def record_capture_clock(
     return decision
 
 
+def _fence_expired_reversal_minutes(connection, body, epoch, cutoff):
+    """Conservatively fence a source whose deleted membership cannot be reconstructed.
+
+    Receipts retain clock ordering, not sample membership or normalization proof.
+    If an expired capture intersects the reversal, fence all existing source/stream
+    minutes and their raw rebuild inputs. This intentionally sacrifices precision
+    rather than letting an incomplete history replace UNKNOWN with GOOD. Aggregate
+    rows and the permanent reversal state are retained.
+    """
+    if capture_frontier_table(connection) != "ingest_receipts":
+        return
+    binding = dict(
+        source=body.source_id,
+        stream=body.stream_id,
+        gateway=body.gateway_id,
+        generation=body.capture_generation,
+        epoch=epoch,
+        cutoff=cutoff,
+    )
+    expired = connection.execute(
+        sa.text("""SELECT EXISTS(SELECT 1 FROM ingest_receipts
+        WHERE source_id=:source AND stream_id=:stream AND gateway_id=:gateway
+          AND capture_generation=:generation AND clock_epoch=:epoch
+          AND capture_seq>=:cutoff AND expired_at IS NOT NULL)"""),
+        binding,
+    ).scalar_one()
+    if not expired:
+        return
+    connection.execute(
+        sa.text("""UPDATE analog_history_raw SET
+        observation=jsonb_set(observation,'{time_quality}','"UNKNOWN"'),aggregated=false
+        WHERE source_id=:source AND stream_id=:stream
+          AND observation->>'time_quality' IS DISTINCT FROM 'UNKNOWN'"""),
+        binding,
+    )
+    connection.execute(
+        sa.text("""UPDATE analog_history_minutes SET point=point || CAST(:unknown AS jsonb)
+        WHERE source_id=:source AND stream_id=:stream"""),
+        dict(binding, unknown=UNKNOWN_MINUTE),
+    )
+
+
 def fence_incomplete_reversal_minutes(connection, body, epoch, *, buckets=None):
     """Do not rebuild an affected minute from an incomplete raw selection history.
 
@@ -417,6 +474,7 @@ def fence_incomplete_reversal_minutes(connection, body, epoch, *, buckets=None):
     ).scalar_one_or_none()
     if cutoff is None:
         return
+    _fence_expired_reversal_minutes(connection, body, epoch, cutoff)
     modern = clock_evidence_available(connection)
     raw_at = "COALESCE(canonical_utc,acquired_at)" if modern else "acquired_at"
     remaining_at = (
@@ -502,17 +560,25 @@ def capture_clock_valid(connection, body, epoch):
         .first()
     )
     reversal = int(state["reversal_seq"]) if state and state["reversal_seq"] is not None else None
+    history = capture_frontier_table(connection)
+    if history == "ingest_receipts":
+        captured_at = "captured_at"
+        monotonic_seconds = "monotonic_seconds"
+        clock_epoch = "clock_epoch"
+    else:
+        captured_at = "(body->>'captured_at')::timestamptz"
+        monotonic_seconds = "(body->'capture_time'->>'monotonic_seconds')::double precision"
+        clock_epoch = "body->'capture_time'->>'clock_epoch'"
     if state is None and body.capture_time is not None:
         # A first schema-15 capture or supported downgrade/upgrade can have
         # immutable clock history without a projection registry. Rebuild once
         # in SQL: nearest neighbors alone cannot recover an earlier reversal.
         cutoff = connection.execute(
-            sa.text("""WITH captures AS (
-            SELECT capture_seq,(body->>'captured_at')::timestamptz AS at,
-                (body->'capture_time'->>'monotonic_seconds')::double precision AS mono
-            FROM ingest_batches WHERE source_id=:source_id AND stream_id=:stream_id
+            sa.text(f"""WITH captures AS (
+            SELECT capture_seq,{captured_at} AS at,{monotonic_seconds} AS mono
+            FROM {history} WHERE source_id=:source_id AND stream_id=:stream_id
                 AND gateway_id=:gateway AND capture_generation=:generation
-                AND body->'capture_time'->>'clock_epoch'=:epoch
+                AND {clock_epoch}=:epoch
         ), ordered AS (
             SELECT capture_seq,at,mono,lag(at) OVER w AS previous_at,
                 lag(mono) OVER w AS previous_mono
@@ -526,16 +592,14 @@ def capture_clock_valid(connection, body, epoch):
     # Those captures still constrain the clock, even without retained trend rows.
     # The gateway/generation/sequence unique index supports both neighbor probes.
     neighbors = connection.execute(
-        sa.text("""(SELECT capture_seq,(body->>'captured_at')::timestamptz,
-        (body->'capture_time'->>'monotonic_seconds')::double precision FROM
-        ingest_batches WHERE source_id=:source_id AND stream_id=:stream_id
+        sa.text(f"""(SELECT capture_seq,{captured_at},{monotonic_seconds}
+        FROM {history} WHERE source_id=:source_id AND stream_id=:stream_id
         AND gateway_id=:gateway AND capture_generation=:generation
-        AND body->'capture_time'->>'clock_epoch'=:epoch AND capture_seq<:seq
+        AND {clock_epoch}=:epoch AND capture_seq<:seq
         ORDER BY capture_seq DESC LIMIT 1) UNION ALL
-        (SELECT capture_seq,(body->>'captured_at')::timestamptz,
-        (body->'capture_time'->>'monotonic_seconds')::double precision FROM ingest_batches
+        (SELECT capture_seq,{captured_at},{monotonic_seconds} FROM {history}
         WHERE source_id=:source_id AND stream_id=:stream_id AND gateway_id=:gateway
-        AND capture_generation=:generation AND body->'capture_time'->>'clock_epoch'=:epoch
+        AND capture_generation=:generation AND {clock_epoch}=:epoch
         AND capture_seq>:seq ORDER BY capture_seq LIMIT 1)"""),
         dict(binding, seq=body.capture_seq),
     ).all()
@@ -596,6 +660,8 @@ def capture_clock_valid(connection, body, epoch):
               AND m.tag_id=affected.tag_id AND m.minute=affected.minute"""),
             dict(binding, reversal=reversal, unknown=UNKNOWN_MINUTE),
         )
+    if reversal is not None:
+        _fence_expired_reversal_minutes(connection, body, epoch, reversal)
     connection.execute(
         sa.text("""INSERT INTO analog_history_clock_state
         (source_id,stream_id,gateway_id,capture_generation,clock_epoch,
