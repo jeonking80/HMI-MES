@@ -16,7 +16,13 @@ import pytest
 from apps.simulator.controller import SimulatorController
 from apps.simulator.plc import PLCInputs, RecoveryChecks
 from apps.simulator.process import ProcessConfig
-from apps.simulator.storage import RecoveryRequired, SimulatorStorage, StorageCorruption
+from apps.simulator.storage import (
+    FaultEventInput,
+    RecoveryRequired,
+    SimulatorStorage,
+    StateEventInput,
+    StorageCorruption,
+)
 from contracts.models import (
     CommandRequest,
     LineState,
@@ -573,6 +579,176 @@ def _remote_attestations(controller):
     ]
 
 
+def _append_remote_state_tail(controller, *transitions):
+    tail = controller.storage.append_control_events(
+        tuple(
+            StateEventInput(
+                occurred_at=AT,
+                execution_id="run-A",
+                payload={
+                    "previous_state": previous,
+                    "state": state,
+                    "control_version": controller.state.control_version,
+                },
+            )
+            for previous, state in transitions
+        )
+    )
+    controller._save(controller.state, AT)
+    return tail
+
+
+def test_remote_next_job_after_actual_final_restart_and_recovery(tmp_path):
+    path = tmp_path / "remote-final-restart.sqlite3"
+    with SimulatorStorage(path) as store:
+        controller = SimulatorController(store, now=AT, process_config=FAST)
+        controller.recover(now=AT, operator_id="operator", checks=CHECKS)
+        controller.set_inputs(
+            PLCInputs(temperature_c=150.0), now=AT, control_mode="REMOTE", operation_mode="AUTO"
+        )
+        first = _ended_first_remote_job(controller)
+    with SimulatorStorage(path) as store:
+        controller = SimulatorController(store, now=AT, process_config=FAST)
+        assert controller.state.recovery_required
+        controller.set_inputs(PLCInputs(temperature_c=150.0), now=AT)
+        controller.recover(now=AT, operator_id="operator", checks=CHECKS)
+        tail = [event for event in events(controller) if event.seq > first.last_event_seq]
+        assert len(tail) >= 2
+        assert all(isinstance(event, StateEvent) for event in tail)
+        assert all(
+            event.payload.previous_state in {LineState.STOPPED, LineState.RECOVERY_REQUIRED}
+            and event.payload.state in {LineState.STOPPED, LineState.RECOVERY_REQUIRED}
+            for event in tail
+        )
+        assert tail[-1].payload.state == LineState.STOPPED
+        candidate = _remote_next_job(controller)
+        response = controller.submit(
+            candidate, now=AT, authenticated_gateway_principal="pinned-gateway"
+        )
+        assert response.submission.disposition == "ACCEPTED"
+        audit = _remote_attestations(controller)[0]
+        assert audit["tail_end_seq"] == str(tail[-1].seq)
+        assert (
+            audit["tail_sha256"]
+            == hashlib.sha256(
+                json.dumps(
+                    [event.model_dump(mode="json") for event in tail],
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=False,
+                ).encode("utf-8")
+            ).hexdigest()
+        )
+        controller.tick(now=AT)
+        assert controller.get_result(candidate.command_id).status == "SUCCEEDED"
+        assert controller.state.execution_id == "run-B"
+        assert controller.get_summary("run-A") == first
+
+
+@pytest.mark.parametrize(
+    "condition",
+    [
+        "running_previous",
+        "running_state",
+        "ends_recovery",
+        "fault",
+        "production",
+        "gap",
+        "source",
+        "stream",
+    ],
+)
+def test_remote_next_job_rejects_entire_unsafe_post_final_tail(runtime, condition):
+    _ended_first_remote_job(runtime)
+    _append_remote_state_tail(
+        runtime,
+        (LineState.STOPPED, LineState.RECOVERY_REQUIRED),
+        (LineState.RECOVERY_REQUIRED, LineState.STOPPED),
+    )
+    db = runtime.storage.connection
+    first, last = db.execute(
+        "SELECT seq,body FROM source_events ORDER BY seq DESC LIMIT 2"
+    ).fetchall()[::-1]
+    body = json.loads(first["body"])
+    if condition == "running_previous":
+        body["payload"]["previous_state"] = "RUNNING"
+    elif condition == "running_state":
+        body["payload"]["state"] = "RUNNING"
+    elif condition == "ends_recovery":
+        first = last
+        body = json.loads(last["body"])
+        body["payload"]["state"] = "RECOVERY_REQUIRED"
+    elif condition == "fault":
+        runtime.storage.append_control_events(
+            (
+                FaultEventInput(
+                    occurred_at=AT,
+                    execution_id="run-A",
+                    payload={"fault_code": 42, "active": True},
+                ),
+            )
+        )
+        runtime._save(runtime.state, AT)
+    elif condition == "production":
+        body["kind"] = "PRODUCTION_GOOD"
+        body["equipment_id"] = "Outfeed"
+        body["payload"] = {"quantity": "1", "counter_epoch": runtime.storage.identity.counter_epoch}
+        db.execute(
+            "UPDATE source_events SET body=?,item_id=? WHERE seq=?",
+            (json.dumps(body), "00000000000000001000", first["seq"]),
+        )
+    elif condition == "gap":
+        db.execute("DELETE FROM source_events WHERE seq=?", (first["seq"],))
+    elif condition == "source":
+        body["source_id"] = "other-source"
+    elif condition == "stream":
+        body["stream_id"] = "other-stream"
+    if condition not in {"fault", "gap", "production"}:
+        db.execute("UPDATE source_events SET body=? WHERE seq=?", (json.dumps(body), first["seq"]))
+    response = runtime.submit(
+        _remote_next_job(runtime), now=AT, authenticated_gateway_principal="pinned-gateway"
+    )
+    assert response.submission.disposition == "REJECTED"
+    assert response.submission.reason_code == "REMOTE_SETTLEMENT_BLOCKED"
+    assert not runtime.state.previous_execution_settled
+    assert _remote_attestations(runtime) == []
+    assert runtime.storage.load_execution("run-B") is None
+
+
+@pytest.mark.parametrize("change", ["head", "hash", "old_audit"])
+def test_remote_admission_rechecks_pinned_post_final_tail_before_execution(runtime, change):
+    first = _ended_first_remote_job(runtime)
+    tail = _append_remote_state_tail(runtime, (LineState.STOPPED, LineState.STOPPED))
+    candidate = _remote_next_job(runtime)
+    admitted = runtime.submit(candidate, now=AT, authenticated_gateway_principal="pinned-gateway")
+    assert admitted.submission.disposition == "ACCEPTED"
+    db = runtime.storage.connection
+    if change == "head":
+        _append_remote_state_tail(runtime, (LineState.STOPPED, LineState.STOPPED))
+    elif change == "hash":
+        body = tail[0].model_dump(mode="json")
+        body["payload"]["control_version"] = str(int(body["payload"]["control_version"]) + 1)
+        db.execute(
+            "UPDATE source_events SET body=? WHERE event_id=?",
+            (json.dumps(body), tail[0].event_id),
+        )
+    else:
+        details = _remote_attestations(runtime)[0]
+        details.pop("tail_end_seq")
+        details.pop("tail_sha256")
+        db.execute(
+            "UPDATE runtime_audit SET details_json=? WHERE cause='REMOTE_SETTLEMENT_ATTESTATION'",
+            (json.dumps(details),),
+        )
+    runtime.tick(now=AT)
+    result = runtime.get_result(candidate.command_id)
+    assert result.status == "FAILED"
+    assert result.reason_code == "REMOTE_SETTLEMENT_CHANGED"
+    assert not runtime.state.previous_execution_settled
+    assert runtime.storage.load_execution("run-B") is None
+    assert runtime.get_summary("run-A") == first
+
+
 def test_authenticated_remote_second_job_attests_exact_final_and_completes_two_jobs(runtime):
     first = _ended_first_remote_job(runtime)
     candidate = _remote_next_job(runtime)
@@ -598,6 +774,8 @@ def test_authenticated_remote_second_job_attests_exact_final_and_completes_two_j
             "previous_counter_epoch": first.counter_epoch,
             "canonical_final_sha256": digest,
             "expected_control_version": str(candidate.expected_control_version),
+            "tail_end_seq": str(first.last_event_seq),
+            "tail_sha256": hashlib.sha256(b"[]").hexdigest(),
         }
     ]
     runtime.tick(now=AT)
