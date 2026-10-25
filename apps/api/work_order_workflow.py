@@ -344,7 +344,12 @@ def bind_work_order(
     now = TypeAdapter(UTCTimestamp).validate_python(clock())
     try:
         snapshot = read_snapshot(
-            db, line_id=scope.line_id, source_id=scope.source_id, stream_id=scope.stream_id, now=now
+            db,
+            line_id=scope.line_id,
+            source_id=scope.source_id,
+            stream_id=scope.stream_id,
+            now=now,
+            prefer_complete_capture=True,
         )
     except SnapshotNotFound:
         raise RegistrationConflict("Fresh source evidence required") from None

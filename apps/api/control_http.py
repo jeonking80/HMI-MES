@@ -88,6 +88,7 @@ def _preflight(connection, body, source, now):
         source_id=body.source_id,
         stream_id=body.stream_id,
         now=now,
+        prefer_complete_capture=True,
     )
     samples = {sample.tag_id: sample for sample in snapshot.screen.view.samples}
     if (
