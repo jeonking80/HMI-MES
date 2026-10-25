@@ -199,3 +199,13 @@ optional policy and end_reason while retaining legacy shapes. Upgrade API, gatew
 and simulator contracts coherently before issuing new policy-aware LOADs; an old
 strict parser will reject the new fields. Resolve outstanding commands by their
 original IDs; do not create replacement requests to work around a mixed version.
+
+### Explicit start reservation (CX-34)
+
+LOAD_JOB may explicitly set `start_when_ready: true`; the default is false.
+Both load and operate permissions are required to arm it. The PLC starts once
+when READY under the original successful LOAD identity, without a new START ID.
+Safety/mode changes or restart cancel the reservation with durable audit reason.
+Normal warmup is allowed; cancellation never automatically rearms. Existing
+policy-free canonical requests remain byte-compatible, independently per flag.
+See `docs/architecture/START_RESERVATION.md` for provenance and rollout conditions.

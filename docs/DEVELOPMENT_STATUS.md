@@ -551,3 +551,5 @@ M1의 주요 독립 운전·권한·실제 생산 경로는 확인했지만, 원
 - 14차 CX-32(2026-10-25): 서버 recipe vN/날짜별WO ID와 actor-bound request_id 원래 응답 조회를 추가했다. 자동/수동 잠금·counter/정의/audit/receipt 원자 저장, schema19 불변영수증·최소runtime grants와 이관batch를 준비하고18/19 clock 호환을 유지했다. high DB격리검토, 관련201개1회 통과(123.00초), 변경17개 Ruff·포맷 각1회 통과(benchmark 기존E402 bootstrap만명시제외). 공개DB·runtime·WO-T1·UI·생산·배포 미변경. 상세 CX-32.md.
 
 - 14차 CX-33(2026-10-25): 새LOAD 기본true 목표 자동종료·TARGET_REACHED/OPERATOR와 원자적 완료 proof를 구현했다. 기존policy-free 작업/저널은false·기존final hash보존, 수동END증거·정산미정명령차단 유지. 최초513통과/크래시관찰fixture3실패(186.14초) 후 데이터관찰만 수정해3개1.97초 통과. 포맷11개1회 통과; Ruff I0011건 정렬 수정후1회제한으로재검미실행. highbackend검토완료. UI exactparser 변경은 Claude의 공개배포 선행조건, runtime·WO-T1·공개DB 미변경. CX-33.md 참조.
+
+- 14차 CX-34(2026-10-25): 명시적 시작예약 defaultfalse·성공원래LOAD provenance·load+operate 권한·READY 일회시작·안전/모드/재시작취소를 구현했다. high제어검토 완료. 최초404통과/manager FK fixture6오류(135.53초) 뒤 데이터만고쳐 해당6개11.56초통과. Ruff·포맷 각1회통과, fixture이후재검미실행. UI parser는 Claude 배포선행작업, runtime·WO-T1·공개DB·생산조작없음. CX-34.md 참조.

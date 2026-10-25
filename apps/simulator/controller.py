@@ -48,6 +48,9 @@ _TIME = TypeAdapter(UTCTimestamp)
 _ID = TypeAdapter(Identifier)
 _VERSION = 2
 _PROCESS_DEFAULT = ProcessConfig()
+_START_STATE_FIELDS = frozenset(
+    {"start_when_ready", "start_reservation", "start_reservation_cancel_reason"}
+)
 _LEGACY_STATE_FIELDS = frozenset(
     {
         "target_id",
@@ -276,7 +279,13 @@ class SimulatorController:
             fields = set(plc.PLCState.model_fields)
             if set(payload) == _LEGACY_STATE_FIELDS:
                 payload.update(auto_end_at_target=False, end_reason=None)
-            elif set(payload) != fields:
+            if set(payload) == fields - _START_STATE_FIELDS:
+                payload.update(
+                    start_when_ready=False,
+                    start_reservation=None,
+                    start_reservation_cancel_reason=None,
+                )
+            if set(payload) != fields:
                 raise ValueError("Persisted PLC snapshot must contain every versioned field")
             if not isinstance(payload["inputs"], dict) or set(payload["inputs"]) != set(
                 plc.PLCInputs.model_fields
@@ -385,11 +394,27 @@ class SimulatorController:
                 )
         if events:
             self.storage.append_control_events(tuple(events))
+        if before.start_reservation != after.start_reservation:
+            reservation = after.start_reservation or before.start_reservation
+            details = {
+                "command_id": reservation.command_id,
+                "requested_by": reservation.requested_by,
+                "authority": reservation.authority,
+            }
+            if after.start_reservation is not None:
+                reservation_cause = "START_RESERVED"
+            elif after.start_reservation_cancel_reason is not None:
+                reservation_cause = "START_RESERVATION_CANCELLED"
+                details["reason_code"] = after.start_reservation_cancel_reason
+            else:
+                reservation_cause = "START_RESERVATION_FIRED"
+            self._audit(after, now, reservation_cause, json.dumps(details, sort_keys=True))
         if before != after:
             self._audit(after, now, cause, after.model_dump_json())
         return self._save(after, now)
 
     def _validate_projection(self, state: plc.PLCState) -> None:
+        self._validate_start_reservation(state)
         pending = self.commands.pending_records()
         if len(pending) > 1:
             raise StorageCorruption("Multiple accepted commands conflict")
@@ -988,6 +1013,33 @@ class SimulatorController:
         )
         return summary
 
+    def _validate_start_reservation(self, state: plc.PLCState) -> None:
+        reservation = state.start_reservation
+        if reservation is None:
+            return
+        record = self.commands.lookup(reservation.command_id)
+        if (
+            record is None
+            or record.result.status != "SUCCEEDED"
+            or record.request.command.kind != "LOAD_JOB"
+            or record.request.execution_id != state.execution_id
+            or record.request.target_id != state.target_id
+            or record.request.requested_by != reservation.requested_by
+            or self._authority(reservation.command_id) != reservation.authority
+        ):
+            raise StorageCorruption("Start reservation has no successful original LOAD provenance")
+        args = record.request.command.args
+        if (
+            "start_when_ready" not in args.model_fields_set
+            or not args.start_when_ready
+            or args.work_order_id != state.work_order_id
+            or args.recipe_version != state.recipe_version
+            or args.parameters != state.parameters
+            or args.target_quantity != state.target_quantity
+            or args.auto_end_at_target != state.auto_end_at_target
+        ):
+            raise StorageCorruption("Start reservation disagrees with original LOAD policy")
+
     def tick(self, *, now: datetime) -> plc.PLCState:
         """Advance one 100ms process boundary and commit all resulting evidence."""
         now = _TIME.validate_python(now)
@@ -1151,7 +1203,17 @@ class SimulatorController:
                 self._summary(state, now)
                 self._before_boundary_commit()
                 completion = transition
+            if completion is not None:
+                self._complete(request, completion, now)
             if process is not None:
+                self._validate_start_reservation(state)
+                after = plc.advance_start_reservation(
+                    self._decision_state(state),
+                    config=self.plc_config,
+                )
+                state = self._record_change(
+                    state, after, now=now, cause="START_RESERVATION_BOUNDARY"
+                )
                 after = plc.advance_target_end(
                     self._decision_state(state),
                     good_quantity=process.good_quantity,
@@ -1164,8 +1226,6 @@ class SimulatorController:
                     self._record_target_end_proof(state, final, now)
                     self._before_boundary_commit()
             self._summary(state, now)
-            if completion is not None:
-                self._complete(request, completion, now)
             self._before_tick_commit()
         return self.state
 

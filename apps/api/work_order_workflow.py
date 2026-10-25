@@ -51,12 +51,14 @@ class BindIntent(ContractModel):
     expected_work_order_version: PositiveUInt64
     expected_control_version: UInt64
     auto_end_at_target: StrictBool = True
+    start_when_ready: StrictBool = False
 
     @model_serializer(mode="wrap")
     def serialize_policy(self, handler):
         body = handler(self)
-        if "auto_end_at_target" not in self.model_fields_set:
-            body.pop("auto_end_at_target", None)
+        for name in ("auto_end_at_target", "start_when_ready"):
+            if name not in self.model_fields_set:
+                body.pop(name, None)
         return body
 
 
@@ -321,6 +323,8 @@ def bind_work_order(
 
     identity = TypeAdapter(Identifier).validate_python(identity)
     definition = BindIntent.model_validate_json(definition.model_dump_json())
+    if definition.start_when_ready and not principal.roles & PERMISSIONS["operate"]:
+        raise AuthorizationError("Starting on readiness requires operate permission")
     _workflow_ready(db, principal, "load_job")
     original = _intent(identity, definition, principal)
     _lock(db, "api-command:" + definition.command_id)
@@ -469,6 +473,7 @@ def bind_work_order(
                 "target_quantity": int(order["target_quantity"]),
                 "parameters": parameters.model_dump(),
                 "auto_end_at_target": definition.auto_end_at_target,
+                "start_when_ready": definition.start_when_ready,
             },
         },
     )

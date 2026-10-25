@@ -225,6 +225,8 @@ def test_prepolicy_controller_snapshots_reopen_with_conservative_policy(tmp_path
         )
         snapshot.pop("auto_end_at_target")
         snapshot.pop("end_reason")
+        for field in ("start_when_ready", "start_reservation", "start_reservation_cancel_reason"):
+            snapshot.pop(field)
         if version == 1:
             snapshot["inputs"].pop("temperature_offset_c")
         store.connection.execute(

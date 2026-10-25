@@ -132,13 +132,15 @@ class LoadJobArguments(ContractModel):
     target_quantity: Annotated[int, Field(strict=True, gt=0, le=2**32 - 1)]
     parameters: Parameters
     auto_end_at_target: StrictBool = True
+    start_when_ready: StrictBool = False
 
     @model_serializer(mode="wrap")
     def serialize_policy(self, handler):
         body = handler(self)
         # Old journal identities must retain their original absent policy field.
-        if "auto_end_at_target" not in self.model_fields_set:
-            body.pop("auto_end_at_target", None)
+        for name in ("auto_end_at_target", "start_when_ready"):
+            if name not in self.model_fields_set:
+                body.pop(name, None)
         return body
 
 
@@ -220,12 +222,18 @@ def canonical_command_payload(request: CommandRequest) -> str:
 
 
 def materialize_load_job_policy(request: CommandRequest) -> CommandRequest:
-    """Record the default explicitly for a genuinely new LOAD command."""
-    if request.command.kind != "LOAD_JOB" or (
-        "auto_end_at_target" in request.command.args.model_fields_set
-    ):
+    """Record policy defaults explicitly for a genuinely new LOAD command."""
+    if request.command.kind != "LOAD_JOB":
         return request
-    args = request.command.args.model_copy(update={"auto_end_at_target": True})
+    defaults = {"auto_end_at_target": True, "start_when_ready": False}
+    missing = {
+        name: value
+        for name, value in defaults.items()
+        if name not in request.command.args.model_fields_set
+    }
+    if not missing:
+        return request
+    args = request.command.args.model_copy(update=missing)
     command = request.command.model_copy(update={"args": args})
     return request.model_copy(update={"command": command})
 
@@ -233,15 +241,21 @@ def materialize_load_job_policy(request: CommandRequest) -> CommandRequest:
 def canonical_command_retry_payload(request: CommandRequest, original_canonical: str) -> str:
     """Resolve omitted retries as new defaults only for policy-aware originals.
 
-    An old original with no policy keeps its exact legacy identity. An omitted
-    retry of a new explicit false policy means true and must remain a conflict.
+    Each absent legacy flag keeps its original absence independently. Omitted
+    retries of recorded flags mean that flag's default, never its stored value.
     """
-    if request.command.kind == "LOAD_JOB" and (
-        "auto_end_at_target" not in request.command.args.model_fields_set
-        and "auto_end_at_target"
-        in json.loads(original_canonical).get("command", {}).get("args", {})
-    ):
-        request = materialize_load_job_policy(request)
+    if request.command.kind == "LOAD_JOB":
+        original_args = json.loads(original_canonical).get("command", {}).get("args", {})
+        defaults = {"auto_end_at_target": True, "start_when_ready": False}
+        missing = {
+            name: value
+            for name, value in defaults.items()
+            if name in original_args and name not in request.command.args.model_fields_set
+        }
+        if missing:
+            args = request.command.args.model_copy(update=missing)
+            command = request.command.model_copy(update={"args": args})
+            request = request.model_copy(update={"command": command})
     return canonical_command_payload(request)
 
 

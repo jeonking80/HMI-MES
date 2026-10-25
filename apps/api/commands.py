@@ -84,6 +84,11 @@ def enqueue_command(
         request.requested_by != principal.login
         or principal.must_change_password
         or not principal.roles & PERMISSIONS[command_permission(request)]
+        or (
+            request.command.kind == "LOAD_JOB"
+            and request.command.args.start_when_ready
+            and not principal.roles & PERMISSIONS["operate"]
+        )
     ):
         raise AuthorizationError("Command actor or permission does not match authenticated user")
     canonical = canonical_command_payload(request)
