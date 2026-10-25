@@ -31,7 +31,9 @@ _IDENTIFIER = TypeAdapter(Identifier)
 _TIMESTAMP = TypeAdapter(UTCTimestamp)
 _POSITIVE = TypeAdapter(PositiveUInt64)
 _APPLICATION_ID = 0x484D4742
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 3
+_CHECKPOINT_SCHEMA_VERSION = 2
+_LEGACY_SCHEMA_VERSION = 1
 _ROW_ALLOWANCE = 512
 _ACK_ENCODING = b"HMIACK1\0"
 _MAX_ACK_BYTES = 8 * 1024 * 1024
@@ -78,10 +80,17 @@ class BufferLimits:
     max_age: timedelta = timedelta(minutes=30)
     max_bytes: int = 100_000_000
     max_metadata_bytes: int = 50_000_000
+    ledger_retention: timedelta = timedelta(hours=2)
 
     def __post_init__(self):
         if not isinstance(self.max_age, timedelta) or self.max_age <= timedelta(0):
             raise ValueError("Buffer age must be positive")
+        if not isinstance(self.ledger_retention, timedelta) or self.ledger_retention <= timedelta(
+            0
+        ):
+            raise ValueError("Ledger retention must be positive")
+        if self.ledger_retention < self.max_age:
+            raise ValueError("Ledger retention must cover the buffer age limit")
         for value in (self.max_bytes, self.max_metadata_bytes):
             if type(value) is not int or value < 1:
                 raise ValueError("Buffer byte budgets must be exact positive integers")
@@ -195,7 +204,11 @@ class GatewayBuffer:
                 with sqlite3.connect(self.path.as_uri() + "?mode=ro", uri=True) as probe:
                     version = probe.execute("PRAGMA user_version").fetchone()[0]
                     application = probe.execute("PRAGMA application_id").fetchone()[0]
-                    if (version, application) != (_SCHEMA_VERSION, _APPLICATION_ID):
+                    if (
+                        version
+                        not in (_LEGACY_SCHEMA_VERSION, _CHECKPOINT_SCHEMA_VERSION, _SCHEMA_VERSION)
+                        or application != _APPLICATION_ID
+                    ):
                         raise ValueError(
                             "Not a supported gateway buffer; never reuse another app's DB"
                         )
@@ -227,6 +240,7 @@ class GatewayBuffer:
                     if gateway_id is not None and gateway_id != identity:
                         raise ValueError("Gateway identity cannot change on reopen")
                 self.gateway_id = identity
+                self._upgrade_pruned_ranges()
                 self._verify()
                 # A previous owner's in-flight request may have committed remotely. Replay its
                 # exact identity/payload and let the API return its existing durable receipt.
@@ -245,7 +259,11 @@ class GatewayBuffer:
         return self._connection
 
     def _initialize(self):
-        if self._db.execute("PRAGMA user_version").fetchone()[0] == _SCHEMA_VERSION:
+        if self._db.execute("PRAGMA user_version").fetchone()[0] in (
+            _LEGACY_SCHEMA_VERSION,
+            _CHECKPOINT_SCHEMA_VERSION,
+            _SCHEMA_VERSION,
+        ):
             return
         if self._db.execute("SELECT 1 FROM sqlite_master WHERE type='table'").fetchone():
             raise ValueError("Unknown existing SQLite schema")
@@ -293,7 +311,7 @@ class GatewayBuffer:
                 PRIMARY KEY(loss_id,from_seq,through_seq)
             );
             PRAGMA application_id={_APPLICATION_ID};
-            PRAGMA user_version={_SCHEMA_VERSION};
+            PRAGMA user_version={_LEGACY_SCHEMA_VERSION};
             COMMIT;
             """
         )
@@ -303,6 +321,8 @@ class GatewayBuffer:
         columns = {row["name"] for row in self._db.execute("PRAGMA table_info(batch_ledger)")}
         if "envelope_sha256" in columns:
             return
+        if self._db.execute("PRAGMA user_version").fetchone()[0] != _LEGACY_SCHEMA_VERSION:
+            raise BufferCorruption("Current ledger is missing immutable envelope evidence")
         for row in self._db.execute("SELECT body FROM outbound_batches"):
             legacy = GatewayBatch.model_validate_json(row["body"])
             if legacy.clock_evidence is not None:
@@ -316,6 +336,256 @@ class GatewayBuffer:
                 "UPDATE batch_ledger SET envelope_sha256=? WHERE batch_id=?",
                 (digest, row["batch_id"]),
             )
+
+    def _checkpoint_digest(self, values: dict) -> str:
+        return hashlib.sha256(
+            _json(
+                {"domain": "gateway-ledger-checkpoint-v1", "gateway_id": self.gateway_id, **values}
+            ).encode("utf-8")
+        ).hexdigest()
+
+    def _checkpoint_values(self, *, generation, sequence, cumulative, deleted, updated):
+        return {
+            "capture_generation": _uint(generation),
+            "last_capture_seq": _uint(sequence),
+            "cumulative_sha256": cumulative,
+            "deleted_count": deleted,
+            "updated_at": updated,
+        }
+
+    def _write_checkpoint(self, values):
+        digest = self._checkpoint_digest(values)
+        size = len(_json({**values, "checkpoint_sha256": digest}).encode("utf-8")) + _ROW_ALLOWANCE
+        self._db.execute(
+            "INSERT OR REPLACE INTO ledger_checkpoint VALUES (1,?,?,?,?,?,?,?)",
+            (*values.values(), digest, size),
+        )
+
+    def _before_ranges_migration_commit(self):
+        """Fault seam after conversion, inside the atomic constructor transaction."""
+
+    def _upgrade_pruned_ranges(self):
+        version = self._db.execute("PRAGMA user_version").fetchone()[0]
+        if version == _SCHEMA_VERSION:
+            return
+        if version not in (_LEGACY_SCHEMA_VERSION, _CHECKPOINT_SCHEMA_VERSION):
+            raise BufferCorruption("Unsupported ledger migration")
+        # Certify the old complete union before replacing its representation.
+        self._verify(check_budget=False)
+        checkpoint = self._read_checkpoint() if version == _CHECKPOINT_SCHEMA_VERSION else None
+        self._db.execute(
+            "CREATE TABLE ledger_pruned_ranges (capture_generation TEXT NOT NULL,"
+            "from_capture_seq TEXT NOT NULL,through_capture_seq TEXT NOT NULL,"
+            "cumulative_sha256 TEXT NOT NULL,deleted_count INTEGER NOT NULL CHECK(deleted_count>0),"
+            "recorded_at TEXT NOT NULL,range_sha256 TEXT NOT NULL,"
+            "metadata_bytes INTEGER NOT NULL CHECK(metadata_bytes>0),"
+            "PRIMARY KEY(capture_generation,from_capture_seq))"
+        )
+        if checkpoint is not None:
+            end = _decode(checkpoint["last_capture_seq"])
+            if end:
+                self._write_range(
+                    self._range_values(
+                        generation=_decode(checkpoint["capture_generation"]),
+                        start=1,
+                        end=end,
+                        cumulative=self._proof_digest("v2-prefix", dict(checkpoint)),
+                        recorded=checkpoint["updated_at"],
+                    )
+                )
+            self._db.execute("DROP TABLE ledger_checkpoint")
+        self._db.execute(f"PRAGMA user_version={_SCHEMA_VERSION}")
+        self._verify()
+        self._before_ranges_migration_commit()
+
+    def _proof_digest(self, kind, values):
+        return hashlib.sha256(
+            _json(
+                {
+                    "domain": f"gateway-ledger-pruned-{kind}-v1",
+                    "gateway_id": self.gateway_id,
+                    **values,
+                }
+            ).encode("utf-8")
+        ).hexdigest()
+
+    def _range_values(self, *, generation, start, end, cumulative, recorded):
+        return {
+            "capture_generation": _uint(generation),
+            "from_capture_seq": _uint(start),
+            "through_capture_seq": _uint(end),
+            "cumulative_sha256": cumulative,
+            "deleted_count": end - start + 1,
+            "recorded_at": recorded,
+        }
+
+    def _range_digest(self, values):
+        return self._proof_digest("range-checksum", values)
+
+    def _write_range(self, values):
+        digest = self._range_digest(values)
+        size = len(_json({**values, "range_sha256": digest}).encode("utf-8")) + _ROW_ALLOWANCE
+        self._db.execute(
+            "INSERT INTO ledger_pruned_ranges VALUES (?,?,?,?,?,?,?,?)",
+            (*values.values(), digest, size),
+        )
+
+    def _read_ranges(self):
+        try:
+            rows = self._db.execute(
+                "SELECT * FROM ledger_pruned_ranges ORDER BY from_capture_seq"
+            ).fetchall()
+            generation, head = self.capture_position
+            previous = 0
+            for row in rows:
+                start, end = _decode(row["from_capture_seq"]), _decode(row["through_capture_seq"])
+                values = self._range_values(
+                    generation=_decode(row["capture_generation"]),
+                    start=start,
+                    end=end,
+                    cumulative=row["cumulative_sha256"],
+                    recorded=row["recorded_at"],
+                )
+                digest = self._range_digest(values)
+                if (
+                    generation < 1
+                    or _decode(row["capture_generation"]) != generation
+                    or start < 1
+                    or end < start
+                    or end > head
+                    or (previous and start <= previous + 1)
+                    or type(row["deleted_count"]) is not int
+                    or row["deleted_count"] != end - start + 1
+                    or not self._is_digest(row["cumulative_sha256"])
+                    or row["range_sha256"] != digest
+                    or row["metadata_bytes"]
+                    != len(
+                        _json(
+                            {
+                                **values,
+                                "range_sha256": digest,
+                            }
+                        ).encode("utf-8")
+                    )
+                    + _ROW_ALLOWANCE
+                ):
+                    raise BufferCorruption("Invalid pruned ledger range identity/accounting")
+                _time(row["recorded_at"])
+                previous = end
+            return rows
+        except (ValueError, TypeError, KeyError, IndexError) as error:
+            raise BufferCorruption("Invalid persisted pruned ledger ranges") from error
+
+    @staticmethod
+    def _is_digest(value):
+        return (
+            isinstance(value, str)
+            and len(value) == 64
+            and all(char in "0123456789abcdef" for char in value)
+        )
+
+    @staticmethod
+    def _range_descriptor(row):
+        return {
+            name: row[name]
+            for name in (
+                "capture_generation",
+                "from_capture_seq",
+                "through_capture_seq",
+                "cumulative_sha256",
+                "deleted_count",
+            )
+        }
+
+    def _merge_pruned_range(self, values):
+        # Ordered child commitments preserve prior proof without replaying deleted leaves.
+        # The result commits to merge history, not a partition-independent flat leaf chain.
+        for side in ("left", "right"):
+            bound = _decode(
+                values["from_capture_seq"] if side == "left" else values["through_capture_seq"]
+            )
+            column = "through_capture_seq" if side == "left" else "from_capture_seq"
+            neighbor = (
+                self._db.execute(
+                    f"SELECT * FROM ledger_pruned_ranges WHERE capture_generation=? AND {column}=?",
+                    (
+                        values["capture_generation"],
+                        _uint(bound - 1 if side == "left" else bound + 1),
+                    ),
+                ).fetchone()
+                if (side == "left" or bound < UINT64_MAX)
+                else None
+            )
+            if neighbor is None:
+                continue
+            left, right = (neighbor, values) if side == "left" else (values, neighbor)
+            cumulative = self._proof_digest(
+                "merge",
+                {
+                    "left": self._range_descriptor(left),
+                    "right": self._range_descriptor(right),
+                },
+            )
+            values = self._range_values(
+                generation=_decode(values["capture_generation"]),
+                start=_decode(left["from_capture_seq"]),
+                end=_decode(right["through_capture_seq"]),
+                cumulative=cumulative,
+                recorded=values["recorded_at"],
+            )
+            self._db.execute(
+                "DELETE FROM ledger_pruned_ranges "
+                "WHERE capture_generation=? AND from_capture_seq=?",
+                (neighbor["capture_generation"], neighbor["from_capture_seq"]),
+            )
+        self._write_range(values)
+
+    def _read_checkpoint(self):
+        try:
+            return self._validated_checkpoint()
+        except BufferCorruption:
+            raise
+        except (ValueError, TypeError, KeyError, IndexError) as error:
+            raise BufferCorruption("Invalid persisted ledger checkpoint") from error
+
+    def _validated_checkpoint(self):
+        row = self._db.execute("SELECT * FROM ledger_checkpoint").fetchall()
+        if len(row) != 1 or row[0]["singleton"] != 1:
+            raise BufferCorruption("Missing or duplicate ledger checkpoint")
+        row = row[0]
+        generation = _decode(row["capture_generation"])
+        sequence = _decode(row["last_capture_seq"])
+        values = self._checkpoint_values(
+            generation=generation,
+            sequence=sequence,
+            cumulative=row["cumulative_sha256"],
+            deleted=row["deleted_count"],
+            updated=row["updated_at"],
+        )
+        digest = self._checkpoint_digest(values)
+        cumulative = row["cumulative_sha256"]
+        if (
+            generation != self.capture_position[0]
+            or sequence > self.capture_position[1]
+            or type(row["deleted_count"]) is not int
+            or row["deleted_count"] != sequence
+            or not isinstance(cumulative, str)
+            or len(cumulative) != 64
+            or any(char not in "0123456789abcdef" for char in cumulative)
+            or row["checkpoint_sha256"] != digest
+            or row["metadata_bytes"]
+            != len(_json({**values, "checkpoint_sha256": digest}).encode("utf-8")) + _ROW_ALLOWANCE
+        ):
+            raise BufferCorruption("Invalid ledger checkpoint identity/accounting")
+        try:
+            _time(row["updated_at"])
+        except (ValueError, TypeError) as error:
+            raise BufferCorruption("Invalid checkpoint update timestamp") from error
+        if sequence == 0 and cumulative != self._checkpoint_digest(
+            {"capture_generation": _uint(generation)}
+        ):
+            raise BufferCorruption("Invalid initial ledger checkpoint")
+        return row
 
     @contextmanager
     def _transaction(self):
@@ -390,10 +660,18 @@ class GatewayBuffer:
             raise BufferCorruption("Invalid persisted buffered batch") from error
 
     def _metadata_bytes(self) -> int:
-        return sum(
+        total = sum(
             self._db.execute(f"SELECT coalesce(sum(metadata_bytes),0) FROM {table}").fetchone()[0]
             for table in ("batch_ledger", "source_progress", "missing_ranges", "loss_intervals")
         )
+        for table in ("ledger_checkpoint", "ledger_pruned_ranges"):
+            if self._db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
+            ).fetchone():
+                total += self._db.execute(
+                    f"SELECT coalesce(sum(metadata_bytes),0) FROM {table}"
+                ).fetchone()[0]
+        return total
 
     def _check_metadata_budget(self):
         if self._metadata_bytes() > self.limits.max_metadata_bytes:
@@ -574,6 +852,27 @@ class GatewayBuffer:
             raise ValueError("Read position cannot precede events in this batch")
         encoded = _json(batch.model_dump(mode="json"))
         size = len(encoded.encode("utf-8")) + _ROW_ALLOWANCE
+        # Commit useful maintenance separately: a subsequent collection failure must not
+        # roll back eligible receipt cleanup. ACK handling never invokes retention.
+        prospective_metadata = (
+            self._metadata_bytes() + _ROW_ALLOWANCE + len(body.batch_id.encode("utf-8")) + 64
+        )
+        if not self._db.execute(
+            "SELECT 1 FROM source_progress WHERE source_id=? AND stream_id=?",
+            (body.source_id, body.stream_id),
+        ).fetchone():
+            progress = StreamProgress(
+                source_id=body.source_id,
+                stream_id=body.stream_id,
+                verified_through_seq=0,
+                latest_ingested_seq=0,
+            )
+            prospective_metadata += len(progress.model_dump_json().encode("utf-8")) + _ROW_ALLOWANCE
+        # Start maintenance with headroom for the upcoming receipt and loss evidence.
+        # This is best-effort headroom, not a promise that a large ACK cannot fill metadata.
+        # The threshold only schedules eligible cleanup; the hard byte limit is unchanged.
+        if prospective_metadata > self.limits.max_metadata_bytes * 9 // 10:
+            self.prune_acknowledged(now=now)
         with self._transaction():
             existing = self._db.execute(
                 "SELECT * FROM batch_ledger WHERE batch_id=?", (body.batch_id,)
@@ -789,6 +1088,136 @@ class GatewayBuffer:
                 "ack_rows_compacted": ack_count,
                 "loss_rows_compacted": loss_count,
             }
+
+    def _before_prune_commit(self):
+        """Fault seam after range updates and deletion, before atomic commit."""
+
+    def _after_prune_commit(self):
+        """The range proofs and ledger deletion are durable when this hook runs."""
+
+    def _validate_prune_row(self, row, *, generation):
+        """Validate a bounded deletion candidate; startup verifies the complete database."""
+        try:
+            if (
+                _decode(row["capture_generation"]) != generation
+                or _decode(row["capture_seq"]) < 1
+                or _decode(row["capture_seq"]) > self.capture_position[1]
+            ):
+                raise BufferCorruption("Invalid pruning capture position")
+            for name in ("batch_id", "source_id", "stream_id"):
+                _IDENTIFIER.validate_python(row[name])
+            for name in ("content_sha256", "envelope_sha256"):
+                digest = row[name]
+                if (
+                    not isinstance(digest, str)
+                    or len(digest) != 64
+                    or any(char not in "0123456789abcdef" for char in digest)
+                ):
+                    raise BufferCorruption("Invalid pruning candidate digest")
+            ack = self._load_ack(row["ack"])
+            if (
+                ack.batch_id != row["batch_id"]
+                or ack.gateway_id != self.gateway_id
+                or ack.content_sha256 != row["content_sha256"]
+                or (ack.progress.source_id, ack.progress.stream_id)
+                != (row["source_id"], row["stream_id"])
+                or row["metadata_bytes"]
+                != _ROW_ALLOWANCE
+                + len(row["batch_id"].encode("utf-8"))
+                + 64
+                + self._ack_stored_size(row["ack"])
+            ):
+                raise BufferCorruption("Pruning receipt identity/accounting mismatch")
+            return ack
+        except (ValueError, TypeError, KeyError) as error:
+            raise BufferCorruption("Invalid pruning candidate") from error
+
+    def _prune_acknowledged(self, *, now: datetime, limit: int):
+        ranges = self._read_ranges()
+        before = self._metadata_bytes()
+        generation, _ = self.capture_position
+        deleted_before = sum(row["deleted_count"] for row in ranges)
+        removed = []
+        # Keep scanning past retained/young receipts; limit bounds deleted rows, not
+        # the first ledger positions. References and outbound ownership always win.
+        rows = self._db.execute(
+            "SELECT ledger.* FROM batch_ledger ledger WHERE state='ACKNOWLEDGED' "
+            "AND NOT EXISTS (SELECT 1 FROM outbound_batches q WHERE q.batch_id=ledger.batch_id) "
+            "AND NOT EXISTS (SELECT 1 FROM missing_ranges m WHERE m.batch_id=ledger.batch_id) "
+            "AND NOT EXISTS (SELECT 1 FROM loss_intervals l "
+            "WHERE l.report_batch_id=ledger.batch_id) "
+            "ORDER BY capture_generation,capture_seq"
+        )
+        for row in rows:
+            ack = self._validate_prune_row(row, generation=generation)
+            if now - ack.committed_at < self.limits.ledger_retention:
+                continue
+            sequence = _decode(row["capture_seq"])
+            cumulative = self._proof_digest(
+                "leaf",
+                {
+                    **{
+                        name: row[name]
+                        for name in (
+                            "capture_generation",
+                            "capture_seq",
+                            "batch_id",
+                            "content_sha256",
+                            "envelope_sha256",
+                            "source_id",
+                            "stream_id",
+                        )
+                    },
+                    "ack": ack.model_dump(mode="json"),
+                },
+            )
+            self._merge_pruned_range(
+                self._range_values(
+                    generation=generation,
+                    start=sequence,
+                    end=sequence,
+                    cumulative=cumulative,
+                    recorded=_iso(now),
+                )
+            )
+            removed.append(row["batch_id"])
+            if len(removed) == limit:
+                break
+        rows.close()
+        if removed:
+            self._db.executemany(
+                "DELETE FROM batch_ledger WHERE batch_id=?", ((item,) for item in removed)
+            )
+            self._check_metadata_budget()
+            self._before_prune_commit()
+        ranges = self._read_ranges()
+        after = self._metadata_bytes()
+        return {
+            "pruned_rows": len(removed),
+            "metadata_bytes_before": before,
+            "metadata_bytes_after": after,
+            "metadata_bytes_reclaimed": before - after,
+            # Compatibility metrics: highest pruned endpoint and total pruned count;
+            # the endpoint is no longer a contiguous-prefix checkpoint.
+            "checkpoint_last_capture_seq": max(
+                (_decode(row["through_capture_seq"]) for row in ranges), default=0
+            ),
+            "checkpoint_deleted_count": deleted_before + len(removed),
+        }
+
+    def prune_acknowledged(self, *, now: datetime, limit: int = 1000) -> dict[str, int]:
+        """Prune old committed, unreferenced receipts at any capture position.
+
+        Logical byte accounting shrinks immediately; SQLite file allocation may be reused
+        by subsequent writes and is intentionally not vacuumed on the capture connection.
+        """
+        now = _time(now)
+        if type(limit) is not int or limit < 1:
+            raise ValueError("Pruning limit must be an exact positive integer")
+        with self._transaction():
+            result = self._prune_acknowledged(now=now, limit=limit)
+        self._after_prune_commit()
+        return result
 
     def _compact_verified_receipts(self, *, keep_batch_id: str | None = None, force=False):
         """Losslessly encode terminal receipts under pressure, retaining all identity proof."""
@@ -1045,7 +1474,7 @@ class GatewayBuffer:
             disk_size("-shm"),
         )
 
-    def _verify(self):
+    def _verify(self, *, check_budget=True):
         if self._db.execute("PRAGMA foreign_key_check").fetchone():
             raise BufferCorruption("Invalid buffer foreign keys")
         generation, last = self.capture_position
@@ -1054,16 +1483,41 @@ class GatewayBuffer:
             if batch.body.capture_generation != generation or batch.body.capture_seq > last:
                 raise BufferCorruption("Capture position does not cover buffered data")
         try:
-            previous = 0
-            for row in self._db.execute("SELECT * FROM batch_ledger ORDER BY ordinal"):
+            version = self._db.execute("PRAGMA user_version").fetchone()[0]
+            tables = {
+                row[0]
+                for row in self._db.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            }
+            if generation < 1:
+                raise BufferCorruption("Invalid capture generation")
+            if version == _SCHEMA_VERSION:
+                if "ledger_pruned_ranges" not in tables or "ledger_checkpoint" in tables:
+                    raise BufferCorruption("Invalid current ledger proof schema")
+                ranges = self._read_ranges()
+                spans = [
+                    (_decode(row["from_capture_seq"]), _decode(row["through_capture_seq"]))
+                    for row in ranges
+                ]
+            elif version == _CHECKPOINT_SCHEMA_VERSION:
+                if "ledger_checkpoint" not in tables or "ledger_pruned_ranges" in tables:
+                    raise BufferCorruption("Invalid checkpoint migration schema")
+                prefix = _decode(self._read_checkpoint()["last_capture_seq"])
+                spans = [(1, prefix)] if prefix else []
+            elif version == _LEGACY_SCHEMA_VERSION:
+                if "ledger_checkpoint" in tables or "ledger_pruned_ranges" in tables:
+                    raise BufferCorruption("Unexpected proof in legacy schema")
+                spans = []
+            else:
+                raise BufferCorruption("Unsupported ledger schema")
+            for row in self._db.execute("SELECT * FROM batch_ledger ORDER BY capture_seq"):
                 capture = _decode(row["capture_seq"])
                 if (
                     _decode(row["capture_generation"]) != generation
-                    or capture != previous + 1
+                    or capture < 1
                     or capture > last
                 ):
                     raise BufferCorruption("Invalid immutable capture ledger")
-                previous = capture
+                spans.append((capture, capture))
                 _IDENTIFIER.validate_python(row["batch_id"])
                 _IDENTIFIER.validate_python(row["source_id"])
                 _IDENTIFIER.validate_python(row["stream_id"])
@@ -1103,6 +1557,11 @@ class GatewayBuffer:
                     raise BufferCorruption("Unacknowledged ledger contains a receipt")
                 if row["metadata_bytes"] != expected:
                     raise BufferCorruption("Ledger metadata accounting mismatch")
+            previous = 0
+            for start, end in sorted(spans):
+                if start != previous + 1:
+                    raise BufferCorruption("Overlapping or incomplete immutable capture ledger")
+                previous = end
             if previous != last:
                 raise BufferCorruption("Capture position disagrees with immutable ledger")
             for row in self._db.execute("SELECT * FROM source_progress"):
@@ -1188,4 +1647,5 @@ class GatewayBuffer:
                             raise BufferCorruption("Loss reporter omitted its owned gap")
         except (ValueError, TypeError, KeyError) as error:
             raise BufferCorruption("Invalid persisted buffer ledger") from error
-        self._check_metadata_budget()
+        if check_budget:
+            self._check_metadata_budget()

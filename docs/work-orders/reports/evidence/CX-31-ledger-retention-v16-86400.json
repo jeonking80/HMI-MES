@@ -1,0 +1,461 @@
+{
+  "logical_capture_seconds": 86400,
+  "confirmed_enqueue_ack_pairs": 86400,
+  "initial_evicted_captures": 3,
+  "total_capture_head": 86403,
+  "retention_seconds": 8,
+  "max_age_seconds": 2,
+  "retention_to_max_age_ratio": 4,
+  "max_metadata_bytes": 300000,
+  "test_elapsed_seconds": 50.843,
+  "sample_timing": "every1000 captures immediately after scheduled cleanup; plus final",
+  "minimum_sampled_metadata_bytes": 16556,
+  "maximum_sampled_metadata_bytes": 16596,
+  "first": {
+    "captures": 1000,
+    "metadata_bytes": 16556,
+    "rows": 11
+  },
+  "last": {
+    "captures": 86400,
+    "metadata_bytes": 16596,
+    "rows": 11
+  },
+  "samples": [
+    {
+      "captures": 1000,
+      "metadata_bytes": 16556,
+      "rows": 11
+    },
+    {
+      "captures": 2000,
+      "metadata_bytes": 16569,
+      "rows": 11
+    },
+    {
+      "captures": 3000,
+      "metadata_bytes": 16569,
+      "rows": 11
+    },
+    {
+      "captures": 4000,
+      "metadata_bytes": 16569,
+      "rows": 11
+    },
+    {
+      "captures": 5000,
+      "metadata_bytes": 16569,
+      "rows": 11
+    },
+    {
+      "captures": 6000,
+      "metadata_bytes": 16569,
+      "rows": 11
+    },
+    {
+      "captures": 7000,
+      "metadata_bytes": 16569,
+      "rows": 11
+    },
+    {
+      "captures": 8000,
+      "metadata_bytes": 16569,
+      "rows": 11
+    },
+    {
+      "captures": 9000,
+      "metadata_bytes": 16569,
+      "rows": 11
+    },
+    {
+      "captures": 10000,
+      "metadata_bytes": 16583,
+      "rows": 11
+    },
+    {
+      "captures": 11000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 12000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 13000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 14000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 15000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 16000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 17000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 18000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 19000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 20000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 21000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 22000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 23000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 24000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 25000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 26000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 27000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 28000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 29000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 30000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 31000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 32000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 33000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 34000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 35000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 36000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 37000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 38000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 39000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 40000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 41000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 42000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 43000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 44000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 45000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 46000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 47000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 48000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 49000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 50000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 51000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 52000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 53000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 54000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 55000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 56000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 57000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 58000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 59000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 60000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 61000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 62000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 63000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 64000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 65000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 66000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 67000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 68000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 69000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 70000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 71000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 72000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 73000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 74000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 75000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 76000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 77000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 78000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 79000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 80000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 81000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 82000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 83000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 84000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 85000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 86000,
+      "metadata_bytes": 16596,
+      "rows": 11
+    },
+    {
+      "captures": 86400,
+      "metadata_bytes": 16596,
+      "rows": 11
+    }
+  ]
+}
