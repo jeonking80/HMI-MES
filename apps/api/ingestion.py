@@ -17,6 +17,7 @@ import sqlalchemy as sa
 from pydantic import TypeAdapter
 from sqlalchemy.dialects.postgresql import JSONB
 
+from apps.api.capture_clock import CLOCK_EVIDENCE_REVISIONS
 from apps.api.database import SCHEMA_LOCK_ID, SUPPORTED_INGESTION_REVISIONS
 from apps.api.models import Asset, Line
 from contracts.models import (
@@ -25,6 +26,7 @@ from contracts.models import (
     Event,
     Identifier,
     Parameters,
+    ParametersChangedEvent,
     ProductionEvent,
     ScrapEvent,
     UInt64,
@@ -707,6 +709,21 @@ class IngestionService:
                 event.stream_id,
             ):
                 return "EXECUTION_STREAM_MISMATCH", "Original execution belongs to another stream"
+        if isinstance(event, ParametersChangedEvent):
+            from apps.api.parameter_history import validate_parameter_change
+
+            try:
+                validate_parameter_change(
+                    event, execution["parameters"], execution["recipe_version"]
+                )
+            except ValueError:
+                return (
+                    "EXECUTION_CONFIGURATION_MISMATCH",
+                    "Parameter change differs from original execution",
+                )
+            # Parameter evidence is durable in event_inbox only: the legacy equipment
+            # projection accepts state/fault kinds and production totals stay unchanged.
+            return None
         if isinstance(event, (ProductionEvent, ScrapEvent)):
             if event.payload.counter_epoch != execution["counter_epoch"]:
                 return (
@@ -979,7 +996,7 @@ class IngestionService:
                     sa.text("SELECT version_num FROM alembic_version")
                 ).scalar_one()
                 original_input = None
-                if revision == "0018_clock_evidence":
+                if revision in CLOCK_EVIDENCE_REVISIONS:
                     original_clock = (
                         connection.execute(
                             sa.text("""SELECT input_evidence_sha256 FROM capture_clock_evidence

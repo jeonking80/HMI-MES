@@ -333,6 +333,16 @@ async def test_durable_evidence_failures_restrict_control(state, client, mutatio
         capture(state, values={"Line.ActiveExecutionId": "another-execution"})
     response = await client.post("/api/v1/commands", headers=headers(state), json=request)
     assert response.status_code == 409
+    expected_reason = {
+        "local": "STATE_NOT_ALLOWED",
+        "version": "CONTROL_VERSION_STALE",
+        "epoch": "PHYSICAL_EXECUTION_MISMATCH",
+        "execution": "PHYSICAL_EXECUTION_MISMATCH",
+    }.get(mutation, "FRESH_SOURCE_REQUIRED")
+    assert response.json() == {
+        "detail": "current evidence does not permit this command",
+        "reason_code": expected_reason,
+    }
     assert counts(state) == (0, 0)
 
 
@@ -354,9 +364,9 @@ async def test_expired_replay_precedes_freshness_and_canonical_collision_never_o
     assert first.json() == replay.json()
     changed = json.loads(json.dumps(original))
     changed["request"]["expected_control_version"] = "99"
-    assert (
-        await client.post("/api/v1/commands", headers=headers(state), json=changed)
-    ).status_code == 409
+    collision = await client.post("/api/v1/commands", headers=headers(state), json=changed)
+    assert collision.status_code == 409
+    assert collision.json()["reason_code"] == "ID_CONTENT_CONFLICT"
     assert counts(state) == (1, 1)
 
 

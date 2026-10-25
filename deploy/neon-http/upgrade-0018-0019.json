@@ -1,0 +1,14 @@
+[
+ "SELECT pg_catalog.pg_advisory_xact_lock(843001)",
+ "SET LOCAL search_path = pg_catalog, public, pg_temp",
+ "DO $$ BEGIN IF current_database() <> 'hmi_mes_demo' THEN RAISE EXCEPTION 'unexpected database'; END IF; IF (SELECT count(*) FROM public.alembic_version) <> 1 OR NOT EXISTS (SELECT 1 FROM public.alembic_version WHERE version_num='0018_clock_evidence') THEN RAISE EXCEPTION 'unexpected schema revision or database'; END IF; IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='hmi_migrator') OR NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='hmi_app') THEN RAISE EXCEPTION 'dedicated roles required'; END IF; IF (SELECT nspowner FROM pg_namespace WHERE nspname='public') IS DISTINCT FROM 'hmi_migrator'::regrole::oid OR NOT EXISTS (SELECT 1 FROM pg_class WHERE oid=to_regclass('public.alembic_version') AND relowner='hmi_migrator'::regrole::oid AND relkind='r') THEN RAISE EXCEPTION 'dedicated migrator ownership required'; END IF; END $$",
+ "SET LOCAL ROLE hmi_migrator",
+ "SET LOCAL search_path = public, pg_temp",
+ "CREATE TABLE registration_id_counters (\n        kind text NOT NULL CHECK(kind IN ('recipe','work_order')),\n        namespace text NOT NULL CHECK(namespace ~ '^[^[:space:]]{1,128}$'),\n        last_value numeric(20,0) NOT NULL\n            CHECK(last_value BETWEEN 1 AND 9223372036854775807),\n        PRIMARY KEY(kind,namespace)\n    )",
+ "CREATE TABLE registration_receipts (\n        kind text NOT NULL CHECK(kind IN ('recipe','work_order')),\n        request_id text NOT NULL CHECK(request_id ~ '^[^[:space:]]{1,128}$'),\n        actor text NOT NULL REFERENCES users(login) ON DELETE RESTRICT,\n        original_request jsonb NOT NULL CHECK(jsonb_typeof(original_request)='object'),\n        response jsonb NOT NULL CHECK(jsonb_typeof(response)='object'),\n        recipe_version_id text REFERENCES recipe_versions(id) ON DELETE RESTRICT,\n        work_order_id text REFERENCES work_orders(id) ON DELETE RESTRICT,\n        created_at timestamptz NOT NULL,\n        PRIMARY KEY(kind,request_id),\n        CHECK((kind='recipe' AND recipe_version_id IS NOT NULL AND work_order_id IS NULL)\n            OR (kind='work_order' AND work_order_id IS NOT NULL AND recipe_version_id IS NULL))\n    )",
+ "CREATE FUNCTION immutable_registration_receipt() RETURNS trigger\n        LANGUAGE plpgsql AS $$ BEGIN\n            RAISE EXCEPTION 'Registration receipts are immutable';\n        END $$",
+ "CREATE TRIGGER registration_receipts_immutable\n        BEFORE UPDATE OR DELETE ON registration_receipts FOR EACH ROW\n        EXECUTE FUNCTION immutable_registration_receipt()",
+ "CREATE TRIGGER registration_receipts_no_truncate\n        BEFORE TRUNCATE ON registration_receipts FOR EACH STATEMENT\n        EXECUTE FUNCTION immutable_registration_receipt()",
+ "SET LOCAL search_path = pg_catalog, public, pg_temp",
+ "UPDATE public.alembic_version SET version_num='0019_registration_ids' WHERE version_num='0018_clock_evidence'"
+]

@@ -25,6 +25,7 @@ from starlette.concurrency import run_in_threadpool
 
 from apps.api.alarm_lifecycle import AlarmConflict
 from apps.api.alarm_store import AlarmStoreUnavailable
+from apps.api.capture_clock import CLOCK_EVIDENCE_REVISIONS
 from apps.api.commands import (
     CommandConflict,
     CommandScopeError,
@@ -43,6 +44,7 @@ from apps.api.ingestion import (
     IngestionUnavailable,
     SourceBindingError,
 )
+from apps.api.line_queue import advance_line_once
 from apps.api.measured_clock import (
     MeasuredClockConflict,
     ProbeCapacityError,
@@ -417,7 +419,8 @@ def create_internal_app(
         def issue():
             with ingestion_service._transaction() as connection:
                 heads = connection.execute(text("SELECT version_num FROM alembic_version"))
-                if heads.scalars().all() != ["0018_clock_evidence"]:
+                revisions = heads.scalars().all()
+                if len(revisions) != 1 or revisions[0] not in CLOCK_EVIDENCE_REVISIONS:
                     raise IngestionUnavailable("clock probe schema unavailable")
                 ingestion_service._advisory(connection, "gateway", payload.gateway_id)
                 source = ingestion_service._lock_stream(
@@ -448,6 +451,9 @@ def create_internal_app(
         payload = await command_body(request, TypeAdapter(dict))
         if payload:
             raise HTTPException(422, "claim body must be empty")
+        # Complete and commit one bounded queue step before ordinary dispatch.
+        # Only the authenticated credential scope can select automation work.
+        await run_in_threadpool(command_transaction, binding, advance_line_once)
         work = await run_in_threadpool(command_transaction, binding, claim_next)
         return {"work": work.model_dump(mode="json") if work is not None else None}
 

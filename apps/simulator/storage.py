@@ -36,6 +36,8 @@ from contracts.models import (
     FaultEvent,
     FaultPayload,
     Identifier,
+    ParametersChangedEvent,
+    ParametersChangedPayload,
     ProductionEvent,
     ReadEventsRequest,
     ScrapEvent,
@@ -48,7 +50,7 @@ _IDENTIFIER = TypeAdapter(Identifier)
 _TIMESTAMP = TypeAdapter(UTCTimestamp)
 _QUANTITIES = ("input_quantity", "good_quantity", "reject_quantity", "scrap_quantity")
 _PROJECTIONS = (*_QUANTITIES, "wip_quantity", "decision_cursor", "tick")
-_SCHEMA_VERSION = 3
+_SCHEMA_VERSION = 4
 _RETENTION = timedelta(days=7)
 _RETENTION_SECONDS = _RETENTION.total_seconds()
 _CLOCK_DRIFT_SECONDS = 2.0
@@ -105,6 +107,13 @@ class StateEventInput(_ControlEventInput):
 class FaultEventInput(_ControlEventInput):
     kind: Literal["FAULT_CHANGED"] = "FAULT_CHANGED"
     payload: FaultPayload
+
+
+class ParametersEventInput(_ControlEventInput):
+    kind: Literal["PARAMETERS_CHANGED"] = "PARAMETERS_CHANGED"
+    equipment_id: Literal["Line"] = "Line"
+    execution_id: Identifier
+    payload: ParametersChangedPayload
 
 
 class RecoveryRequired(ValueError):
@@ -228,12 +237,14 @@ class SimulatorStorage:
         version = self._db.execute("PRAGMA user_version").fetchone()[0]
         if version == _SCHEMA_VERSION:
             return
-        if version in (1, 2):
+        if version in (1, 2, 3):
             # Both migration stages and all extension tables share the outer commit.
             with self.transaction():
                 if version == 1:
                     self._migrate_schema_v1()
-                self._migrate_schema_v2()
+                if version < 3:
+                    self._migrate_schema_v2()
+                self._migrate_schema_v3()
             return
         if (
             version != 0
@@ -267,7 +278,9 @@ class SimulatorStorage:
             COMMIT;
             """
         )
-        self._migrate_schema_v2()
+        with self.transaction():
+            self._migrate_schema_v2()
+            self._migrate_schema_v3()
 
     @staticmethod
     def _events_table_sql(name: str) -> str:
@@ -289,6 +302,7 @@ class SimulatorStorage:
                     WHEN 'WIP_SCRAP' THEN execution_id IS NOT NULL AND item_id IS NOT NULL
                     WHEN 'STATE_CHANGED' THEN item_id IS NULL
                     WHEN 'FAULT_CHANGED' THEN item_id IS NULL
+                    WHEN 'PARAMETERS_CHANGED' THEN execution_id IS NOT NULL AND item_id IS NULL
                     ELSE 0 END),
                 UNIQUE(source_id,stream_id,seq),
                 UNIQUE(execution_id,item_id),
@@ -383,6 +397,65 @@ class SimulatorStorage:
             )
             self._db.execute("PRAGMA user_version=3")
             self._before_retention_migration_commit()
+
+    def _migrate_schema_v3(self) -> None:
+        """Widen control kinds while preserving child ages, archive hashes and triggers.
+
+        Remove the retention child before rebuilding its parent. Foreign keys stay
+        enabled throughout, so no ON DELETE CASCADE can discard durable ages.
+        """
+        with self.transaction():
+            tables = ("source_events", "archived_event_keys", "event_retention")
+            definitions = {
+                name: self._db.execute(
+                    "SELECT sql FROM sqlite_master WHERE type='table' AND name=?", (name,)
+                ).fetchone()[0]
+                for name in tables
+            }
+            objects = self._db.execute(
+                "SELECT type,name,sql FROM sqlite_master "
+                "WHERE type IN ('index','trigger') AND sql IS NOT NULL"
+            ).fetchall()
+            related = [row for row in objects if any(name in row["sql"] for name in tables)]
+            for name in tables:
+                self._db.execute(f"CREATE TEMP TABLE cx35_{name} AS SELECT * FROM {name}")
+            for row in related:
+                self._db.execute(f'DROP {row["type"]} "{row["name"]}"')
+            self._db.execute("DROP TABLE event_retention")
+            self._db.execute("DROP TABLE source_events")
+            self._db.execute("DROP TABLE archived_event_keys")
+            for name in tables:
+                sql = definitions[name]
+                if name == "source_events":
+                    sql = (
+                        sql.replace(
+                            "WHEN 'FAULT_CHANGED' THEN item_id IS NULL",
+                            "WHEN 'PARAMETERS_CHANGED' THEN execution_id IS NOT NULL "
+                            "AND item_id IS NULL "
+                            "WHEN 'FAULT_CHANGED' THEN item_id IS NULL",
+                        )
+                        if "PARAMETERS_CHANGED" not in sql
+                        else sql
+                    )
+                elif name == "archived_event_keys":
+                    sql = sql.replace(
+                        "WHEN 'FAULT_CHANGED' THEN item_id IS NULL",
+                        "WHEN 'PARAMETERS_CHANGED' THEN execution_id IS NOT NULL "
+                        "AND item_id IS NULL "
+                        "WHEN 'FAULT_CHANGED' THEN item_id IS NULL",
+                    )
+                self._db.execute(sql)
+                self._db.execute(f"INSERT INTO {name} SELECT * FROM cx35_{name}")
+                self._db.execute(f"DROP TABLE cx35_{name}")
+            for row in related:
+                self._db.execute(row["sql"])
+            if self._db.execute("PRAGMA foreign_key_check").fetchone() is not None:
+                raise StorageCorruption("Control event migration violated foreign keys")
+            self._db.execute("PRAGMA user_version=4")
+            self._before_parameters_migration_commit()
+
+    def _before_parameters_migration_commit(self) -> None:
+        """Internal failure seam inside the atomic v3-to-v4 migration."""
 
     def _bind_retention_identity(self, *, bootstrap: bool) -> None:
         row = self._db.execute("SELECT * FROM retention_checkpoint WHERE singleton=1").fetchone()
@@ -590,7 +663,7 @@ class SimulatorStorage:
             or (event.execution_id is not None and event.execution_id not in states)
         ):
             raise StorageCorruption("Event identity or sequence does not match storage")
-        if isinstance(event, (StateEvent, FaultEvent)):
+        if isinstance(event, (StateEvent, FaultEvent, ParametersChangedEvent)):
             if row["item_id"] is not None:
                 raise StorageCorruption("Control events cannot dispose a production item")
             return event
@@ -632,11 +705,12 @@ class SimulatorStorage:
         return updated
 
     def append_control_events(
-        self, descriptors: tuple[StateEventInput | FaultEventInput, ...]
-    ) -> tuple[StateEvent | FaultEvent, ...]:
+        self, descriptors: tuple[StateEventInput | FaultEventInput | ParametersEventInput, ...]
+    ) -> tuple[StateEvent | FaultEvent | ParametersChangedEvent, ...]:
         """Allocate source identity/UUID/sequence for typed control events in this unit."""
         if type(descriptors) is not tuple or any(
-            not isinstance(value, (StateEventInput, FaultEventInput)) for value in descriptors
+            not isinstance(value, (StateEventInput, FaultEventInput, ParametersEventInput))
+            for value in descriptors
         ):
             raise ValueError("Expected a tuple of typed control event descriptors")
         # Revalidate even model_construct/model_copy instances and mutable nested payloads.
@@ -654,7 +728,11 @@ class SimulatorStorage:
             for offset, value in enumerate(descriptors, 1):
                 if value.execution_id is not None and value.execution_id not in states:
                     raise ValueError("Control event references an unknown execution")
-                event_type = StateEvent if isinstance(value, StateEventInput) else FaultEvent
+                event_type = {
+                    "STATE_CHANGED": StateEvent,
+                    "FAULT_CHANGED": FaultEvent,
+                    "PARAMETERS_CHANGED": ParametersChangedEvent,
+                }[value.kind]
                 event = event_type(
                     **value.model_dump(mode="python"),
                     event_id=str(uuid4()),
@@ -978,7 +1056,9 @@ class SimulatorStorage:
                 if len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
                     raise StorageCorruption("Invalid archived body digest")
                 kind = archived["kind"]
-                if kind in ("STATE_CHANGED", "FAULT_CHANGED"):
+                if kind in ("STATE_CHANGED", "FAULT_CHANGED", "PARAMETERS_CHANGED"):
+                    if kind == "PARAMETERS_CHANGED" and execution is None:
+                        raise StorageCorruption("Archived parameter event lacks execution")
                     if archived["item_id"] is not None:
                         raise StorageCorruption("Archived control event disposes an item")
                 elif kind in ("PRODUCTION_GOOD", "PRODUCTION_REJECT", "WIP_SCRAP"):

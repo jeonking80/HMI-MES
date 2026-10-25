@@ -24,6 +24,7 @@ from apps.api.ingestion import (
     stream_progress,
 )
 from apps.api.models import Line
+from apps.api.parameter_history import validate_parameter_evidence
 from contracts.models import Identifier, RunSummary, StateEvent, UTCTimestamp
 
 _ID = TypeAdapter(Identifier)
@@ -287,9 +288,39 @@ def _reconcile(connection, binding, execution, now):
         .one()
     )
     progress = frontiers["verified_through_seq"]
+    parameter_rows = (
+        connection.execute(
+            sa.select(
+                event_inbox,
+                event_inbox.c.applied_at.is_not(None).label("applied"),
+            )
+            .where(
+                scope,
+                event_inbox.c.seq <= summary.last_event_seq,
+                sa.or_(
+                    event_inbox.c.execution_id == execution_id,
+                    event_inbox.c.body["execution_id"].astext == execution_id,
+                ),
+                sa.or_(
+                    event_inbox.c.kind == "PARAMETERS_CHANGED",
+                    event_inbox.c.body["kind"].astext == "PARAMETERS_CHANGED",
+                ),
+            )
+            .order_by(event_inbox.c.seq)
+        )
+        .mappings()
+        .all()
+    )
+    try:
+        validate_parameter_evidence(
+            summary, execution["parameters"], execution["recipe_version"], parameter_rows
+        )
+        parameters_match = True
+    except ValueError:
+        parameters_match = False
     if (
-        execution["recipe_version"] != summary.recipe_version
-        or execution["parameters"] != summary.parameters.model_dump(mode="json")
+        not parameters_match
+        or execution["recipe_version"] != summary.recipe_version
         or execution["counter_epoch"] != summary.counter_epoch
     ):
         status, reason = "MISMATCH", "EXECUTION_CONFIGURATION_MISMATCH"

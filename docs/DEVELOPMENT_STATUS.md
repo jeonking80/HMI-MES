@@ -545,3 +545,17 @@ M1의 주요 독립 운전·권한·실제 생산 경로는 확인했지만, 원
 
 
 - 16차 C안 보정(2026-10-25): 2시간>=max_age 보존·schema v3 삭제 구간·중간 예외 건너뛰기·v1/v2 원자 이관과 검증을 구현했다. high 검토 및 전체 단위/관련 게이트웨이796개1회 통과(463.82초), 포맷7개1회 통과. Ruff1회 unused UTC1건을 제거했으나 재검사하지 않았다. 86,400쌍 가속50.843초/정리후16,556~16,596B/고정예외3행 포함11행 유지. 운영의04:32Z 사본을 파생 복제해 이관·정리1회에서9,999,850→2,376,190B,8,167행 삭제·구간2행·EVICTED/유실453행 원문보존을 확인했다. 운영 원본·공개 DB·runtime·생산·배포 미적용. 상세 CX-31-ledger-retention.md 16차 절.
+
+- 14차 CX-31(2026-10-25): 409 공개 사유8개를 contracts에 고정하고 작업지시/명령 응답에 detail+reason_code를 추가했다. 권한·거절 조건·판정 순서와 기존 detail을 유지하며 진단/비밀 문자열을 노출하지 않는다. 관련 API/도메인219개1회 통과(185.81초), 변경11개 Ruff·포맷 각1회 통과. 운영 runtime·WO-T1·공개DB·생산 조작 없음. 보고서 CX-31.md; 게이트웨이 보존 CX-31-ledger-retention.md와 별도다.
+
+- 14차 CX-32(2026-10-25): 서버 recipe vN/날짜별WO ID와 actor-bound request_id 원래 응답 조회를 추가했다. 자동/수동 잠금·counter/정의/audit/receipt 원자 저장, schema19 불변영수증·최소runtime grants와 이관batch를 준비하고18/19 clock 호환을 유지했다. high DB격리검토, 관련201개1회 통과(123.00초), 변경17개 Ruff·포맷 각1회 통과(benchmark 기존E402 bootstrap만명시제외). 공개DB·runtime·WO-T1·UI·생산·배포 미변경. 상세 CX-32.md.
+
+- 14차 CX-33(2026-10-25): 새LOAD 기본true 목표 자동종료·TARGET_REACHED/OPERATOR와 원자적 완료 proof를 구현했다. 기존policy-free 작업/저널은false·기존final hash보존, 수동END증거·정산미정명령차단 유지. 최초513통과/크래시관찰fixture3실패(186.14초) 후 데이터관찰만 수정해3개1.97초 통과. 포맷11개1회 통과; Ruff I0011건 정렬 수정후1회제한으로재검미실행. highbackend검토완료. UI exactparser 변경은 Claude의 공개배포 선행조건, runtime·WO-T1·공개DB 미변경. CX-33.md 참조.
+
+- 14차 CX-34(2026-10-25): 명시적 시작예약 defaultfalse·성공원래LOAD provenance·load+operate 권한·READY 일회시작·안전/모드/재시작취소를 구현했다. high제어검토 완료. 최초404통과/manager FK fixture6오류(135.53초) 뒤 데이터만고쳐 해당6개11.56초통과. Ruff·포맷 각1회통과, fixture이후재검미실행. UI parser는 Claude 배포선행작업, runtime·WO-T1·공개DB·생산조작없음. CX-34.md 참조.
+
+- 14차 CX-35(2026-10-25): 원래LOAD 레시피 ±20%·PLC1~60·온도불변의 RUNNING/PAUSED 속도조정, PARAMETERS_CHANGED/영구history/정확한inbox 정산을 구현했다. storage4/runtime3 원자이관·보존/FK/크래시·권한 high검토 완료. 최초626통과/4schema·fixture·구PAUSED기대값실패(149.72초) 뒤 제품추가변경없이 해당4개0.54초통과. Ruff1회SQL길이3건·포맷1회들여쓰기1건 수동수정후재검미실행. runtime·WO-T1·공개DB·UI미변경; 배포전UI parser Claude담당. CX-35.md 참조.
+
+- 14차 CX-36(2026-10-25): 명시적 source/generation·사람권한 라인큐, 고정LOADID·불변receipt·기존bind/claim·정산후다음연결과 schema20/grants/batch를 구현했다. 최초278통과/fixture3실패(279.29초), 데이터보정3개재검2통과/1실패(9.25초). 남은실제캡처지연race는 high확인후PENDING정산선행으로수정, 해당결합1개7.04초통과. Ruff·포맷 각1회통과후보정재검은미실행. DB이관·권한/잠금/원래ID high검토, runtime·WO-T1·공개DB·UI·생산미변경. CX-36.md 참조.
+
+- 14차 CX-37(2026-10-25): 불변 품목master·등록/목록/단건API, 새recipe/작업지시의registered/enabled참조와 schema21backfill/FK/grants/batch를 구현했다. 실제hmi_app item→recipe→order·원래영수증/카운터/감사보존·구schema/새head큐와 gate를 high검토했다. 최초345통과/fixture별칭1오류(379.44초), import만보정해1개5.86초통과. 변경23개Ruff·포맷 각1회통과후fixture재검만수행. CX31~37분할반영; UI·공개이관/배포/SQLite운영전환 Claude담당, runtime·WO-T1·공개DB·생산·8시간시험미실행. CX33/35 Ruff재검미실행 기록유지. CX-37.md 참조.

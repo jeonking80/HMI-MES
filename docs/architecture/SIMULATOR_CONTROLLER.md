@@ -26,9 +26,12 @@ A tick rechecks the stored command's original LOCAL/REMOTE authority and all PLC
 conditions. LOCAL operations use the same conditions and require AUTO for START.
 They never temporarily change the saved mode. LOAD_JOB registers a fresh process
 execution, START requires observed simulator drive feedback, and PAUSE fixes
-stationary WIP before success. Once the target quantity has entered the process,
-admission stops; existing items can still drain. Reaching the target does not
-silently issue END_RUN.
+stationary WIP before success. Good output plus current WIP reserves target
+capacity; rejected output may be replaced. CX-33 adds PLC target completion for
+new LOADs with auto_end_at_target=true: it drains and finalizes the original run
+without creating an END_RUN command ID. False retains manual ending. CX-34 adds
+explicit start_when_ready reservations; safety/mode changes and restart cancel
+them. See GOOD_QUANTITY_TARGET.md and START_RESERVATION.md for compatibility.
 
 END_RUN first disables admission and drains existing items under their original
 execution ID. Fault or emergency stop prevents motion and leaves ENDING pending.
@@ -131,3 +134,9 @@ settlement, restart without automatic motion, unresolved command gates, version
 aggregation, corruption poisoning, and subprocess termination immediately before
 and after the combined final commit. They establish this runtime slice, not full
 project acceptance or real equipment safety/performance.
+
+CX-35 adds active speed-only SET_PARAMETERS with durable PARAMETERS_CHANGED
+history, storage v4 and runtime v3. Original recipe baseline stays immutable;
+latest parameters and complete source evidence justify settlement. See
+SPEED_ADJUSTMENTS.md. These 14th-order extensions supersede earlier stopped-only
+setting/explicit-only motion descriptions without weakening safety or recovery.

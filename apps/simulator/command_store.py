@@ -19,6 +19,8 @@ from contracts.models import (
     Identifier,
     UTCTimestamp,
     canonical_command_payload,
+    canonical_command_retry_payload,
+    materialize_load_job_policy,
 )
 
 _IDENTIFIER = TypeAdapter(Identifier)
@@ -205,8 +207,9 @@ class CommandStore:
         with self._write_unit():
             existing = self.lookup(request.command_id)
             if existing is not None:
-                if canonical_command_payload(existing.request) == canonical_command_payload(
-                    request
+                original_canonical = canonical_command_payload(existing.request)
+                if original_canonical == canonical_command_retry_payload(
+                    request, original_canonical
                 ):
                     return JournalSubmission(existing.submission, existing.result, False)
                 conflict = CommandSubmission(
@@ -217,6 +220,7 @@ class CommandStore:
                     reason="The command ID already belongs to a different canonical request",
                 )
                 return JournalSubmission(conflict, None, False)
+            request = materialize_load_job_policy(request)
             if received_at < request.requested_at:
                 raise ValueError("Receipt cannot precede the request timestamp")
             if received_at >= request.expires_at:

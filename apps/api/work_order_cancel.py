@@ -17,6 +17,7 @@ from apps.api.work_orders import (
     WorkOrdersUnavailable,
     _lock,
 )
+from contracts.conflict_codes import ConflictReason
 from contracts.models import ContractModel, Identifier, PositiveUInt64, UTCTimestamp
 
 
@@ -109,11 +110,20 @@ def cancel_work_order(
     if db.execute(
         text("SELECT 1 FROM work_order_execution_links WHERE work_order_id=:id"), {"id": identity}
     ).first():
-        raise RegistrationConflict("Bound execution cancellation is not implemented")
-    if order["status"] not in {"DRAFT", "RELEASED"} or (
-        int(order["row_version"]) != definition.expected_row_version
-    ):
-        raise RegistrationConflict("Cancellation requires the original unbound work-order version")
+        raise RegistrationConflict(
+            "Bound execution cancellation is not implemented",
+            reason_code=ConflictReason.WORK_ORDER_ALREADY_BOUND,
+        )
+    if order["status"] not in {"DRAFT", "RELEASED"}:
+        raise RegistrationConflict(
+            "Cancellation requires the original unbound work-order version",
+            reason_code=ConflictReason.STATE_NOT_ALLOWED,
+        )
+    if int(order["row_version"]) != definition.expected_row_version:
+        raise RegistrationConflict(
+            "Cancellation requires the original unbound work-order version",
+            reason_code=ConflictReason.WORK_ORDER_VERSION_CHANGED,
+        )
     version = _version(order)
     now = TypeAdapter(UTCTimestamp).validate_python(clock())
     receipt = {

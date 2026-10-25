@@ -19,6 +19,7 @@ from pydantic import (
     TypeAdapter,
     ValidationInfo,
     WithJsonSchema,
+    model_serializer,
     model_validator,
 )
 
@@ -130,6 +131,17 @@ class LoadJobArguments(ContractModel):
     recipe_version: Identifier
     target_quantity: Annotated[int, Field(strict=True, gt=0, le=2**32 - 1)]
     parameters: Parameters
+    auto_end_at_target: StrictBool = True
+    start_when_ready: StrictBool = False
+
+    @model_serializer(mode="wrap")
+    def serialize_policy(self, handler):
+        body = handler(self)
+        # Old journal identities must retain their original absent policy field.
+        for name in ("auto_end_at_target", "start_when_ready"):
+            if name not in self.model_fields_set:
+                body.pop(name, None)
+        return body
 
 
 class SetParametersArguments(ContractModel):
@@ -207,6 +219,44 @@ def canonical_command_payload(request: CommandRequest) -> str:
         separators=(",", ":"),
         ensure_ascii=False,
     )
+
+
+def materialize_load_job_policy(request: CommandRequest) -> CommandRequest:
+    """Record policy defaults explicitly for a genuinely new LOAD command."""
+    if request.command.kind != "LOAD_JOB":
+        return request
+    defaults = {"auto_end_at_target": True, "start_when_ready": False}
+    missing = {
+        name: value
+        for name, value in defaults.items()
+        if name not in request.command.args.model_fields_set
+    }
+    if not missing:
+        return request
+    args = request.command.args.model_copy(update=missing)
+    command = request.command.model_copy(update={"args": args})
+    return request.model_copy(update={"command": command})
+
+
+def canonical_command_retry_payload(request: CommandRequest, original_canonical: str) -> str:
+    """Resolve omitted retries as new defaults only for policy-aware originals.
+
+    Each absent legacy flag keeps its original absence independently. Omitted
+    retries of recorded flags mean that flag's default, never its stored value.
+    """
+    if request.command.kind == "LOAD_JOB":
+        original_args = json.loads(original_canonical).get("command", {}).get("args", {})
+        defaults = {"auto_end_at_target": True, "start_when_ready": False}
+        missing = {
+            name: value
+            for name, value in defaults.items()
+            if name in original_args and name not in request.command.args.model_fields_set
+        }
+        if missing:
+            args = request.command.args.model_copy(update=missing)
+            command = request.command.model_copy(update={"args": args})
+            request = request.model_copy(update={"command": command})
+    return canonical_command_payload(request)
 
 
 def same_command_payload(left: CommandRequest, right: CommandRequest) -> bool:
@@ -364,6 +414,23 @@ class StateEvent(EventBase):
     payload: StatePayload
 
 
+class ParametersChangedPayload(ContractModel):
+    command_id: Identifier
+    requested_by: Identifier
+    recipe_version: Identifier
+    baseline_parameters: Parameters
+    previous_parameters: Parameters
+    parameters: Parameters
+    control_version: UInt64
+
+
+class ParametersChangedEvent(EventBase):
+    kind: Literal["PARAMETERS_CHANGED"]
+    equipment_id: Literal["Line"]
+    execution_id: Identifier
+    payload: ParametersChangedPayload
+
+
 class FaultPayload(ContractModel):
     fault_code: Annotated[int, Field(strict=True, gt=0, le=2**32 - 1)]
     active: StrictBool
@@ -375,7 +442,8 @@ class FaultEvent(EventBase):
 
 
 Event = Annotated[
-    ProductionEvent | ScrapEvent | StateEvent | FaultEvent, Field(discriminator="kind")
+    ProductionEvent | ScrapEvent | StateEvent | FaultEvent | ParametersChangedEvent,
+    Field(discriminator="kind"),
 ]
 EVENT_ADAPTER = TypeAdapter(Event)
 
@@ -476,6 +544,21 @@ class RunSummary(ContractModel):
     last_event_seq: UInt64
     final: StrictBool
     ended_at: UTCTimestamp | None = None
+    end_reason: Literal["TARGET_REACHED", "OPERATOR"] | None = None
+    baseline_parameters: Parameters | None = None
+    parameter_changes: tuple[ParametersChangedEvent, ...] = ()
+
+    @model_serializer(mode="wrap")
+    def serialize_end_reason(self, handler):
+        body = handler(self)
+        # Unknown legacy reasons must not change stored final-summary hashes.
+        if self.end_reason is None:
+            body.pop("end_reason", None)
+        if self.baseline_parameters is None:
+            body.pop("baseline_parameters", None)
+        if not self.parameter_changes:
+            body.pop("parameter_changes", None)
+        return body
 
     @model_validator(mode="after")
     def validate_final_boundary(self) -> Self:

@@ -15,6 +15,9 @@ from contracts.transport import BatchBody
 from contracts.transport import batch_digest as digest_body
 
 CLOCK_EVIDENCE_REVISION = "0018_clock_evidence"
+CLOCK_EVIDENCE_REVISIONS = frozenset(
+    {CLOCK_EVIDENCE_REVISION, "0019_registration_ids", "0020_line_queue", "0021_item_master"}
+)
 NORMALIZATION_VERSION = "api-interval-midpoint-v1"
 UNKNOWN_MINUTE = json.dumps(
     {"value": None, "min": None, "max": None, "quality": "TIME_UNKNOWN", "valid_count": 0}
@@ -36,7 +39,7 @@ def schema_revision(connection):
 
 
 def clock_evidence_available(connection):
-    return schema_revision(connection) == CLOCK_EVIDENCE_REVISION
+    return schema_revision(connection) in CLOCK_EVIDENCE_REVISIONS
 
 
 @dataclass(frozen=True)
@@ -595,7 +598,8 @@ def capture_clock_valid(connection, body, epoch):
         )
     connection.execute(
         sa.text("""INSERT INTO analog_history_clock_state
-        (source_id,stream_id,gateway_id,capture_generation,clock_epoch,last_seq,last_at,reversal_seq)
+        (source_id,stream_id,gateway_id,capture_generation,clock_epoch,
+         last_seq,last_at,reversal_seq)
         VALUES (:source_id,:stream_id,:gateway,:generation,:epoch,:seq,:at,:reversal)
         ON CONFLICT(source_id,stream_id,gateway_id,capture_generation,clock_epoch)
         DO UPDATE SET last_seq=GREATEST(analog_history_clock_state.last_seq,EXCLUDED.last_seq),

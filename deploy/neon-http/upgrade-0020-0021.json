@@ -1,0 +1,20 @@
+[
+ "SELECT pg_catalog.pg_advisory_xact_lock(843001)",
+ "SET LOCAL search_path = pg_catalog, public, pg_temp",
+ "DO $$ BEGIN IF current_database() <> 'hmi_mes_demo' THEN RAISE EXCEPTION 'unexpected database'; END IF; IF (SELECT count(*) FROM public.alembic_version) <> 1 OR NOT EXISTS (SELECT 1 FROM public.alembic_version WHERE version_num='0020_line_queue') THEN RAISE EXCEPTION 'unexpected schema revision or database'; END IF; IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='hmi_migrator') OR NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='hmi_app') THEN RAISE EXCEPTION 'dedicated roles required'; END IF; IF (SELECT nspowner FROM pg_namespace WHERE nspname='public') IS DISTINCT FROM 'hmi_migrator'::regrole::oid OR NOT EXISTS (SELECT 1 FROM pg_class WHERE oid=to_regclass('public.alembic_version') AND relowner='hmi_migrator'::regrole::oid AND relkind='r') THEN RAISE EXCEPTION 'dedicated migrator ownership required'; END IF; END $$",
+ "SET LOCAL ROLE hmi_migrator",
+ "SET LOCAL search_path = public, pg_temp",
+ "CREATE TABLE item_master (\n        id text PRIMARY KEY CHECK(id ~ '^[^[:space:]]{1,128}$'),\n        name text NOT NULL CHECK(char_length(name) BETWEEN 1 AND 128\n            AND name ~ '[^[:space:]]'),\n        unit text NOT NULL CHECK(char_length(unit) BETWEEN 1 AND 32\n            AND unit ~ '[^[:space:]]'),\n        enabled boolean NOT NULL DEFAULT true,\n        origin text NOT NULL CHECK(origin IN ('USER','MIGRATION')),\n        created_by text REFERENCES users(login) ON DELETE RESTRICT,\n        created_at timestamptz NOT NULL,\n        CHECK((origin='USER' AND created_by IS NOT NULL)\n            OR (origin='MIGRATION' AND created_by IS NULL))\n    )",
+ "INSERT INTO item_master\n        (id,name,unit,enabled,origin,created_by,created_at)\n        SELECT item_id,item_id,'EA',true,'MIGRATION',NULL,CURRENT_TIMESTAMP\n        FROM (SELECT item_id FROM recipe_versions\n            UNION SELECT item_id FROM work_orders) AS legacy_items",
+ "ALTER TABLE recipe_versions ADD CONSTRAINT fk_recipe_versions_item_master\n        FOREIGN KEY(item_id) REFERENCES item_master(id) ON DELETE RESTRICT",
+ "ALTER TABLE work_orders ADD CONSTRAINT fk_work_orders_item_master\n        FOREIGN KEY(item_id) REFERENCES item_master(id) ON DELETE RESTRICT",
+ "CREATE TABLE item_audit (\n        id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n        item_id text NOT NULL REFERENCES item_master(id) ON DELETE RESTRICT,\n        actor text NOT NULL REFERENCES users(login) ON DELETE RESTRICT,\n        action text NOT NULL CHECK(action='CREATE'),\n        occurred_at timestamptz NOT NULL,\n        evidence jsonb NOT NULL CHECK(jsonb_typeof(evidence)='object')\n    )",
+ "CREATE INDEX ix_item_audit_item ON item_audit(item_id,id)",
+ "CREATE FUNCTION immutable_item_evidence() RETURNS trigger\n        LANGUAGE plpgsql AS $$ BEGIN\n            RAISE EXCEPTION 'Item definitions and audit evidence are immutable';\n        END $$",
+ "CREATE TRIGGER item_master_immutable\n            BEFORE UPDATE OR DELETE ON item_master FOR EACH ROW\n            EXECUTE FUNCTION immutable_item_evidence()",
+ "CREATE TRIGGER item_master_no_truncate\n            BEFORE TRUNCATE ON item_master FOR EACH STATEMENT\n            EXECUTE FUNCTION immutable_item_evidence()",
+ "CREATE TRIGGER item_audit_immutable\n            BEFORE UPDATE OR DELETE ON item_audit FOR EACH ROW\n            EXECUTE FUNCTION immutable_item_evidence()",
+ "CREATE TRIGGER item_audit_no_truncate\n            BEFORE TRUNCATE ON item_audit FOR EACH STATEMENT\n            EXECUTE FUNCTION immutable_item_evidence()",
+ "SET LOCAL search_path = pg_catalog, public, pg_temp",
+ "UPDATE public.alembic_version SET version_num='0021_item_master' WHERE version_num='0020_line_queue'"
+]

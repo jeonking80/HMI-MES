@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from typing import Literal
 from uuid import uuid4
 
-from pydantic import TypeAdapter, ValidationError
+from pydantic import TypeAdapter, ValidationError, model_serializer
 from sqlalchemy import Connection, text
 
 from apps.api.auth import PERMISSIONS, AuthorizationError, Principal
@@ -24,6 +24,7 @@ from apps.api.work_orders import (
     _lock,
     _ready,
 )
+from contracts.conflict_codes import ConflictReason
 from contracts.models import (
     UINT64_MAX,
     CommandRequest,
@@ -31,6 +32,7 @@ from contracts.models import (
     Identifier,
     Parameters,
     PositiveUInt64,
+    StrictBool,
     UInt64,
     UTCTimestamp,
 )
@@ -48,6 +50,16 @@ class BindIntent(ContractModel):
     stream_id: Identifier
     expected_work_order_version: PositiveUInt64
     expected_control_version: UInt64
+    auto_end_at_target: StrictBool = True
+    start_when_ready: StrictBool = False
+
+    @model_serializer(mode="wrap")
+    def serialize_policy(self, handler):
+        body = handler(self)
+        for name in ("auto_end_at_target", "start_when_ready"):
+            if name not in self.model_fields_set:
+                body.pop(name, None)
+        return body
 
 
 class OriginalReleaseIntent(ReleaseIntent):
@@ -182,7 +194,9 @@ def _order_lock(db, identity, *, line=None):
     if row is None:
         raise RegistrationNotFound("Work order not found")
     if line is not None and row["line_id"] != line:
-        raise RegistrationConflict("Work-order line differs")
+        raise RegistrationConflict(
+            "Work-order line differs", reason_code=ConflictReason.PHYSICAL_EXECUTION_MISMATCH
+        )
     db.execute(text("SELECT id FROM lines WHERE id=:id FOR UPDATE"), {"id": row["line_id"]})
     return row
 
@@ -206,7 +220,9 @@ def _event(db, identity, actor, action, now, evidence):
 def _version(row):
     version = int(row["row_version"])
     if version == UINT64_MAX:
-        raise RegistrationConflict("Work-order version exhausted")
+        raise RegistrationConflict(
+            "Work-order version exhausted", reason_code=ConflictReason.WORK_ORDER_VERSION_CHANGED
+        )
     return version + 1
 
 
@@ -243,8 +259,16 @@ def release_work_order(
         .mappings()
         .one()
     )
-    if order["status"] != "DRAFT" or int(order["row_version"]) != definition.expected_row_version:
-        raise RegistrationConflict("Release requires the original draft version")
+    if order["status"] != "DRAFT":
+        raise RegistrationConflict(
+            "Release requires the original draft version",
+            reason_code=ConflictReason.STATE_NOT_ALLOWED,
+        )
+    if int(order["row_version"]) != definition.expected_row_version:
+        raise RegistrationConflict(
+            "Release requires the original draft version",
+            reason_code=ConflictReason.WORK_ORDER_VERSION_CHANGED,
+        )
     version = _version(order)
     now = TypeAdapter(UTCTimestamp).validate_python(clock())
     receipt = {
@@ -299,6 +323,8 @@ def bind_work_order(
 
     identity = TypeAdapter(Identifier).validate_python(identity)
     definition = BindIntent.model_validate_json(definition.model_dump_json())
+    if definition.start_when_ready and not principal.roles & PERMISSIONS["operate"]:
+        raise AuthorizationError("Starting on readiness requires operate permission")
     _workflow_ready(db, principal, "load_job")
     original = _intent(identity, definition, principal)
     _lock(db, "api-command:" + definition.command_id)
@@ -331,15 +357,23 @@ def bind_work_order(
         .mappings()
         .one()
     )
-    if (
-        order["status"] != "RELEASED"
-        or int(order["row_version"]) != definition.expected_work_order_version
-    ):
-        raise RegistrationConflict("Binding requires the released work-order version")
+    if order["status"] != "RELEASED":
+        raise RegistrationConflict(
+            "Binding requires the released work-order version",
+            reason_code=ConflictReason.STATE_NOT_ALLOWED,
+        )
+    if int(order["row_version"]) != definition.expected_work_order_version:
+        raise RegistrationConflict(
+            "Binding requires the released work-order version",
+            reason_code=ConflictReason.WORK_ORDER_VERSION_CHANGED,
+        )
     if db.execute(
         text("SELECT 1 FROM work_order_execution_links WHERE work_order_id=:id"), {"id": identity}
     ).first():
-        raise RegistrationConflict("Work order already owns its original execution")
+        raise RegistrationConflict(
+            "Work order already owns its original execution",
+            reason_code=ConflictReason.WORK_ORDER_ALREADY_BOUND,
+        )
     version = _version(order)
     now = TypeAdapter(UTCTimestamp).validate_python(clock())
     try:
@@ -352,12 +386,17 @@ def bind_work_order(
             prefer_complete_capture=True,
         )
     except SnapshotNotFound:
-        raise RegistrationConflict("Fresh source evidence required") from None
+        raise RegistrationConflict(
+            "Fresh source evidence required", reason_code=ConflictReason.FRESH_SOURCE_REQUIRED
+        ) from None
     values = {sample.tag_id: sample.reading.value for sample in snapshot.screen.view.samples}
     try:
         epoch = TypeAdapter(Identifier).validate_python(values.get("Line.CounterEpoch"))
     except ValueError:
-        raise RegistrationConflict("Known original counter epoch required") from None
+        raise RegistrationConflict(
+            "Known original counter epoch required",
+            reason_code=ConflictReason.FRESH_SOURCE_REQUIRED,
+        ) from None
     reserved = (
         db.execute(
             text(
@@ -372,10 +411,16 @@ def bind_work_order(
     )
     if reserved is not None:
         if (reserved["source_id"], reserved["stream_id"]) != (scope.source_id, scope.stream_id):
-            raise RegistrationConflict("Reserved execution belongs to another source")
+            raise RegistrationConflict(
+                "Reserved execution belongs to another source",
+                reason_code=ConflictReason.PHYSICAL_EXECUTION_MISMATCH,
+            )
         active = values.get("Line.ActiveExecutionId") or None
         if active is not None and active != reserved["execution_id"]:
-            raise RegistrationConflict("Physical execution differs from the line reservation")
+            raise RegistrationConflict(
+                "Physical execution differs from the line reservation",
+                reason_code=ConflictReason.PHYSICAL_EXECUTION_MISMATCH,
+            )
         settled = reconcile_execution(
             db,
             reserved["execution_id"],
@@ -385,7 +430,10 @@ def bind_work_order(
             now=now,
         )
         if settled.status != "SETTLED":
-            raise RegistrationConflict("Reserved execution is not settled")
+            raise RegistrationConflict(
+                "Reserved execution is not settled",
+                reason_code=ConflictReason.RESERVED_EXECUTION_NOT_SETTLED,
+            )
     recipe = (
         db.execute(
             text("SELECT * FROM recipe_versions WHERE id=:id"), {"id": order["recipe_version_id"]}
@@ -424,6 +472,8 @@ def bind_work_order(
                 "recipe_version": recipe["id"],
                 "target_quantity": int(order["target_quantity"]),
                 "parameters": parameters.model_dump(),
+                "auto_end_at_target": definition.auto_end_at_target,
+                "start_when_ready": definition.start_when_ready,
             },
         },
     )
