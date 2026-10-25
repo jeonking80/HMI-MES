@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Literal
 
 import sqlalchemy as sa
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 
 from apps.api.database import SCHEMA_LOCK_ID
 from apps.api.ingestion import (
@@ -24,7 +24,7 @@ from apps.api.ingestion import (
     stream_progress,
 )
 from apps.api.models import Line
-from contracts.models import Identifier, RunSummary, UTCTimestamp
+from contracts.models import Identifier, RunSummary, StateEvent, UTCTimestamp
 
 _ID = TypeAdapter(Identifier)
 _TIME = TypeAdapter(UTCTimestamp)
@@ -217,6 +217,50 @@ def _update(connection, execution_id, status, reason, now):
     )
 
 
+def _recovery_suffix_matches(connection, scope, gap_scope, summary, progress, latest):
+    """Only a fully applied, contiguous stopped/recovery suffix may follow End."""
+    if progress != latest:
+        return False
+    suffix = (
+        connection.execute(
+            sa.select(event_inbox)
+            .where(scope, event_inbox.c.seq > summary.last_event_seq)
+            .order_by(event_inbox.c.seq)
+        )
+        .mappings()
+        .all()
+    )
+    if connection.execute(
+        sa.select(stream_gaps.c.from_seq)
+        .where(gap_scope, stream_gaps.c.through_seq > summary.last_event_seq)
+        .limit(1)
+    ).first():
+        return False
+    if not suffix:
+        return progress == summary.last_event_seq
+    expected = summary.last_event_seq + 1
+    for row in suffix:
+        if row["seq"] != expected or row["applied_at"] is None:
+            return False
+        try:
+            event = StateEvent.model_validate_json(json.dumps(row["body"]))
+        except ValidationError:
+            return False
+        if (
+            event.event_id != row["event_id"]
+            or event.source_id != summary.source_id
+            or event.stream_id != summary.stream_id
+            or event.seq != row["seq"]
+            or event.execution_id != row["execution_id"]
+            or event.kind != row["kind"]
+            or event.payload.previous_state not in {"STOPPED", "RECOVERY_REQUIRED"}
+            or event.payload.state not in {"STOPPED", "RECOVERY_REQUIRED"}
+        ):
+            return False
+        expected += 1
+    return progress == expected - 1 and event.payload.state == "STOPPED"
+
+
 def _reconcile(connection, binding, execution, now):
     execution_id = execution["execution_id"]
     row = _row(connection, execution_id)
@@ -230,12 +274,19 @@ def _reconcile(connection, binding, execution, now):
     gap_scope = sa.and_(
         stream_gaps.c.source_id == summary.source_id, stream_gaps.c.stream_id == summary.stream_id
     )
-    progress = connection.execute(
-        sa.select(stream_progress.c.verified_through_seq).where(
-            stream_progress.c.source_id == summary.source_id,
-            stream_progress.c.stream_id == summary.stream_id,
+    frontiers = (
+        connection.execute(
+            sa.select(
+                stream_progress.c.verified_through_seq, stream_progress.c.latest_ingested_seq
+            ).where(
+                stream_progress.c.source_id == summary.source_id,
+                stream_progress.c.stream_id == summary.stream_id,
+            )
         )
-    ).scalar_one()
+        .mappings()
+        .one()
+    )
+    progress = frontiers["verified_through_seq"]
     if (
         execution["recipe_version"] != summary.recipe_version
         or execution["parameters"] != summary.parameters.model_dump(mode="json")
@@ -286,16 +337,9 @@ def _reconcile(connection, binding, execution, now):
             .mappings()
             .one()
         )
-        after_boundary = connection.execute(
-            sa.select(event_inbox.c.event_id)
-            .where(
-                scope,
-                event_inbox.c.execution_id == execution_id,
-                event_inbox.c.seq > summary.last_event_seq,
-            )
-            .limit(1)
-        ).first()
-        if after_boundary:
+        if not _recovery_suffix_matches(
+            connection, scope, gap_scope, summary, progress, frontiers["latest_ingested_seq"]
+        ):
             status, reason = "MISMATCH", "EVENT_AFTER_FINAL_BOUNDARY"
         elif any(
             totals[key] != getattr(summary, key)

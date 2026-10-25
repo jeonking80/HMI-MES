@@ -14,9 +14,10 @@ from sqlalchemy.exc import DBAPIError, IntegrityError, SQLAlchemyError
 
 from apps.api.auth import Principal, UserAuth
 from apps.api.bootstrap import LINE_ID, bootstrap_reference_data
-from apps.api.commands import CommandConflict, enqueue_command
+from apps.api.commands import CommandConflict, apply_result, claim_next, enqueue_command
 from apps.api.database import migration_config
 from apps.api.ingestion import IngestionService
+from apps.api.settlement import reconcile_execution, record_final_summary
 from apps.api.user_http import UserHTTPConfig, create_user_app
 from apps.api.work_order_workflow import (
     BindIntent,
@@ -31,7 +32,11 @@ from apps.api.work_orders import (
     register_recipe_version,
     register_work_order,
 )
-from contracts.models import CommandRequest, Parameters
+from apps.simulator.controller import SimulatorController
+from apps.simulator.plc import PLCInputs, RecoveryChecks
+from apps.simulator.process import ProcessConfig
+from apps.simulator.storage import SimulatorStorage
+from contracts.models import CommandRequest, Parameters, ReadEventsRequest
 from contracts.tags.validate import load_contract
 from contracts.transport import BatchBody, GatewayBatch, batch_digest
 
@@ -656,6 +661,173 @@ def test_empty_physical_active_id_cannot_release_an_unsettled_exact_reservation(
         scalar(state, "SELECT execution_id FROM line_execution_reservations")
         == first["execution_id"]
     )
+
+
+@pytest.mark.parametrize("suffix_case", ["recovered", "production", "running", "unfinished", "gap"])
+async def test_ended_restart_recovery_reconciles_binds_and_loads_next_job(
+    state, client, tmp_path, suffix_case
+):
+    path = tmp_path / "workflow-restart.sqlite3"
+    config = ProcessConfig(stage_lengths_mm=(1, 1, 1), ambient_temperature_c=150.0)
+    checks = RecoveryChecks(
+        outputs_stopped=True,
+        positions_verified=True,
+        storage_reconciled=True,
+        commands_reconciled=True,
+        operator_confirmed=True,
+    )
+    scope = dict(
+        authenticated_gateway_id="gateway",
+        authenticated_source_id="source",
+        authenticated_stream_id="stream",
+    )
+
+    def ingest_events(controller, after_seq, transform=lambda events: events):
+        events = controller.read_events(
+            ReadEventsRequest(source_id="source", stream_id="stream", after_seq=after_seq)
+        ).events
+        state.capture_seq += 1
+        body = BatchBody(
+            schema_version="1.1",
+            batch_id=f"events-{state.capture_seq}",
+            gateway_id="gateway",
+            source_id="source",
+            stream_id="stream",
+            capture_generation=1,
+            capture_seq=state.capture_seq,
+            captured_at=state.clock[0],
+            events=transform(events),
+        )
+        ack = state.service.ingest(
+            GatewayBatch(body=body, content_sha256=batch_digest(body)),
+            **scope,
+            now=state.clock[0],
+        )
+        assert all(event.disposition == "APPLIED" for event in ack.events)
+        return events
+
+    with SimulatorStorage(
+        path, source_id="source", stream_id="stream", counter_epoch="epoch"
+    ) as store:
+        controller = SimulatorController(store, now=AT, process_config=config)
+        controller.recover(now=AT, operator_id="operator", checks=checks)
+        controller.set_inputs(
+            PLCInputs(temperature_c=150.0), now=AT, control_mode="REMOTE", operation_mode="AUTO"
+        )
+        release(state)
+        capture(state, values={"Line.ControlVersion": controller.state.control_version})
+        first = bind(
+            state,
+            definition=BindIntent(
+                **{
+                    **intent().model_dump(),
+                    "expected_control_version": controller.state.control_version,
+                }
+            ),
+        )
+        load = CommandRequest.model_validate(first["load_request"])
+        with state.engine.begin() as db:
+            assert claim_next(db, **scope, now=AT).action == "SUBMIT"
+        assert (
+            controller.submit(
+                load, now=AT, authenticated_gateway_principal="gateway"
+            ).submission.disposition
+            == "ACCEPTED"
+        )
+        controller.tick(now=AT)
+        with state.engine.begin() as db:
+            apply_result(db, controller.get_result(load.command_id), **scope, now=AT)
+        for kind in ("START", "END_RUN"):
+            command = CommandRequest(
+                command_id="sim-" + kind,
+                target_id="Line",
+                execution_id=first["execution_id"],
+                requested_by="operator",
+                requested_at=AT,
+                expires_at=AT + timedelta(seconds=5),
+                expected_control_version=controller.state.control_version,
+                command={"kind": kind},
+            )
+            assert controller.submit(command, now=AT).submission.disposition == "ACCEPTED"
+            controller.tick(now=AT)
+        for _ in range(20):
+            if controller.get_result("sim-END_RUN").status == "SUCCEEDED":
+                break
+            controller.tick(now=AT)
+        final = controller.get_summary(first["execution_id"])
+        assert final.final and final.wip_quantity == 0
+        ingest_events(controller, 0)
+        with state.engine.begin() as db:
+            assert record_final_summary(db, final, **scope, now=AT).status == "SETTLED"
+
+    with SimulatorStorage(path) as store:
+        controller = SimulatorController(store, now=AT, process_config=config)
+        assert controller.state.recovery_required
+        controller.set_inputs(PLCInputs(temperature_c=150.0), now=AT, control_mode="REMOTE")
+        controller.recover(now=AT, operator_id="operator", checks=checks)
+
+        def alter_suffix(events):
+            if suffix_case == "unfinished":
+                return events[:-1]
+            if suffix_case == "gap":
+                return events[1:]
+            if suffix_case in {"production", "running"}:
+                extra = events[-1].model_dump(mode="json")
+                extra.update(event_id="unsafe-suffix", seq=str(events[-1].seq + 1))
+                if suffix_case == "production":
+                    extra.update(
+                        equipment_id="Outfeed",
+                        kind="PRODUCTION_GOOD",
+                        payload={"quantity": "1", "counter_epoch": "epoch"},
+                    )
+                else:
+                    extra["payload"].update(previous_state="STOPPED", state="RUNNING")
+                return [*events, extra]
+            return events
+
+        suffix = ingest_events(controller, final.last_event_seq, alter_suffix)
+        assert len(suffix) == 2
+        assert [event.payload.state for event in suffix] == ["RECOVERY_REQUIRED", "STOPPED"]
+        with state.engine.begin() as db:
+            reconciled = reconcile_execution(db, first["execution_id"], **scope, now=AT)
+            assert (reconciled.status == "SETTLED") is (suffix_case == "recovered")
+            assert reconciled.summary == final
+        release(state, "work-B", release_id="release-B")
+        capture(
+            state,
+            values={
+                "Line.ControlVersion": controller.state.control_version,
+                "Line.EventSeq": suffix[-1].seq,
+                "Line.ActiveExecutionId": first["execution_id"],
+            },
+        )
+        response = await client.post(
+            "/api/v1/work-orders/work-B/bind",
+            headers=headers(state),
+            json={
+                **intent().model_dump(mode="json"),
+                "command_id": "load-B",
+                "expected_control_version": str(controller.state.control_version),
+            },
+        )
+        if suffix_case != "recovered":
+            assert response.status_code == 409, response.text
+            assert scalar(state, "SELECT count(*) FROM work_order_execution_links") == 1
+            assert scalar(state, "SELECT count(*) FROM command_requests") == 1
+            return
+        assert response.status_code == 200, response.text
+        second = response.json()
+        command = CommandRequest.model_validate(second["load_request"])
+        assert (
+            controller.submit(
+                command, now=AT, authenticated_gateway_principal="gateway"
+            ).submission.disposition
+            == "ACCEPTED"
+        )
+        controller.tick(now=AT)
+        assert controller.get_result("load-B").status == "SUCCEEDED"
+        assert controller.state.execution_id == second["execution_id"]
+        assert controller.get_summary(first["execution_id"]) == final
 
 
 @pytest.mark.parametrize(

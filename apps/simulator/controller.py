@@ -25,6 +25,7 @@ from apps.simulator.storage import (
     SimulatorStorage,
     StateEventInput,
     StorageCorruption,
+    decode_uint64,
     encode_uint64,
 )
 from apps.simulator.tags import heater_enabled
@@ -39,6 +40,7 @@ from contracts.models import (
     ReadEventsRequest,
     RunNotFound,
     RunSummary,
+    StateEvent,
     UTCTimestamp,
 )
 
@@ -604,6 +606,7 @@ class SimulatorController:
                                 "previous_counter_epoch": previous_final.counter_epoch,
                                 "canonical_final_sha256": digest,
                                 "expected_control_version": str(candidate.expected_control_version),
+                                **self._remote_state_tail(previous_final),
                             },
                             sort_keys=True,
                             separators=(",", ":"),
@@ -651,10 +654,60 @@ class SimulatorController:
             or not final.final
             or final.state != "ENDED"
             or final.wip_quantity != 0
-            or final.last_event_seq != self._head()
+            or self._remote_state_tail(final) is None
         ):
             return None
         return final
+
+    def _remote_state_tail(self, final: RunSummary) -> dict[str, str] | None:
+        """Prove the entire retained post-final stream is a stopped recovery suffix."""
+        head = self._head()
+        identity = self.storage.identity
+        if (
+            final.last_event_seq > head
+            or final.source_id != identity.source_id
+            or final.stream_id != identity.stream_id
+        ):
+            return None
+        expected = final.last_event_seq + 1
+        events = []
+        last_state = LineState.STOPPED
+        allowed = {LineState.STOPPED, LineState.RECOVERY_REQUIRED}
+        for row in self.storage.connection.execute(
+            "SELECT * FROM source_events WHERE seq>? AND seq<=? ORDER BY seq",
+            (encode_uint64(final.last_event_seq), encode_uint64(head)),
+        ):
+            try:
+                event = StateEvent.model_validate_json(row["body"])
+                if (
+                    event.seq != expected
+                    or decode_uint64(row["seq"]) != event.seq
+                    or event.event_id != row["event_id"]
+                    or event.source_id != identity.source_id
+                    or event.stream_id != identity.stream_id
+                    or row["source_id"] != event.source_id
+                    or row["stream_id"] != event.stream_id
+                    or row["execution_id"] != event.execution_id
+                    or row["item_id"] is not None
+                    or event.payload.previous_state not in allowed
+                    or event.payload.state not in allowed
+                ):
+                    return None
+            except (ValueError, TypeError, KeyError):
+                return None
+            events.append(event.model_dump(mode="json"))
+            expected += 1
+            last_state = event.payload.state
+        if expected != head + 1 or last_state != LineState.STOPPED:
+            return None
+        return {
+            "tail_end_seq": str(head),
+            "tail_sha256": hashlib.sha256(
+                json.dumps(
+                    events, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+                ).encode("utf-8")
+            ).hexdigest(),
+        }
 
     @staticmethod
     def _final_digest(final: RunSummary) -> str:
@@ -682,6 +735,9 @@ class SimulatorController:
         final = self._remote_settlement_final(state)
         if final is None:
             return False
+        tail = self._remote_state_tail(final)
+        if tail is None:
+            return False
         details = json.loads(row[0])
         return all(
             details.get(key) == value
@@ -694,6 +750,7 @@ class SimulatorController:
                 "previous_counter_epoch": final.counter_epoch,
                 "canonical_final_sha256": self._final_digest(final),
                 "expected_control_version": str(request.expected_control_version),
+                **tail,
             }.items()
         )
 

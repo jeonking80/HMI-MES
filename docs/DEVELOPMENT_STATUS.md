@@ -535,3 +535,5 @@ M1의 주요 독립 운전·권한·실제 생산 경로는 확인했지만, 원
 - commission ENDED 재검사(2026-10-25): 사용자 추가 지시로 수정 제품 파일·시험 파일의 Ruff를 1회 재실행해 통과했다. 앞선 단위 시험 10개 통과와 함께 검증됐으며, 해당 수정만 codex/kuls-backend-v3에 커밋한다. PR은 Claude 담당이고 runtime 재실행·생산 조작은 이번 범위에서 수행하지 않는다.
 
 - CX-29(11차, 2026-10-25): main a213e28 기준 high 설계 검토에서 API 정산 완화 후에도 PLC 원격 정산의 final 순번==source head 조건이 다음 LOAD_JOB을 거절함을 확인했다. 별도 attestation 설계 기준 변경이 필요하다고 판단해 지시서 중단 규칙에 따라 제품·시험 변경 없이 보고서만 작성했다. 시험·Ruff·포맷 검사는 미실행, 공개 DB·배포·기존 사용자 runtime·생산 조작은 하지 않았다. 상세: docs/work-orders/reports/CX-29.md.
+
+- CX-29 12차(2026-10-25): 승인된 문서 변경 후 API/PLC에 연속 STOPPED↔RECOVERY_REQUIRED 꼬리와 admission head/hash 고정·tick 재검증을 구현했다. high 검토, Ruff·포맷 검사 각1회 통과. 단위 전체+관련 통합 최초807통과/fixture2실패 후 데이터만 수정해 실패2개만0.27초에 통과했다(최초102.46초). 실제 END→재오픈/복구→API SETTLED→bind200→PLC LOAD 성공 결합 시험 포함. 전체 stream 판정의 과거 정산 영향도 문서화했다. 배포·공개 확인은 Claude 담당이며 기존 사용자 runtime·생산 조작 없음. CX-29 보고서 참조.
