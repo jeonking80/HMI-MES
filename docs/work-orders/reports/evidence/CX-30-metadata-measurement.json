@@ -1,0 +1,33 @@
+{
+  "measured_at": "2026-10-25T04:32:16.932494+00:00",
+  "tables": {
+    "batch_ledger": {
+      "rows": 9644,
+      "metadata_bytes": 8854082
+    },
+    "source_progress": {
+      "rows": 1,
+      "metadata_bytes": 656
+    },
+    "missing_ranges": {
+      "rows": 453,
+      "metadata_bytes": 1145112
+    },
+    "loss_intervals": {
+      "rows": 0,
+      "metadata_bytes": 0
+    }
+  },
+  "queued_batches": 0,
+  "metadata_total": 9999850,
+  "ledger_bytes_per_capture": 918.0922853587723,
+  "total_bytes_per_capture_amortized": 1036.8985897967648,
+  "hours_50mb_ledger_only_from_empty": 15.1279877964135,
+  "hours_50mb_total_amortized_from_empty": 13.394645364124907,
+  "hours_50mb_remaining_at_total_amortized_rate": 10.715756475236018,
+  "historical_delta_bytes": 4586429,
+  "historical_delta_captures": 4891,
+  "historical_delta_bytes_per_capture": 937.7282764260888,
+  "hours_50mb_at_measured_delta": 14.81120836178987,
+  "hours_remaining_at_measured_delta": 11.84901112305698
+}

@@ -77,7 +77,7 @@ def _iso(value: datetime) -> str:
 class BufferLimits:
     max_age: timedelta = timedelta(minutes=30)
     max_bytes: int = 100_000_000
-    max_metadata_bytes: int = 10_000_000
+    max_metadata_bytes: int = 50_000_000
 
     def __post_init__(self):
         if not isinstance(self.max_age, timedelta) or self.max_age <= timedelta(0):

@@ -326,6 +326,21 @@ def test_byte_boundary_recorded_eviction_and_oversize_backpressure(tmp_path):
         assert len(database.losses()) == 1
 
 
+@pytest.mark.parametrize("metadata_bytes", [50_000_000, 50_000_001])
+def test_default_metadata_budget_enqueue_boundary(buffer, monkeypatch, metadata_bytes):
+    monkeypatch.setattr(buffer, "_metadata_bytes", lambda: metadata_bytes)
+    batch = make_batch()
+    if metadata_bytes == 50_000_000:
+        buffer.enqueue(batch, now=AT)
+        assert buffer.lease_next().batch == batch
+        assert buffer.capture_position == (1, 1)
+    else:
+        with pytest.raises(BufferFull, match="METADATA_FULL"):
+            buffer.enqueue(batch, now=AT)
+        assert buffer.lease_next() is None
+        assert buffer.capture_position == (1, 0)
+
+
 def test_metadata_pressure_rolls_back_would_be_eviction_and_capture_position(tmp_path):
     path = tmp_path / "metadata.sqlite3"
     with GatewayBuffer(path, gateway_id="gateway-A") as database:
