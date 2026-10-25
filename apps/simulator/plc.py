@@ -89,6 +89,8 @@ class PLCState(ContractModel):
     recipe_version: Identifier | None = None
     parameters: Parameters | None = None
     target_quantity: UInt32 = 0
+    auto_end_at_target: StrictBool = False
+    end_reason: Literal["OPERATOR", "TARGET_REACHED"] | None = None
     run_state: RunState | None = None
     wip_quantity: UInt32 = 0
     last_event_seq: UInt64 = 0
@@ -103,7 +105,18 @@ class PLCState(ContractModel):
     def consistent(self) -> Self:
         if (self.pending_command_id is None) != (self.pending_kind is None):
             raise ValueError("pending command identity and kind must be paired")
-        if self.stop_purpose is not None and self.pending_kind != self.stop_purpose:
+        autonomous = (
+            self.stop_purpose == "END_RUN"
+            and self.pending_kind is None
+            and self.auto_end_at_target
+            and self.end_reason == "TARGET_REACHED"
+            and self.run_state == "ENDING"
+        )
+        if (
+            self.stop_purpose is not None
+            and self.pending_kind != self.stop_purpose
+            and not autonomous
+        ):
             raise ValueError("stop purpose must match pending command")
         if self.execution_id is None and any(
             x is not None for x in (self.parameters, self.recipe_version, self.run_state)
@@ -490,6 +503,8 @@ def execute_command(
             recipe_version=command.args.recipe_version,
             parameters=command.args.parameters,
             target_quantity=command.args.target_quantity,
+            auto_end_at_target=command.args.auto_end_at_target,
+            end_reason=None,
             run_state="LOADED",
             previous_execution_settled=False,
         )
@@ -506,7 +521,7 @@ def execute_command(
         elif kind == "PAUSE":
             changes.update(state=LineState.STOPPING, run_output=False, stop_purpose="PAUSE")
         else:
-            changes.update(run_state="ENDING", stop_purpose="END_RUN")
+            changes.update(run_state="ENDING", stop_purpose="END_RUN", end_reason="OPERATOR")
             if checked.state not in {LineState.FAULT, LineState.ESTOP}:
                 changes.update(state=LineState.STOPPING, run_output=checked.wip_quantity > 0)
     result = _evaluate(_copy(checked, **changes), config, promote_ready=kind != "RESET_FAULT")
@@ -582,7 +597,7 @@ def finish_command(
             and s.inputs.speed_m_per_min == 0
             and final_boundary_durable
         )
-        changes = dict(run_state="ENDED", run_output=False)
+        changes = dict(run_state="ENDED", run_output=False, end_reason="OPERATOR")
         if s.state not in {LineState.FAULT, LineState.ESTOP, LineState.RECOVERY_REQUIRED}:
             changes["state"] = LineState.STOPPED
         if s.wip_quantity == 0:
@@ -591,3 +606,55 @@ def finish_command(
         return PLCTransition(state=_commit(state, s), status="ACCEPTED")
     s = _copy(s, **changes, pending_command_id=None, pending_kind=None, stop_purpose=None)
     return PLCTransition(state=_commit(state, s), status="SUCCEEDED")
+
+
+def advance_target_end(
+    state: PLCState,
+    *,
+    good_quantity: int,
+    config: PLCConfig = DEFAULT_CONFIG,
+) -> PLCState:
+    """End an opted-in run from observed target output without inventing a command.
+
+    The owner persists final quantities, the final event boundary and an audit proof
+    in the same transaction. Existing commands and safety conditions retain priority.
+    """
+    s = _evaluate(state, config)
+    if (
+        not s.auto_end_at_target
+        or s.pending_command_id is not None
+        or s.unresolved_conflict
+        or s.recovery_required
+        or s.state in {LineState.FAULT, LineState.ESTOP, LineState.RECOVERY_REQUIRED}
+    ):
+        return _commit(state, s)
+    if (
+        s.run_state == "RUNNING"
+        and s.state == LineState.RUNNING
+        and s.operation_mode == "AUTO"
+        and s.permissive
+        and good_quantity >= s.target_quantity
+    ):
+        s = _copy(
+            s,
+            run_state="ENDING",
+            state=LineState.STOPPING,
+            stop_purpose="END_RUN",
+            end_reason="TARGET_REACHED",
+            run_output=s.wip_quantity > 0,
+        )
+    if (
+        s.run_state == "ENDING"
+        and s.end_reason == "TARGET_REACHED"
+        and s.wip_quantity == 0
+        and not s.inputs.run_feedback
+        and s.inputs.speed_m_per_min == 0
+    ):
+        s = _copy(
+            s,
+            run_state="ENDED",
+            state=LineState.STOPPED,
+            run_output=False,
+            stop_purpose=None,
+        )
+    return _commit(state, _evaluate(s, config))

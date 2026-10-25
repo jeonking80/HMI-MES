@@ -170,3 +170,32 @@ with `export_schemas()` after intentional model changes and review the diff.
 Persistence, PLC guards, method transport, authentication, transactional ACK,
 recovery, cursor storage, MES reconciliation and T01–T12 application integration
 remain later DEV work.
+
+## CX-33 target-ending policy and compatible evidence
+
+LOAD_JOB args now accept strict boolean auto_end_at_target, default true for a new
+command; binding accepts the same optional policy and writes it explicitly into
+its new LOAD request. False keeps the existing good+WIP admission cap and RUNNING
+behavior until operator END_RUN. New policy-aware commands persist the explicit
+resolved value. The PLC alone observes good output and begins the ending/draining
+transition; no synthetic END_RUN request or command ID is created.
+
+RunSummary adds optional end_reason TARGET_REACHED or OPERATOR for newly completed
+runs. Unknown historical reason remains absent, never inferred. Known reason is
+part of the immutable final-summary hash. Existing quantity, cursor, gap, epoch,
+command-unknown and original-execution settlement guards remain.
+
+Compatibility: an omitted LOAD policy is omitted by the specific nested serializer
+so old canonical journal bytes remain unchanged. A new unseen request resolves
+omission to explicit true before journaling. An omitted retry for a policy-aware
+original means true; it cannot match an original explicit false. A policy-free old
+ID retains its original identity and old accepted LOAD executes with false.
+Previously stored PLC snapshots default to false, and historical final summaries
+omit unknown end_reason so original hashes/attestations remain exact.
+
+Deployment coordination is required before public use: Claude owns the UI's exact
+binding intent/LOAD args parser and execution-summary parser. They must accept the
+optional policy and end_reason while retaining legacy shapes. Upgrade API, gateway
+and simulator contracts coherently before issuing new policy-aware LOADs; an old
+strict parser will reject the new fields. Resolve outstanding commands by their
+original IDs; do not create replacement requests to work around a mixed version.

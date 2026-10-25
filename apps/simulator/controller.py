@@ -48,6 +48,48 @@ _TIME = TypeAdapter(UTCTimestamp)
 _ID = TypeAdapter(Identifier)
 _VERSION = 2
 _PROCESS_DEFAULT = ProcessConfig()
+_LEGACY_STATE_FIELDS = frozenset(
+    {
+        "target_id",
+        "state",
+        "control_version",
+        "control_mode",
+        "operation_mode",
+        "inputs",
+        "recovery_required",
+        "latched_fault_code",
+        "pressure_ready",
+        "permissive",
+        "ready",
+        "run_output",
+        "execution_id",
+        "work_order_id",
+        "recipe_version",
+        "parameters",
+        "target_quantity",
+        "run_state",
+        "wip_quantity",
+        "last_event_seq",
+        "previous_execution_settled",
+        "unresolved_conflict",
+        "pending_command_id",
+        "pending_kind",
+        "stop_purpose",
+    }
+)
+_V1_INPUT_FIELDS = frozenset(
+    {
+        "estop",
+        "guard_closed",
+        "fault_code",
+        "fault_resettable",
+        "equipment_ready",
+        "temperature_c",
+        "pressure_bar",
+        "run_feedback",
+        "speed_m_per_min",
+    }
+)
 
 
 class SimulatorController:
@@ -176,7 +218,7 @@ class SimulatorController:
         db.execute("INSERT INTO runtime_schema_version VALUES (1,?)", (_VERSION,))
 
     def _migrate_runtime_v1(self) -> None:
-        """Recognize exact V1 snapshots; add only the new zero-bias input atomically."""
+        """Recognize frozen V1 snapshots and add conservative defaults atomically."""
         db = self.storage.connection
         rows = db.execute("SELECT singleton,snapshot_json FROM runtime_state").fetchall()
         if len(rows) != 1 or rows[0][0] != 1:
@@ -184,12 +226,15 @@ class SimulatorController:
             raise StorageCorruption("V1 controller snapshot is missing or ambiguous")
         try:
             payload = json.loads(rows[0][1])
-            if not isinstance(payload, dict) or set(payload) != set(plc.PLCState.model_fields):
+            if not isinstance(payload, dict) or set(payload) != _LEGACY_STATE_FIELDS:
                 raise ValueError("V1 snapshot requires exact versioned fields")
-            old_fields = set(plc.PLCInputs.model_fields) - {"temperature_offset_c"}
-            if not isinstance(payload["inputs"], dict) or set(payload["inputs"]) != old_fields:
+            if (
+                not isinstance(payload["inputs"], dict)
+                or set(payload["inputs"]) != _V1_INPUT_FIELDS
+            ):
                 raise ValueError("V1 inputs require exact recognized fields")
             payload["inputs"]["temperature_offset_c"] = 0.0
+            payload.update(auto_end_at_target=False, end_reason=None)
             migrated = plc.PLCState.model_validate_json(json.dumps(payload, allow_nan=False))
         except (TypeError, ValueError) as error:
             self.storage.mark_corrupt()
@@ -226,13 +271,18 @@ class SimulatorController:
             raise StorageCorruption("Controller snapshot is missing")
         try:
             payload = json.loads(row[0])
-            if not isinstance(payload, dict) or set(payload) != set(plc.PLCState.model_fields):
+            if not isinstance(payload, dict):
+                raise ValueError("Persisted PLC snapshot must be an object")
+            fields = set(plc.PLCState.model_fields)
+            if set(payload) == _LEGACY_STATE_FIELDS:
+                payload.update(auto_end_at_target=False, end_reason=None)
+            elif set(payload) != fields:
                 raise ValueError("Persisted PLC snapshot must contain every versioned field")
             if not isinstance(payload["inputs"], dict) or set(payload["inputs"]) != set(
                 plc.PLCInputs.model_fields
             ):
                 raise ValueError("Persisted PLC inputs must contain every versioned field")
-            return plc.PLCState.model_validate_json(row[0])
+            return plc.PLCState.model_validate_json(json.dumps(payload, allow_nan=False))
         except ValueError as error:
             self.storage.mark_corrupt()
             raise StorageCorruption("Invalid controller snapshot") from error
@@ -472,7 +522,11 @@ class SimulatorController:
                 raise StorageCorruption(
                     "Final runtime quantities or boundary disagree with durable process"
                 )
-            if completed_ends.get(execution_id) != [summary.last_event_seq]:
+            if summary.end_reason == "TARGET_REACHED":
+                if completed_ends.get(execution_id):
+                    raise StorageCorruption("Autonomous final has an unexpected END_RUN result")
+                self._validate_target_end_proof(summary)
+            elif completed_ends.get(execution_id) != [summary.last_event_seq]:
                 raise StorageCorruption(
                     "Final boundary disagrees with immutable END_RUN completion"
                 )
@@ -505,6 +559,74 @@ class SimulatorController:
                 raise StorageCorruption(
                     "Final runtime settings disagree with durable applied configuration"
                 )
+
+    def _target_load(self, execution_id: str):
+        rows = self.storage.connection.execute(
+            "SELECT command_id FROM command_journal "
+            "WHERE json_extract(request_json,'$.command.kind')='LOAD_JOB' "
+            "AND json_extract(request_json,'$.execution_id')=?",
+            (execution_id,),
+        ).fetchall()
+        loads = [self.commands.lookup(row[0]) for row in rows]
+        loads = [record for record in loads if record.result.status == "SUCCEEDED"]
+        if len(loads) != 1:
+            raise StorageCorruption(
+                "Target final requires exactly one successful original LOAD_JOB"
+            )
+        record = loads[0]
+        args = record.request.command.args
+        if record.result.evidence.execution_id != execution_id:
+            raise StorageCorruption("Original LOAD_JOB completion execution disagrees")
+        if "auto_end_at_target" not in args.model_fields_set or not args.auto_end_at_target:
+            raise StorageCorruption("Target final lacks an explicitly persisted LOAD_JOB policy")
+        return record
+
+    def _target_end_details(self, summary: RunSummary) -> dict:
+        load = self._target_load(summary.execution_id)
+        target = load.request.command.args.target_quantity
+        if summary.good_quantity < target:
+            raise StorageCorruption("Target final has insufficient good output")
+        return {
+            "execution_id": summary.execution_id,
+            "load_command_id": load.request.command_id,
+            "auto_end_at_target": True,
+            "target_quantity": target,
+            "good_quantity": summary.good_quantity,
+            "last_event_seq": str(summary.last_event_seq),
+            "canonical_final_sha256": self._final_digest(summary),
+        }
+
+    def _record_target_end_proof(
+        self, state: plc.PLCState, summary: RunSummary, now: datetime
+    ) -> None:
+        details = self._target_end_details(summary)
+        if state.target_quantity != details["target_quantity"] or not state.auto_end_at_target:
+            raise StorageCorruption("Target policy disagrees with the original LOAD_JOB")
+        self._audit(
+            state,
+            now,
+            "TARGET_AUTO_END",
+            json.dumps(details, sort_keys=True, separators=(",", ":")),
+        )
+
+    def _validate_target_end_proof(self, summary: RunSummary) -> None:
+        rows = self.storage.connection.execute(
+            "SELECT occurred_at,details_json FROM runtime_audit "
+            "WHERE cause='TARGET_AUTO_END' AND execution_id=?",
+            (summary.execution_id,),
+        ).fetchall()
+        try:
+            if (
+                len(rows) != 1
+                or _TIME.validate_python(rows[0][0]) != summary.ended_at
+                or json.dumps(json.loads(rows[0][1]), sort_keys=True, separators=(",", ":"))
+                != json.dumps(
+                    self._target_end_details(summary), sort_keys=True, separators=(",", ":")
+                )
+            ):
+                raise ValueError("Target proof disagrees with original final boundary")
+        except (ValueError, TypeError) as error:
+            raise StorageCorruption("Invalid or missing autonomous target-end proof") from error
 
     def submit(
         self,
@@ -857,6 +979,7 @@ class SimulatorController:
             last_event_seq=self._head(),
             final=final,
             ended_at=now if final else None,
+            end_reason=state.end_reason,
         )
         self.storage.connection.execute(
             "INSERT INTO runtime_runs VALUES (?,?) ON CONFLICT(execution_id) "
@@ -927,6 +1050,18 @@ class SimulatorController:
                         ),
                     )
                 after = transition.state
+                if transition.status != "FAILED" and request.command.kind == "LOAD_JOB":
+                    # Old accepted journals lack this field; their policy remains manual.
+                    after = plc.PLCState.model_validate(
+                        {
+                            **after.model_dump(),
+                            "auto_end_at_target": (
+                                request.command.args.auto_end_at_target
+                                if "auto_end_at_target" in request.command.args.model_fields_set
+                                else False
+                            ),
+                        }
+                    )
                 if transition.status != "FAILED":
                     if request.command.kind == "LOAD_JOB":
                         config = replace(
@@ -1016,6 +1151,18 @@ class SimulatorController:
                 self._summary(state, now)
                 self._before_boundary_commit()
                 completion = transition
+            if process is not None:
+                after = plc.advance_target_end(
+                    self._decision_state(state),
+                    good_quantity=process.good_quantity,
+                    config=self.plc_config,
+                )
+                target_final = state.run_state != "ENDED" and after.run_state == "ENDED"
+                state = self._record_change(state, after, now=now, cause="TARGET_END")
+                if target_final:
+                    final = self._summary(state, now)
+                    self._record_target_end_proof(state, final, now)
+                    self._before_boundary_commit()
             self._summary(state, now)
             if completion is not None:
                 self._complete(request, completion, now)

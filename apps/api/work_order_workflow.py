@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from typing import Literal
 from uuid import uuid4
 
-from pydantic import TypeAdapter, ValidationError
+from pydantic import TypeAdapter, ValidationError, model_serializer
 from sqlalchemy import Connection, text
 
 from apps.api.auth import PERMISSIONS, AuthorizationError, Principal
@@ -32,6 +32,7 @@ from contracts.models import (
     Identifier,
     Parameters,
     PositiveUInt64,
+    StrictBool,
     UInt64,
     UTCTimestamp,
 )
@@ -49,6 +50,14 @@ class BindIntent(ContractModel):
     stream_id: Identifier
     expected_work_order_version: PositiveUInt64
     expected_control_version: UInt64
+    auto_end_at_target: StrictBool = True
+
+    @model_serializer(mode="wrap")
+    def serialize_policy(self, handler):
+        body = handler(self)
+        if "auto_end_at_target" not in self.model_fields_set:
+            body.pop("auto_end_at_target", None)
+        return body
 
 
 class OriginalReleaseIntent(ReleaseIntent):
@@ -459,6 +468,7 @@ def bind_work_order(
                 "recipe_version": recipe["id"],
                 "target_quantity": int(order["target_quantity"]),
                 "parameters": parameters.model_dump(),
+                "auto_end_at_target": definition.auto_end_at_target,
             },
         },
     )

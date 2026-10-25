@@ -19,6 +19,7 @@ from pydantic import (
     TypeAdapter,
     ValidationInfo,
     WithJsonSchema,
+    model_serializer,
     model_validator,
 )
 
@@ -130,6 +131,15 @@ class LoadJobArguments(ContractModel):
     recipe_version: Identifier
     target_quantity: Annotated[int, Field(strict=True, gt=0, le=2**32 - 1)]
     parameters: Parameters
+    auto_end_at_target: StrictBool = True
+
+    @model_serializer(mode="wrap")
+    def serialize_policy(self, handler):
+        body = handler(self)
+        # Old journal identities must retain their original absent policy field.
+        if "auto_end_at_target" not in self.model_fields_set:
+            body.pop("auto_end_at_target", None)
+        return body
 
 
 class SetParametersArguments(ContractModel):
@@ -207,6 +217,32 @@ def canonical_command_payload(request: CommandRequest) -> str:
         separators=(",", ":"),
         ensure_ascii=False,
     )
+
+
+def materialize_load_job_policy(request: CommandRequest) -> CommandRequest:
+    """Record the default explicitly for a genuinely new LOAD command."""
+    if request.command.kind != "LOAD_JOB" or (
+        "auto_end_at_target" in request.command.args.model_fields_set
+    ):
+        return request
+    args = request.command.args.model_copy(update={"auto_end_at_target": True})
+    command = request.command.model_copy(update={"args": args})
+    return request.model_copy(update={"command": command})
+
+
+def canonical_command_retry_payload(request: CommandRequest, original_canonical: str) -> str:
+    """Resolve omitted retries as new defaults only for policy-aware originals.
+
+    An old original with no policy keeps its exact legacy identity. An omitted
+    retry of a new explicit false policy means true and must remain a conflict.
+    """
+    if request.command.kind == "LOAD_JOB" and (
+        "auto_end_at_target" not in request.command.args.model_fields_set
+        and "auto_end_at_target"
+        in json.loads(original_canonical).get("command", {}).get("args", {})
+    ):
+        request = materialize_load_job_policy(request)
+    return canonical_command_payload(request)
 
 
 def same_command_payload(left: CommandRequest, right: CommandRequest) -> bool:
@@ -476,6 +512,15 @@ class RunSummary(ContractModel):
     last_event_seq: UInt64
     final: StrictBool
     ended_at: UTCTimestamp | None = None
+    end_reason: Literal["TARGET_REACHED", "OPERATOR"] | None = None
+
+    @model_serializer(mode="wrap")
+    def serialize_end_reason(self, handler):
+        body = handler(self)
+        # Unknown legacy reasons must not change stored final-summary hashes.
+        if self.end_reason is None:
+            body.pop("end_reason", None)
+        return body
 
     @model_validator(mode="after")
     def validate_final_boundary(self) -> Self:

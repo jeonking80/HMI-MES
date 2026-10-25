@@ -24,6 +24,8 @@ from contracts.models import (
     Identifier,
     UTCTimestamp,
     canonical_command_payload,
+    canonical_command_retry_payload,
+    materialize_load_job_policy,
 )
 
 _PERMISSION = {
@@ -103,6 +105,7 @@ def enqueue_command(
         .first()
     )
     if existing is not None:
+        canonical = canonical_command_retry_payload(request, existing["canonical_payload"])
         if (
             existing["line_id"],
             existing["source_id"],
@@ -111,6 +114,8 @@ def enqueue_command(
         ) != (line_id, source_id, stream_id, canonical):
             raise CommandConflict("Command ID already belongs to different content or scope")
         return CommandResult.model_validate(existing["result"])
+    request = materialize_load_job_policy(request)
+    canonical = canonical_command_payload(request)
     # Ingestion/configuration also lock line before source. Taking source first
     # would invert that order when INSERT's line FK later takes a key-share lock.
     connection.execute(sa.select(Line.id).where(Line.id == line_id).with_for_update())

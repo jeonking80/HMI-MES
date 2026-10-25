@@ -147,6 +147,22 @@
       ],
       "default": null,
       "title": "Ended At"
+    },
+    "end_reason": {
+      "anyOf": [
+        {
+          "enum": [
+            "TARGET_REACHED",
+            "OPERATOR"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "End Reason"
     }
   },
   "required": [

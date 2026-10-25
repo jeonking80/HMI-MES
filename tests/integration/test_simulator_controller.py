@@ -79,6 +79,7 @@ def load(controller, *, target=100):
         work_order_id="work-A",
         recipe_version="recipe-1",
         target_quantity=target,
+        auto_end_at_target=False,
         parameters={"temperature_c": 150.0, "speed_m_per_min": 6.0},
     )
     assert controller.submit(command, now=AT).submission.disposition == "ACCEPTED"
@@ -412,6 +413,7 @@ def submit(kind, ident, args={}):
         expected_control_version=c.state.control_version,
         command={'kind':kind,'args':args}),now=at)
 submit('LOAD_JOB','load',dict(work_order_id='work',recipe_version='r1',target_quantity=1,
+    auto_end_at_target=False,
     parameters=dict(temperature_c=150.0,speed_m_per_min=6.0)))
 c.tick(now=at)
 submit('START','start')
@@ -565,6 +567,7 @@ def _remote_next_job(controller, command_id="remote-next"):
         work_order_id="work-B",
         recipe_version="recipe-B",
         target_quantity=1,
+        auto_end_at_target=False,
         parameters={"temperature_c": 150.0, "speed_m_per_min": 6.0},
     )
 
