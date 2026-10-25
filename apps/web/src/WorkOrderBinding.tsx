@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Session } from './auth'
+import { terminal } from './commands'
 import type { CommandScope, TrackedCommand } from './commands'
 import type { WorkOrder } from './mesApi'
 import { screenUInt64 } from './screenState'
@@ -10,7 +11,7 @@ import type { BindBody } from './workflow'
 export default function WorkOrderBinding({ order, source, session, blockedReason, values, workflow, tracked }: { order: WorkOrder | null; source: CommandScope; session: Session; blockedReason: string; values: Record<string, unknown>; workflow: WorkOrderWorkflow; tracked: TrackedCommand | null }) {
   const [confirmation, setConfirmation] = useState<(BindBody & { order_id: string; epoch: string }) | null>(null)
   if (!session.roles.some(role => ['operator', 'production_manager'].includes(role))) return null
-  const reason = session.must_change_password ? '비밀번호를 먼저 변경해 주세요.' : workflow.attempt || tracked ? '기존 요청의 원래 기록과 결과를 먼저 확인해 주세요.' : order && workflow.orderBlocked(order.id) ? '같은 작업지시의 원래 요청 기록을 먼저 확인해 주세요.' : !order || order.status !== 'RELEASED' ? '작업지시 화면에서 배포된 작업지시를 선택해 주세요.' : order.line_id !== source.line_id ? '선택한 작업지시의 라인과 현재 조회 라인이 다릅니다.' : blockedReason || (values['Line.ControlMode'] !== 1 ? '원격 제어 모드가 필요합니다.' : values['Line.State'] !== 0 || values['Line.WipCount'] !== 0 ? '정지 상태와 재공 0개를 확인해야 합니다.' : !screenUInt64(values['Line.ControlVersion']) || !workflowId(values['Line.CounterEpoch']) ? '제어 버전과 카운터 구간을 확인해야 합니다.' : '')
+  const reason = session.must_change_password ? '비밀번호를 먼저 변경해 주세요.' : workflow.attempt || (tracked && !(terminal(tracked.result) || tracked.phase === 'REJECTED')) ? '기존 요청의 원래 기록과 결과를 먼저 확인해 주세요.' : order && workflow.orderBlocked(order.id) ? '같은 작업지시의 원래 요청 기록을 먼저 확인해 주세요.' : !order || order.status !== 'RELEASED' ? '작업지시 화면에서 배포된 작업지시를 선택해 주세요.' : order.line_id !== source.line_id ? '선택한 작업지시의 라인과 현재 조회 라인이 다릅니다.' : blockedReason || (values['Line.ControlMode'] !== 1 ? '원격 제어 모드가 필요합니다.' : values['Line.State'] !== 0 || values['Line.WipCount'] !== 0 ? '정지 상태와 재공 0개를 확인해야 합니다.' : !screenUInt64(values['Line.ControlVersion']) || !workflowId(values['Line.CounterEpoch']) ? '제어 버전과 카운터 구간을 확인해야 합니다.' : '')
   const changed = confirmation && (confirmation.order_id !== order?.id || confirmation.epoch !== values['Line.CounterEpoch'] || confirmation.line_id !== source.line_id || confirmation.source_id !== source.source_id || confirmation.stream_id !== source.stream_id || confirmation.expected_work_order_version !== order?.row_version || confirmation.expected_control_version !== values['Line.ControlVersion'])
   return <section id="work-order-binding" className="mes-card" aria-labelledby="binding-heading"><h2 id="binding-heading">작업지시 실행 연결</h2>
     <p className="form-help">배포된 작업지시를 현재 라인에 연결하고 작업 불러오기를 요청합니다. 운전 시작과 PLC 실행 완료는 별도로 확인합니다. 기존 실행의 정산·예약은 서버가 다시 검증합니다.</p>
