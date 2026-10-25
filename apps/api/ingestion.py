@@ -17,6 +17,7 @@ import sqlalchemy as sa
 from pydantic import TypeAdapter
 from sqlalchemy.dialects.postgresql import JSONB
 
+from apps.api.capture_clock import CLOCK_EVIDENCE_REVISIONS
 from apps.api.database import SCHEMA_LOCK_ID, SUPPORTED_INGESTION_REVISIONS
 from apps.api.models import Asset, Line
 from contracts.models import (
@@ -979,7 +980,7 @@ class IngestionService:
                     sa.text("SELECT version_num FROM alembic_version")
                 ).scalar_one()
                 original_input = None
-                if revision == "0018_clock_evidence":
+                if revision in CLOCK_EVIDENCE_REVISIONS:
                     original_clock = (
                         connection.execute(
                             sa.text("""SELECT input_evidence_sha256 FROM capture_clock_evidence

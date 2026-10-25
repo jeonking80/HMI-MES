@@ -26,7 +26,13 @@ from apps.api.minute_aggregation import (
 )
 
 TREND_REVISIONS = frozenset(
-    {"0015_analog_history", "0016_downtime_reasons", "0017_guest_viewer", "0018_clock_evidence"}
+    {
+        "0015_analog_history",
+        "0016_downtime_reasons",
+        "0017_guest_viewer",
+        "0018_clock_evidence",
+        "0019_registration_ids",
+    }
 )
 
 

@@ -36,6 +36,7 @@ from alembic import command
 from apps.api.alarm_consumer import ConfiguredClockPolicy
 from apps.api.auth import UserAuth
 from apps.api.bootstrap import LINE_ID, bootstrap_reference_data
+from apps.api.capture_clock import CLOCK_EVIDENCE_REVISIONS
 from apps.api.database import migration_config
 from apps.api.ingestion import IngestionService
 from apps.api.minute_aggregation import ANALOG_UNITS, POLICY_VERSION, RawObservation
@@ -284,7 +285,7 @@ def inventory(engine):
     with engine.connect() as db:
         assert (
             db.execute(sa.text("SELECT version_num FROM alembic_version")).scalar_one()
-            == "0018_clock_evidence"
+            in CLOCK_EVIDENCE_REVISIONS
         )
         start, end = db.execute(sa.text("SELECT start_at,end_at FROM cx20_fixture")).one()
         counts = db.execute(

@@ -80,6 +80,13 @@ def _lock(connection, key):
     connection.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"), {"key": key})
 
 
+def lock_registration_namespace(connection, kind):
+    """Serialize manual and automatic writers before any identity locks."""
+    if kind not in {"recipe", "work_order"}:
+        raise ValueError("Invalid registration kind")
+    _lock(connection, json.dumps(["mes-registration-namespace", kind], separators=(",", ":")))
+
+
 def _recipe(row):
     return RecipeVersion(
         id=row["id"],
@@ -122,6 +129,7 @@ def register_recipe_version(
     definition = RecipeDefinition.model_validate_json(definition.model_dump_json())
     actor, now = _ID.validate_python(actor), _TIME.validate_python(now)
     _ready(connection)
+    lock_registration_namespace(connection, "recipe")
     keys = [
         json.dumps(["mes-recipe-id", definition.id], separators=(",", ":")),
         json.dumps(
@@ -177,6 +185,7 @@ def register_work_order(
     definition = WorkOrderDefinition.model_validate_json(definition.model_dump_json())
     actor, now = _ID.validate_python(actor), _TIME.validate_python(now)
     _ready(connection)
+    lock_registration_namespace(connection, "work_order")
     # Global identity first, even when two requests select different lines.
     _lock(connection, json.dumps(["mes-work-order", definition.id], separators=(",", ":")))
     existing = (

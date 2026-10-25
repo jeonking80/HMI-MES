@@ -9,6 +9,13 @@ from apps.api.auth import AuthorizationError, UserAuth
 from apps.api.commands import CommandConflict, CommandScopeError
 from apps.api.control_http import CommandPreflightConflict
 from apps.api.ingestion import IngestConflict
+from apps.api.registration_ids import (
+    RegistrationInputError,
+    recover_registration_receipt,
+    register_recipe_request,
+    register_work_order_request,
+)
+from apps.api.registration_requests import RecipeRegistrationRequest, WorkOrderRegistrationRequest
 from apps.api.settlement import SettlementScopeError
 from apps.api.work_order_workflow import (
     BindIntent,
@@ -18,16 +25,12 @@ from apps.api.work_order_workflow import (
     release_work_order,
 )
 from apps.api.work_orders import (
-    RecipeDefinition,
     RegistrationConflict,
     RegistrationNotFound,
-    WorkOrderDefinition,
     WorkOrdersUnavailable,
     get_recipe_version,
     get_work_order,
     list_registrations,
-    register_recipe_version,
-    register_work_order,
 )
 from contracts.conflict_codes import ConflictReason
 from contracts.models import Identifier
@@ -82,6 +85,8 @@ def mount_work_order_routes(
             )
         except RegistrationNotFound:
             raise HTTPException(404, "registration or reference not found") from None
+        except RegistrationInputError:
+            raise HTTPException(422, "invalid generated registration identity") from None
         except WorkOrdersUnavailable:
             raise HTTPException(503, "work-order registration unavailable") from None
 
@@ -99,7 +104,7 @@ def mount_work_order_routes(
         raw = await request.body()
         if len(raw) > 16_384:
             raise HTTPException(413, "registration request too large")
-        model = RecipeDefinition if kind == "recipe" else WorkOrderDefinition
+        model = RecipeRegistrationRequest if kind == "recipe" else WorkOrderRegistrationRequest
         try:
             definition = model.model_validate_json(raw)
         except ValidationError:
@@ -107,7 +112,7 @@ def mount_work_order_routes(
 
         def save():
             permission = "parameters_manage" if kind == "recipe" else "production_manage"
-            register = register_recipe_version if kind == "recipe" else register_work_order
+            register = register_recipe_request if kind == "recipe" else register_work_order_request
             with auth.authorized_transaction(
                 request.cookies.get(session_cookie),
                 permission=permission,
@@ -129,6 +134,34 @@ def mount_work_order_routes(
                 return get(tx.connection, identity).model_dump(mode="json")
 
         return await mapped(read)
+
+    async def registration_receipt(request, kind):
+        values = query_identity(request, ("request_id",))
+
+        def read():
+            with auth.authorized_transaction(
+                request.cookies.get(session_cookie), permission="read", refresh_idle=False
+            ) as tx:
+                return recover_registration_receipt(
+                    tx.connection,
+                    kind=kind,
+                    request_id=values["request_id"],
+                    actor=tx.principal.login,
+                )
+
+        result = await mapped(read)
+        if isinstance(result, JSONResponse):
+            result.headers["Cache-Control"] = "no-store"
+            return result
+        return JSONResponse(result, headers={"Cache-Control": "no-store"})
+
+    @app.get("/api/v1/registration-receipts/recipe")
+    async def recipe_registration_receipt(request: Request):
+        return await registration_receipt(request, "recipe")
+
+    @app.get("/api/v1/registration-receipts/work-order")
+    async def work_order_registration_receipt(request: Request):
+        return await registration_receipt(request, "work_order")
 
     async def workflow(request, identity, kind):
         if (
