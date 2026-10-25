@@ -416,7 +416,12 @@ def commission(directory, *, password_file, new_password_file, checks):
             if (
                 state["run_output"]
                 or state["wip_quantity"]
-                or (state["execution_id"] is not None and state["run_state"] != "ENDED")
+                # A loaded but never started job has no motion or WIP; it survives
+                # recovery and can still be started or ended explicitly.
+                or (
+                    state["execution_id"] is not None
+                    and state["run_state"] not in {"ENDED", "LOADED"}
+                )
             ):
                 raise ValueError("Commissioning requires no active execution, WIP or motion")
             if state["recovery_required"]:
