@@ -45,7 +45,7 @@ function usePage<T>(path: string, parse: (value: unknown) => Page<T>, onSessionI
 
 /** Every registered entry (bounded) so forms can offer choices and next IDs without typing. */
 function useAll<T>(path: string, parse: (value: unknown) => Page<T>, refreshKey: string) {
-  const [items, setItems] = useState<T[]>([])
+  const [state, setState] = useState<{ items: T[]; loaded: boolean }>({ items: [], loaded: false })
   useEffect(() => {
     const controller = new AbortController()
     void (async () => {
@@ -58,11 +58,11 @@ function useAll<T>(path: string, parse: (value: unknown) => Page<T>, refreshKey:
         cursor = value.next_cursor
         if (!cursor) break
       }
-      if (!controller.signal.aborted) setItems(collected)
+      if (!controller.signal.aborted) setState({ items: collected, loaded: true })
     })().catch(() => {})
     return () => controller.abort()
   }, [path, parse, refreshKey])
-  return items
+  return state
 }
 
 export default function MesDraftPanel({ session, onSessionInvalid, workflow, cancellation, onSelectOrder }: { session: Session; onSessionInvalid: () => void; workflow: WorkOrderWorkflow; cancellation: CancellationWorkflow; onSelectOrder: (order: WorkOrder) => void }) {
@@ -87,14 +87,15 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
   const [paramsManual, setParamsManual] = useState(false)
   const [orderIdManual, setOrderIdManual] = useState(false)
   const [choiceRevision, setChoiceRevision] = useState(0)
-  const allRecipes = useAll(mesPaths.recipe, recipePage, `recipes-${choiceRevision}`)
-  const allOrders = useAll(mesPaths.order, orderPage, `orders-${choiceRevision}-${cancellation.ledger?.receipt?.cancellation_id ?? ''}`)
+  const { items: allRecipes } = useAll(mesPaths.recipe, recipePage, `recipes-${choiceRevision}`)
+  const { items: allOrders } = useAll(mesPaths.order, orderPage, `orders-${choiceRevision}-${cancellation.ledger?.receipt?.cancellation_id ?? ''}`)
   const groups = recipeGroups(allRecipes)
   // Item master (CX-37); an empty list on a server without it keeps the earlier free-text behaviour.
-  const masterItems = useAll(itemsPath, itemPage, `items-${choiceRevision}`)
+  const { items: masterItems, loaded: masterLoaded } = useAll(itemsPath, itemPage, `items-${choiceRevision}`)
   const masterIds = new Set(masterItems.map(item => item.id))
   const items = [...new Set([...masterItems.filter(item => item.enabled).map(item => item.id), ...knownItems(allRecipes, allOrders)])]
-  const newItem = masterItems.length > 0 && recipe.item.trim() !== '' && !masterIds.has(recipe.item.trim())
+  // An empty but confirmed master list still needs its first item registered; an unavailable one does not.
+  const newItem = masterLoaded && recipe.item.trim() !== '' && !masterIds.has(recipe.item.trim())
   const releaseAfterRegister = useRef(false)
   const [moving, setMoving] = useState('')
   const [lines, setLines] = useState<LineChoice[] | null>(null)
