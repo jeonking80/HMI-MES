@@ -44,6 +44,7 @@ from apps.api.ingestion import (
     IngestionUnavailable,
     SourceBindingError,
 )
+from apps.api.line_queue import advance_line_once
 from apps.api.measured_clock import (
     MeasuredClockConflict,
     ProbeCapacityError,
@@ -450,6 +451,9 @@ def create_internal_app(
         payload = await command_body(request, TypeAdapter(dict))
         if payload:
             raise HTTPException(422, "claim body must be empty")
+        # Complete and commit one bounded queue step before ordinary dispatch.
+        # Only the authenticated credential scope can select automation work.
+        await run_in_threadpool(command_transaction, binding, advance_line_once)
         work = await run_in_threadpool(command_transaction, binding, claim_next)
         return {"work": work.model_dump(mode="json") if work is not None else None}
 

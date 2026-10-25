@@ -30,6 +30,7 @@ SUPPORTED_AUTH_REVISIONS = frozenset(
         "0017_guest_viewer",
         "0018_clock_evidence",
         "0019_registration_ids",
+        "0020_line_queue",
     }
 )
 SUPPORTED_INGESTION_REVISIONS = SUPPORTED_AUTH_REVISIONS | {"0002_ingestion"}
@@ -51,6 +52,7 @@ SUPPORTED_COMMAND_REVISIONS = frozenset(
         "0017_guest_viewer",
         "0018_clock_evidence",
         "0019_registration_ids",
+        "0020_line_queue",
     }
 )
 SUPPORTED_SETTLEMENT_REVISIONS = frozenset(
@@ -69,6 +71,7 @@ SUPPORTED_SETTLEMENT_REVISIONS = frozenset(
         "0017_guest_viewer",
         "0018_clock_evidence",
         "0019_registration_ids",
+        "0020_line_queue",
     }
 )
 SUPPORTED_WORKFLOW_REVISIONS = frozenset(
@@ -84,6 +87,7 @@ SUPPORTED_WORKFLOW_REVISIONS = frozenset(
         "0017_guest_viewer",
         "0018_clock_evidence",
         "0019_registration_ids",
+        "0020_line_queue",
     }
 )
 SUPPORTED_ALARM_REVISIONS = frozenset(
@@ -98,6 +102,7 @@ SUPPORTED_ALARM_REVISIONS = frozenset(
         "0017_guest_viewer",
         "0018_clock_evidence",
         "0019_registration_ids",
+        "0020_line_queue",
     }
 )
 SUPPORTED_ALARM_CAPTURE_REVISIONS = frozenset(
@@ -111,6 +116,7 @@ SUPPORTED_ALARM_CAPTURE_REVISIONS = frozenset(
         "0017_guest_viewer",
         "0018_clock_evidence",
         "0019_registration_ids",
+        "0020_line_queue",
     }
 )
 SUPPORTED_REGISTRATION_REVISIONS = SUPPORTED_WORKFLOW_REVISIONS | {"0008_work_orders"}
@@ -123,6 +129,7 @@ SUPPORTED_CANCELLATION_REVISIONS = frozenset(
         "0017_guest_viewer",
         "0018_clock_evidence",
         "0019_registration_ids",
+        "0020_line_queue",
     }
 )
 # Every new mixed-coordinator mutation requires this explicit feature barrier.
@@ -134,9 +141,11 @@ SUPPORTED_MIXED_ALARM_REVISIONS = frozenset(
         "0017_guest_viewer",
         "0018_clock_evidence",
         "0019_registration_ids",
+        "0020_line_queue",
     }
 )
-SUPPORTED_AUTO_REGISTRATION_REVISIONS = frozenset({"0019_registration_ids"})
+SUPPORTED_AUTO_REGISTRATION_REVISIONS = frozenset({"0019_registration_ids", "0020_line_queue"})
+SUPPORTED_LINE_QUEUE_REVISIONS = frozenset({"0020_line_queue"})
 SCHEMA_LOCK_ID = 843001
 
 

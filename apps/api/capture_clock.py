@@ -15,7 +15,9 @@ from contracts.transport import BatchBody
 from contracts.transport import batch_digest as digest_body
 
 CLOCK_EVIDENCE_REVISION = "0018_clock_evidence"
-CLOCK_EVIDENCE_REVISIONS = frozenset({CLOCK_EVIDENCE_REVISION, "0019_registration_ids"})
+CLOCK_EVIDENCE_REVISIONS = frozenset(
+    {CLOCK_EVIDENCE_REVISION, "0019_registration_ids", "0020_line_queue"}
+)
 NORMALIZATION_VERSION = "api-interval-midpoint-v1"
 UNKNOWN_MINUTE = json.dumps(
     {"value": None, "min": None, "max": None, "quality": "TIME_UNKNOWN", "valid_count": 0}
