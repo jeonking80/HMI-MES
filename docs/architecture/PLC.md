@@ -30,7 +30,7 @@ START는 READY 또는 PAUSED에서 설정·안전·예열 준비를 확인한 �
 
 END_RUN은 ENDING과 STOPPING 목적을 설정하며 신규 투입을 막는다. 정상 상태에서 재공이 있으면 안전 허용 하에 이송만 계속하고, 재공 0이면 출력을 정지한다. 완료에는 재공 0·속도 0·운전 피드백 false와 `final_boundary_durable=True`가 모두 필요하다. 이 플래그는 호출자가 최종 수량·설정 버전·epoch·last_event_seq·ended_at과 최종 ENDED 요약을 같은 저장 경계에서 확정했다는 근거다. 순수 함수 자체는 영속성을 보장하지 않는다. FAULT·ESTOP 중 END_RUN은 정지 피드백을 요구하며, 재공이 있으면 명시적 로컬 폐기와 영속 사건을 기다린다. END_RUN은 자동 폐기나 안전 원인 해제를 수행하지 않는다. 안전 상태에서 실행 종료가 성공해도 FAULT·ESTOP와 원인은 남는다.
 
-SET_PARAMETERS는 STOPPED·READY·PAUSED의 정지된 활성 실행에서만 허용한다. 새 설정 버전과 범위를 검사하며 예열 준비를 다시 계산한다. 과거 설정 적용 구간·생산 기록 보존은 저장 계층의 책임이다.
+SET_PARAMETERS의 새 설정 버전 적용은 STOPPED·READY에서 허용한다. CX-35의 운전 중 제어 요구로 RUNNING·PAUSED에는 원래 LOAD 레시피·온도를 유지하는 속도 전용 형식을 추가했다. 범위는 원래 속도의 ±20% 및 PLC 1~60m/min이다. PAUSED의 새 레시피/온도 교체는 허용하지 않는다. 기존 생산 기록을 덮어쓰지 않으며 PARAMETERS_CHANGED·전체 이력·실제 APPLIED 사건으로 정산한다. 변경 이유와 영향은 [SPEED_ADJUSTMENTS.md](SPEED_ADJUSTMENTS.md)를 따른다.
 
 ## 초기 시뮬레이터 수치 결정
 
@@ -56,3 +56,5 @@ SET_PARAMETERS는 STOPPED·READY·PAUSED의 정지된 활성 실행에서만 허
 ```
 
 단위 시험은 정상 로드·시작 피드백·정지·재개·종료, 안전 우선순위, 접수 후 고장, PAUSE/END 충돌, 안전 중 종료와 고장 보존, 명시 복구, 즉시 이동 인터록, 설정/공압/예열 경계, 버전 원자성·UInt64·불변 스냅샷을 검증한다. 실제 OPC 메서드·인증/권한·콘솔·필드 품질·SQLite 원자적 결과 저널과의 통합, T01–T12·장시간 운전·물리 정지 검증은 각각 해당 후속 범위에서 검증해야 한다.
+
+CX-33~34의 auto_end_at_target(defaulttrue), start_when_ready(defaultfalse)는 원래 성공 LOAD에 연결된 PLC 내부 전이다. 새 명령 ID를 만들지 않으며 예약은 안전/모드 변경·재시작에서 취소된다. [GOOD_QUANTITY_TARGET.md](GOOD_QUANTITY_TARGET.md)와 [START_RESERVATION.md](START_RESERVATION.md)에 기본값·이전 기록 호환·감사 조건을 명시한다.

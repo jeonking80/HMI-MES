@@ -30,6 +30,7 @@ from contracts.models import (
 )
 from contracts.tags.validate import load_contract
 from contracts.transport import BatchBody, GatewayBatch, batch_digest
+from tests.integration.item_seed import seed_item
 
 AT = datetime(2026, 10, 25, tzinfo=UTC)
 BASE = Parameters(temperature_c=150.0, speed_m_per_min=6.0)
@@ -427,6 +428,7 @@ def api_service(migrated, controller):
     UserAuth(migrated, allowed_origins={"https://speed.test"}).bootstrap_user(
         "manager", "Speed-test-password-123!", roles={"production_manager"}
     )
+    seed_item(migrated, "item", actor="manager", now=AT)
     with migrated.begin() as db:
         register_recipe_version(
             db,

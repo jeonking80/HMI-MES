@@ -219,3 +219,17 @@ renderer의 registration-upgrade/registration-grants로 재현한다. 이전17/1
 되돌리기는 counter·receipt가 모두 비어 있을 때만 downgrade가 가능하다. 사용한 번호와
 원래 결과를 지우는 downgrade는 차단하므로 실제 사용 이후 rollback은 사전 백업/별도 검토가 필요하다.
 이번 변경으로 공개 DB에 자동 migration을 실행하거나 UI를 바꾸지 않는다.
+
+## CX-37 — 등록된 품목 참조 (schema21)
+
+CX-32 당시 후속 범위였던 품목 마스터를 추가했다. schema21의 새로운
+recipe/work-order 등록은 실제 item_master에 있고 enabled=true인 품목만
+참조한다. 수동/자동 ID 발급에 같은 검사를 적용하며, unknown item을
+자동 생성하지 않는다. 기존 ID/등록 영수증 재조회는 먼저 처리하고,
+구schema 동작·원래 실행/정산/bind 조건은 유지한다.
+
+변경 이유는 자유 문자열 품목을 등록된 업무 정의로 제한하기 위해서다.
+기존 품목은 0021에서 합집합으로 보존 등록하고 FK를 추가한다. name=id와
+unit=EA는 이관 기본값이며 실제 품목 정보를 복원했다는 뜻이 아니다.
+목록/등록 API·불변 정의·최소 grants·롤백·UI seed 영향은
+[ITEM_MASTER.md](ITEM_MASTER.md)를 따른다. 공개 이관은 Claude가 수행한다.

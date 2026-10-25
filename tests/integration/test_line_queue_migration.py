@@ -86,13 +86,15 @@ def test_rendered_queue_upgrade_equals_alembic_and_preserves_head19_receipts(hea
 
 
 def test_used_queue_refuses_downgrade_without_losing_intent_or_receipts(state):
+    with state.engine.connect() as db:
+        revision = db.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
     receipt = update(state, definition(enabled=False))
     with pytest.raises(DBAPIError), state.engine.connect() as db:
         command.downgrade(migration_config(db), "0019_registration_ids")
     assert update(state, definition(enabled=False)) == receipt
     with state.engine.connect() as db:
         assert db.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
-            "0020_line_queue"
+            revision
         )
 
 

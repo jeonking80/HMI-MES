@@ -38,15 +38,18 @@ PLC가 실제 제어 상태와 명령 허용을 결정한다. HMI는 성공 결�
 | STOPPED | LOAD_JOB; 재공 0·이전 실행 정산 완료·충돌 없음 | STOPPED / READY | ActiveExecutionId·RecipeVersion 일치, 설정 적용; start_ready면 READY |
 | STOPPED | 실행 연결됨·start_ready 충족·복구 게이트 해제 | READY | Permissive·Ready와 적용 설정 일치 |
 | READY | 준비 조건 소실; 안전 차단 원인 없음 | STOPPED | 원인 표시, 동작 시작 안 함 |
+| READY | 명시적 start_when_ready 예약; 원래 성공 LOAD·AUTO·안전 조건 유지 | RUNNING | 예약 한 번 소비·원래 실행 감사, 신규 START ID 없음 |
 | READY / PAUSED | START; start_ready·control_ready·버전·실행 일치 | RUNNING | 명령 성공과 RUNNING·RunFeedback 일치; 재개는 같은 실행 ID |
+| RUNNING | auto_end_at_target=true·양품 목표 도달·pending/conflict/recovery 없음 | STOPPING | 원래 실행 ENDING·재공 배출, 신규 END_RUN ID 없음 |
 | RUNNING | PAUSE; 원격 가능·실행 일치 | STOPPING | 정지 목적 PAUSE를 내부에 보관; §3 수행 |
 | STOPPING | 정지 목적 PAUSE; 모든 구동 정지 확인 | PAUSED | 속도 0·RunFeedback false, 재공·작업 보존 |
 | STOPPED / READY / RUNNING / PAUSED | END_RUN; 실행 일치·종료 순서 수행 가능 | STOPPING | 정지 목적 END_RUN; 신규 투입 금지, 실행 요약 ENDING |
 | STOPPING | 정지 목적 END_RUN; 재공 0·최종 경계 영속 확정 | STOPPED | final=true·ENDED 요약·최종 수량·last_event_seq |
 | FAULT / ESTOP | END_RUN; 실행 일치·안전한 재공 정리 가능 | 같은 상태 | 실행만 ENDING→ENDED 가능; 물리 원인·FaultCode·비상정지 유지 |
-| STOPPED / READY / PAUSED | SET_PARAMETERS; 허용 범위·원격·실행 일치 | 상태 유지 / STOPPED | 새 RecipeVersion·실제 설정값 일치; 준비 재평가 |
+| STOPPED / READY | SET_PARAMETERS; 허용 범위·원격·실행 일치 | 상태 유지 / STOPPED | 새 RecipeVersion·실제 설정값 일치; 준비 재평가 |
+| RUNNING / PAUSED | SET_PARAMETERS 속도 전용; 원래 LOAD 레시피·온도 유지, 원래 속도 ±20%와 PLC 1~60 | 상태 유지 | 원래 실행 PARAMETERS_CHANGED·요약 이력·적용 버전 일치 |
 
-**초기 결정:** SET_PARAMETERS는 STOPPING·RUNNING·FAULT·ESTOP·RECOVERY_REQUIRED에서 거절한다.
+**14차 변경(CX-33~35):** 목표 종료와 명시적 예열 시작 예약을 PLC 내부 전이로 추가했다. 운전 중 제어 요구에 따라 SET_PARAMETERS는 RUNNING/PAUSED의 속도 전용 형식을 허용한다. PAUSED의 새 레시피/온도 교체는 그 형식에 포함하지 않는다. STOPPING·FAULT·ESTOP·RECOVERY_REQUIRED는 계속 거절한다. 예약의 안전/모드 변경·재시작 취소와 원래 LOAD provenance는 START_RESERVATION.md, 정산 근거의 영향은 SPEED_ADJUSTMENTS.md를 따른다. 원격 비상정지 해제는 추가하지 않는다.
 기존 실행의 생산이 있으면 새 설정 버전과 적용 구간을 보존하고 기존 생산 기록을 덮어쓰지 않는다.
 PLC의 END_RUN 성공은 설비 경계 확정이다. MES의 사건 대조 완료와 구분하며, 다음 LOAD_JOB는 MES 정산 완료 전 전달하지 않는다.
 가드 개방은 초기 시뮬레이터에서 래치 고장으로 취급하고, 닫은 뒤 별도 RESET_FAULT를 요구한다.
@@ -102,7 +105,7 @@ START 접수 후 10초, END_RUN 60초는 초기 결과 대기값이며 초과는
 | START | RUNNING·운전 피드백, 해당 execution_id 일치 |
 | PAUSE | PAUSED·구동 정지 확인, 같은 execution_id·재공 보존 |
 | END_RUN | final ENDED 요약·재공 0·최종 수량·last_event_seq 영속 확정; PLC는 FAULT/ESTOP일 수 있음 |
-| SET_PARAMETERS | 새 RecipeVersion·적용 온도/속도 일치, 적용 제어 버전 |
+| SET_PARAMETERS | 정지 설정은 새 RecipeVersion·설정 일치; 운전 속도는 원래 RecipeVersion·온도 유지와 실제 속도·사건 이력 일치, 적용 제어 버전 |
 | RESET_FAULT | 원인 해소·FaultCode 해제·정지 또는 복구 상태; 자동 운전 없음 |
 
 `CompletionEvidence`는 state·execution_id·recipe_version·last_event_seq를 제공한다. 설정값·수량·운전 피드백은 태그와 RunSummary로 추가 대조한다.

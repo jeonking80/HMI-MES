@@ -8,7 +8,11 @@ from typing import Annotated, Literal
 from pydantic import BeforeValidator, Field, TypeAdapter
 from sqlalchemy import Connection, text
 
-from apps.api.database import SCHEMA_LOCK_ID, SUPPORTED_REGISTRATION_REVISIONS
+from apps.api.database import (
+    SCHEMA_LOCK_ID,
+    SUPPORTED_ITEM_REVISIONS,
+    SUPPORTED_REGISTRATION_REVISIONS,
+)
 from contracts.conflict_codes import ConflictError, ConflictReason
 from contracts.models import ContractModel, Identifier, Parameters, UInt64, UTCTimestamp
 
@@ -74,6 +78,23 @@ def _ready(connection):
     revisions = connection.execute(text("SELECT version_num FROM alembic_version")).scalars().all()
     if len(revisions) != 1 or revisions[0] not in SUPPORTED_REGISTRATION_REVISIONS:
         raise WorkOrdersUnavailable("Unsupported work-order registration schema")
+    return revisions[0]
+
+
+def _registered_item(connection, identity, revision):
+    # Historical schemas retain their original registration behavior.
+    if revision not in SUPPORTED_ITEM_REVISIONS:
+        return
+    # The master is immutable; SELECT needs no UPDATE grant for a row lock.
+    enabled = connection.execute(
+        text("SELECT enabled FROM item_master WHERE id=:id"), {"id": identity}
+    ).scalar_one_or_none()
+    if enabled is None:
+        raise RegistrationNotFound("Registered item required")
+    if not enabled:
+        raise RegistrationConflict(
+            "Enabled item required", reason_code=ConflictReason.STATE_NOT_ALLOWED
+        )
 
 
 def _lock(connection, key):
@@ -128,7 +149,7 @@ def register_recipe_version(
 ) -> RecipeVersion:
     definition = RecipeDefinition.model_validate_json(definition.model_dump_json())
     actor, now = _ID.validate_python(actor), _TIME.validate_python(now)
-    _ready(connection)
+    revision = _ready(connection)
     lock_registration_namespace(connection, "recipe")
     keys = [
         json.dumps(["mes-recipe-id", definition.id], separators=(",", ":")),
@@ -159,6 +180,7 @@ def register_recipe_version(
         ):
             raise RegistrationConflict("Recipe identity or version already has different content")
         return _recipe(existing[0])
+    _registered_item(connection, definition.item_id, revision)
     values = definition.model_dump(exclude={"parameters"})
     values.update(definition.parameters.model_dump())
     values.update(created_by=actor, created_at=now)
@@ -184,7 +206,7 @@ def register_work_order(
 ) -> WorkOrder:
     definition = WorkOrderDefinition.model_validate_json(definition.model_dump_json())
     actor, now = _ID.validate_python(actor), _TIME.validate_python(now)
-    _ready(connection)
+    revision = _ready(connection)
     lock_registration_namespace(connection, "work_order")
     # Global identity first, even when two requests select different lines.
     _lock(connection, json.dumps(["mes-work-order", definition.id], separators=(",", ":")))
@@ -202,6 +224,7 @@ def register_work_order(
         ):
             raise RegistrationConflict("Work-order identity already has different content")
         return _order(existing)
+    _registered_item(connection, definition.item_id, revision)
     if (
         connection.execute(
             text("SELECT id FROM lines WHERE id=:id FOR UPDATE"), {"id": definition.line_id}

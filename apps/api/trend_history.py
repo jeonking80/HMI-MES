@@ -33,6 +33,7 @@ TREND_REVISIONS = frozenset(
         "0018_clock_evidence",
         "0019_registration_ids",
         "0020_line_queue",
+        "0021_item_master",
     }
 )
 

@@ -31,6 +31,7 @@ from apps.simulator.storage import SimulatorStorage, StorageCorruption
 from contracts.models import CommandRequest, LineState, Parameters, canonical_command_payload
 from contracts.tags.validate import load_contract
 from contracts.transport import BatchBody, GatewayBatch, batch_digest
+from tests.integration.item_seed import seed_item
 
 AT = datetime(2026, 10, 25, tzinfo=UTC)
 ROOT = Path(__file__).resolve().parents[2]
@@ -257,6 +258,7 @@ def api(migrated):
     bootstrap_reference_data(migrated)
     auth = UserAuth(migrated, allowed_origins={ORIGIN}, clock=lambda: AT)
     auth.bootstrap_user("manager", secrets.token_urlsafe(24), roles={"production_manager"})
+    seed_item(migrated, "item", actor="manager", now=AT)
     service = IngestionService(migrated)
     service.configure_source(
         source_id="source",

@@ -11,6 +11,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from apps.api.auth import UserAuth
 from apps.api.bootstrap import LINE_ID, bootstrap_reference_data
 from apps.api.user_http import UserHTTPConfig, create_user_app
+from tests.integration.item_seed import seed_item
 
 ORIGIN = "https://mes.example.test"
 RECIPE = {
@@ -58,6 +59,8 @@ def state(migrated):
     bootstrap_reference_data(migrated)
     auth = UserAuth(migrated, allowed_origins={ORIGIN})
     session = account(auth, "production_manager")
+    seed_item(migrated, "item-A", actor="production_manager")
+    seed_item(migrated, "wrong", actor="production_manager")
     # Factory owns mounting; registering routes twice would hide composition regressions.
     app = create_user_app(auth, UserHTTPConfig(origin=ORIGIN))
     return SimpleNamespace(auth=auth, session=session, app=app, engine=migrated)

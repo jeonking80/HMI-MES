@@ -39,6 +39,7 @@ from apps.simulator.storage import SimulatorStorage
 from contracts.models import CommandRequest, Parameters, ReadEventsRequest
 from contracts.tags.validate import load_contract
 from contracts.transport import BatchBody, GatewayBatch, batch_digest
+from tests.integration.item_seed import seed_item
 
 AT = datetime(2026, 10, 23, tzinfo=UTC)
 ORIGIN = "https://workflow.example.test"
@@ -71,6 +72,7 @@ def state(migrated, request):
     clock = [AT]
     auth = UserAuth(migrated, allowed_origins={ORIGIN}, clock=lambda: clock[0])
     session = account(auth, "manager", {"production_manager", "operator"})
+    seed_item(migrated, "item", actor="manager", now=AT)
     principal = Principal("manager", frozenset({"production_manager", "operator"}), False)
     service = IngestionService(migrated)
     service.configure_source(

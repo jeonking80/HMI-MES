@@ -26,6 +26,7 @@ from apps.api.work_orders import (
     register_work_order,
 )
 from contracts.models import Parameters
+from tests.integration.item_seed import seed_item
 
 AT = datetime(2026, 10, 22, tzinfo=UTC)
 ORIGIN = "https://mes.example.test"
@@ -59,11 +60,16 @@ def order(**changes):
 
 
 @pytest.fixture
-def catalog(migrated):
+def catalog(migrated, request):
+    if getattr(request, "param", None) == "legacy20":
+        with migrated.connect() as db:
+            command.downgrade(migration_config(db), "0020_line_queue")
     bootstrap_reference_data(migrated)
     UserAuth(migrated, allowed_origins={ORIGIN}).bootstrap_user(
         "manager", secrets.token_urlsafe(32), roles={"production_manager"}
     )
+    seed_item(migrated, "item-A", actor="manager", now=AT)
+    seed_item(migrated, "wrong-item", actor="manager")
     return migrated
 
 
@@ -315,6 +321,7 @@ def test_database_recipe_family_version_unique_constraint(catalog):
     assert scalar(catalog, "SELECT count(*) FROM recipe_versions") == 1
 
 
+@pytest.mark.parametrize("catalog", ["legacy20"], indirect=True)
 def test_historical_0008_still_rejects_released_state(catalog):
     seed_recipe(catalog)
     with catalog.connect() as db:
@@ -332,6 +339,7 @@ def test_historical_0008_still_rejects_released_state(catalog):
         command.upgrade(migration_config(db), "0009_work_order_binding")
 
 
+@pytest.mark.parametrize("catalog", ["legacy20"], indirect=True)
 def test_migration_roundtrip_preserves_legacy_execution_and_plan(catalog):
     service = IngestionService(catalog)
     service.configure_source(

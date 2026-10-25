@@ -207,6 +207,7 @@ def test_concurrent_same_request_returns_one_original_response(catalog, kind):
     )
 
 
+@pytest.mark.parametrize("catalog", ["legacy20"], indirect=True)
 def test_head18_manual_registration_stays_compatible_and_auto_requires_head19(catalog):
     with catalog.connect() as db:
         command.downgrade(migration_config(db), "0018_clock_evidence")

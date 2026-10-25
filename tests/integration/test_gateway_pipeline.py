@@ -23,6 +23,7 @@ from apps.simulator.plc import PLCInputs, RecoveryChecks
 from apps.simulator.process import ProcessConfig
 from apps.simulator.storage import SimulatorStorage
 from contracts.models import CommandRequest, Parameters, RunSummaryRequest
+from tests.integration.item_seed import seed_item
 
 
 def free_port():
@@ -791,6 +792,7 @@ async def test_managed_two_job_binding_replaces_only_the_exact_settled_reservati
     auth = UserAuth(service.engine, allowed_origins={origin})
     password = secrets.token_urlsafe(32)
     auth.bootstrap_user("planner", password, roles={"production_manager", "operator"})
+    seed_item(service.engine, "item", actor="planner")
     challenge = auth.begin_login()
     session = auth.login(
         "planner",
