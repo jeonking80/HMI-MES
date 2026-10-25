@@ -1,0 +1,22 @@
+{
+  "captures_per_day": 1000,
+  "synthetic": true,
+  "snapshots": [
+    {
+      "raw": 7000,
+      "receipts": 8000,
+      "expired": 1000,
+      "raw_bytes": 14483456,
+      "permanent_receipt_bytes": 6103040,
+      "range_bytes": 458752
+    },
+    {
+      "raw": 7000,
+      "receipts": 9000,
+      "expired": 2000,
+      "raw_bytes": 16261120,
+      "permanent_receipt_bytes": 7487488,
+      "range_bytes": 843776
+    }
+  ]
+}

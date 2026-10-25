@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import text
 
+from apps.api.ingest_retention import retention_available
 from contracts.clock_evidence import ClockProbeRequest, ClockProbeResponse
 from contracts.transport import GatewayBatch, gateway_batch_digest
 
@@ -66,19 +67,40 @@ def issue_probe(
     )
     # Prioritize the issuing scope so its expired cap cannot repeatedly roll
     # back unrelated cleanup while leaving that scope permanently saturated.
-    connection.execute(
-        text("""DELETE FROM capture_clock_probes WHERE nonce_sha256 IN
-        (SELECT nonce_sha256 FROM capture_clock_probes WHERE expires_at<=:now
-         ORDER BY CASE WHEN gateway_id=:gateway AND source_id=:source
-          AND stream_id=:stream AND capture_generation=:generation AND clock_epoch=:epoch
-          THEN 0 ELSE 1 END,expires_at,nonce_sha256 LIMIT :limit)"""),
-        dict(scope, now=now, limit=PROBE_CLEANUP_LIMIT),
-    )
-    count = connection.execute(text("SELECT count(*) FROM capture_clock_probes")).scalar_one()
+    retained = retention_available(connection)
+    if retained:
+        # Owner function clamps the virtual-test cutoff to DB wall time and
+        # removes only expired unconsumed probes. Consumed proofs live with raw.
+        connection.execute(
+            text(
+                "SELECT public.prune_expired_clock_probes("
+                ":cutoff,:gateway,:source,:stream,:generation,:epoch)"
+            ),
+            dict(scope, cutoff=now),
+        )
+    else:
+        connection.execute(
+            text("""DELETE FROM capture_clock_probes WHERE nonce_sha256 IN
+            (SELECT nonce_sha256 FROM capture_clock_probes WHERE expires_at<=:now
+             ORDER BY CASE WHEN gateway_id=:gateway AND source_id=:source
+              AND stream_id=:stream AND capture_generation=:generation AND clock_epoch=:epoch
+              THEN 0 ELSE 1 END,expires_at,nonce_sha256 LIMIT :limit)"""),
+            dict(scope, now=now, limit=PROBE_CLEANUP_LIMIT),
+        )
+    # Consumed proofs now live with the seven-day raw batch; capacity limits
+    # bound outstanding single-use nonces, rather than stopping issuance after
+    # the first 10,000 successful measurements.
+    outstanding = " WHERE consumed_batch_id IS NULL" if retained else ""
+    count = connection.execute(
+        text("SELECT count(*) FROM capture_clock_probes" + outstanding)
+    ).scalar_one()
     scoped = connection.execute(
-        text("""SELECT count(*) FROM capture_clock_probes
+        text(
+            """SELECT count(*) FROM capture_clock_probes
         WHERE gateway_id=:gateway AND source_id=:source AND stream_id=:stream
-          AND capture_generation=:generation AND clock_epoch=:epoch"""),
+          AND capture_generation=:generation AND clock_epoch=:epoch"""
+            + (" AND consumed_batch_id IS NULL" if retained else "")
+        ),
         scope,
     ).scalar_one()
     if count >= PROBE_GLOBAL_CAP or scoped >= PROBE_SCOPE_CAP:

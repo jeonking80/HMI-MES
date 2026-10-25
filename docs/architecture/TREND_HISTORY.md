@@ -1,12 +1,12 @@
 # 아날로그 트렌드 이력
 
-CX-01은 9개 `analog_history` 태그를 배치 접수·중복 제거·커서와 같은 PostgreSQL 트랜잭션에 기록한다. `IngestionService`는 schema 14 이하에서 기존 수집을 유지하며, schema 15/16/17에서만 새 저장 경로를 사용한다. 새 API는 `register_trend_routes(app, auth)`로 사용자 앱에 등록하며 read 권한과 `refresh_idle=False`를 사용한다.
+CX-01은 9개 `analog_history` 태그를 배치 접수·중복 제거·커서와 같은 PostgreSQL 트랜잭션에 기록한다. `IngestionService`는 schema 14 이하에서 기존 수집을 유지하며, schema 15~22에서 새 저장 경로를 사용한다. 새 API는 `register_trend_routes(app, auth)`로 사용자 앱에 등록하며 read 권한과 `refresh_idle=False`를 사용한다.
 
 ## 저장과 시간 근거
 
 `analog_history_raw`는 원래 sample·gateway·generation·capture sequence·clock epoch와 `ClockAssessment`를 보존한다. GOOD 시간은 명시적인 `ConfiguredClockPolicy`를 `IngestionService(trend_clock_policy=...)`로 전달한 경우에만 가능하다. 기존 `assess_capture_clock`의 범위·세대·epoch·유효 기간·±2초 검사를 재사용한다. 기본은 UNKNOWN이다. OPC GOOD, 수신 시각, source timestamp만으로 시간 품질을 GOOD으로 바꾸지 않는다. 미래 2초를 넘는 캡처도 TIME_UNKNOWN이다. 잘못된 시각의 값은 해당 시각 슬롯에 불명으로 표시하며 실제 발생 시각을 추측하지 않는다.
 
-`analog_history_clock_state`는 epoch별 마지막 sequence/시각과 최초 역행 sequence를 보존한다. 아날로그 유무·원시 보관 범위와 무관하게 명시적인 capture clock이 있는 모든 캡처를 기록한다. 지연 캡처는 기존 immutable ingest_batches의 같은 generation/epoch 전후 캡처와 비교한다. UTC 역행뿐 아니라 sequence 증가에 따른 monotonic 좌표의 역행·동일값도 시간 불명으로 처리한다. 이 탐색은 기존 gateway/generation/sequence 고유 인덱스로 방향별 한 건을 반환하며, 원시 정리 뒤에도 digital-only 캡처의 근거가 사라지지 않는다. 역행이 확인되면 같은 epoch의 이후 보존 원시 표본을 UNKNOWN으로 바꾸고 분 집계를 재계산 대상으로 돌린다. registry가 없는 첫 캡처에서는 immutable 배치 이력을 SQL window LAG로 한 번 검사해 UTC/monotonic 최초 역행 sequence를 복원한다. 따라서 기존 schema14에서의 업그레이드와 downgrade→upgrade 후에도 이미 알려진 역행을 GOOD으로 초기화하지 않는다. 이 초기 재구성은 epoch의 전체 이력을 읽으므로 큰 이력에서는 첫 요청이 더 비쌀 수 있다. 이후에는 인접 캡처 탐색을 사용한다. epoch가 바뀔 때까지 자동으로 정상 복구하지 않는다. 이 작은 provenance registry는 원시 보관 종료 이후에도 남겨 역행 증거를 잃지 않는다. generation/epoch가 같은 분에 섞이면 그 분을 TIME_UNKNOWN으로 내보내며 서로 평균하지 않는다.
+`analog_history_clock_state`는 epoch별 마지막 sequence/시각과 최초 역행 sequence를 보존한다. 아날로그 유무·원시 보관 범위와 무관하게 명시적인 capture clock이 있는 모든 캡처를 기록한다. 지연 캡처는 같은 generation/epoch 전후 캡처와 비교한다. schema22에서는 영구 보존하는 compact `ingest_receipts`를, 이전 스키마에서는 `ingest_batches`를 사용한다. UTC 역행뿐 아니라 sequence 증가에 따른 monotonic 좌표의 역행·동일값도 시간 불명으로 처리한다. 이 탐색은 기존 gateway/generation/sequence 고유 인덱스로 방향별 한 건을 반환하며, 원시 정리 뒤에도 digital-only 캡처의 근거가 사라지지 않는다. 역행이 확인되면 같은 epoch의 이후 보존 원시 표본을 UNKNOWN으로 바꾸고 분 집계를 재계산 대상으로 돌린다. registry가 없는 첫 캡처에서는 immutable 배치 이력을 SQL window LAG로 한 번 검사해 UTC/monotonic 최초 역행 sequence를 복원한다. 따라서 기존 schema14에서의 업그레이드와 downgrade→upgrade 후에도 이미 알려진 역행을 GOOD으로 초기화하지 않는다. 이 초기 재구성은 epoch의 전체 이력을 읽으므로 큰 이력에서는 첫 요청이 더 비쌀 수 있다. 이후에는 인접 캡처 탐색을 사용한다. epoch가 바뀔 때까지 자동으로 정상 복구하지 않는다. 이 작은 provenance registry는 원시 보관 종료 이후에도 남겨 역행 증거를 잃지 않는다. generation/epoch가 같은 분에 섞이면 그 분을 TIME_UNKNOWN으로 내보내며 서로 평균하지 않는다.
 
 ## 집계와 조회
 
@@ -18,7 +18,7 @@ CX-01은 9개 `analog_history` 태그를 배치 접수·중복 제거·커서와
 
 ## 보관과 용량
 
-기본 `TrendRetention()`은 원시 7일, 분 집계 90일, 테이블별 요청당 삭제 최대 1,000건이다. 원시 삭제 경계는 완료된 분 경계로 내린다. 아직 집계하지 않은 정상 과거 표본을 먼저 삭제하지 않는다. 미래 시각 표본도 수신 시각을 기준으로 만료되므로 잘못된 미래 시각으로 무한 보존되지 않는다. `FOR UPDATE SKIP LOCKED`와 제한된 삭제를 사용한다. `ingest_batches`, 기존 알람 FK·결정·생산·인증 테이블은 삭제하지 않는다.
+기본 `TrendRetention()`은 원시 7일, 분 집계 90일, 테이블별 요청당 삭제 최대 1,000건이다. 원시 삭제 경계는 완료된 분 경계로 내린다. 아직 집계하지 않은 정상 과거 표본을 먼저 삭제하지 않는다. 미래 시각 표본도 수신 시각을 기준으로 만료되므로 잘못된 미래 시각으로 무한 보존되지 않는다. `FOR UPDATE SKIP LOCKED`와 제한된 삭제를 사용한다. 트렌드 정리는 `ingest_batches`, 기존 알람 결정·생산·인증 테이블을 삭제하지 않는다. schema22의 별도 수집 원본 정리는 아래 승인된 정책을 따른다.
 
 로컬/배포 프로필에서 `IngestionService(trend_retention=TrendRetention(raw_days=1))`을 명시하면 원시 24시간을 선택할 수 있다. 기본값을 변경하지 않는다. Neon Free 같은 0.5GB 환경에서는 기본 7일 원시 보관을 수용한다고 가정하면 안 된다. 9태그×86,400초×7일=5,443,200행, JSONB 근거·인덱스 포함 행당 약 0.8~1.5KB를 가정하면 원시는 약 4.4~8.2GB다. 24시간도 777,600행으로 약 0.62~1.17GB이며 0.5GB를 넘을 수 있다. 원시 6시간(`raw_days=0.25`)은 약 0.16~0.29GB다. 90일 분 집계 1,166,400행도 행당 약 0.4~0.7KB 가정 시 약 0.47~0.82GB여서 별도 프로필·용량 증설 판단이 필요하다. 이는 추정치이며 실제 최대 규모 측정 결과가 아니다. minute_days도 배포 프로필에서만 줄일 수 있다.
 
@@ -33,7 +33,7 @@ CX-01은 9개 `analog_history` 태그를 배치 접수·중복 제거·커서와
 - 14일보다 오래된 분 트렌드는 MISSING이다.
 - SPC는 원시가 남은 범위만 계산하므로 초기 부분군 증명이 더 일찍 `ORIGINAL_PREFIX_RAW_UNAVAILABLE`이 된다.
 
-이 설정은 원본 `ingest_batches`를 줄이지 않는다. 원본 배치는 감사·역행 근거라서 지우지 않는다. 따라서 공개 DB에서 설비를 장시간 연속으로 수집하면 원본 배치만으로도 무료 용량을 넘을 수 있다. 2026-10-23 공개 DB 실측(스키마 0014, 약 1시간 수집)에서 원본 배치는 3,814건·22MB(건당 약 6KB)였다. 1초 주기면 시간당 약 22MB, 하루 약 0.5GB다. 공개 배포는 짧은 시연용 수집만 전제로 한다. 사용량은 이관 보고(OPS-01)에 기록한다.
+트렌드 보관 설정 자체는 원본 `ingest_batches`를 줄이지 않는다. 18차 이전에는 원본 배치를 무기한 보존했다. schema22의 별도 수집 원본 보관 정책은 아래와 같으며, 미정산 원본과 영구 메타데이터 증가까지 DB 전체 용량이 제한된다는 보장은 아니다. 2026-10-23 공개 DB 실측(스키마 0014, 약 1시간 수집)에서 원본 배치는 3,814건·22MB(건당 약 6KB)였다. 1초 주기면 시간당 약 22MB, 하루 약 0.5GB다. 공개 배포는 짧은 시연용 수집만 전제로 한다. 사용량은 이관 보고(OPS-01)에 기록한다.
 
 원시 보관 경계보다 오래된 지연 배치는 새 트렌드 표본으로 보존하지 않는다. 이미 지워진 원시 근거를 복원할 수 없으므로 과거 분을 남은 일부 값으로 재계산하지 않는다. 생산 사건 수집과 원래 ACK·알람 보존은 그대로 처리된다. 처리 한도보다 많은 과거 재계산·정리 적체는 여러 수집 요청에 걸쳐 해소된다. 시계 역행의 최초 무효화는 정확성을 위해 해당 epoch의 보존 원시 근거를 갱신하므로 큰 이력에서는 일반 수집보다 비쌀 수 있다. 최대 7일·9태그 규모 p95 성능 측정은 별도 운영 검증이다.
 
@@ -69,4 +69,29 @@ HMI_TREND_MINUTE_DAYS=14
 
 권장 운영 시작 기준은 500MB를 계획 한도로 볼 때 기존 DB 350MB 이하·1회 25MB 계획 여유·종료 후 최소 100MB 미사용 여유다. 실제 플랫폼 한도와 수집 전/후 관측 증가량으로 운영자가 판단한다. 예산이 부족하거나 backlog가 검토되지 않았으면 수집을 시작하지 않는다. `HMI_DATABASE_DSN`이 이미 안전하게 주입된 운영자 셸에서 `python scripts/check-db-capacity.py`로 READ ONLY metadata snapshot을 읽을 수 있다. 이는 물리 크기·통계 추정이며 원본 삭제나 업무 행 조회를 수행하지 않는다.
 
-1Hz보다 느린 수집을 무료 용량 대책으로 임의 제시하지 않는다. 특히 2초 초과 주기는 freshness/heartbeat·제어와 시간 구간의 UNKNOWN 증가에 영향을 준다. 압축 archive와 원본 보관 변경은 별도 설계·복구 검증·사용자 결정 대상이고 현재 구현된 보관 보장이 아니다.
+1Hz보다 느린 수집을 무료 용량 대책으로 임의 제시하지 않는다. 특히 2초 초과 주기는 freshness/heartbeat·제어와 시간 구간의 UNKNOWN 증가에 영향을 준다. 압축 archive는 구현된 보관 보장이 아니다. 수집 원본 보관 변경은 아래 18차 사용자 승인에 따라 별도로 구현한다.
+
+## CX-40 수집 원본 보관 종료와 트렌드 근거
+
+2026-10-25 사용자 결정과 18차 작업지시서에 따라 무료 DB의 무기한 원본 증가를 줄인다.
+공개 트렌드 원시 보관은 Claude가 1시간으로 변경했으며, 이는 수집 원본 정리와 별도다.
+schema22는 기본 7일이 지난 정산 완료·관측 전용 수집 원본과 해당 시각 증거를
+안전 조건을 만족할 때 정리한다. 분 집계는 이 정리로 삭제하지 않는다.
+영구 `ingest_receipts`와 보관 종료 범위는 남지만 원본 본문·ACK·전체 시각 proof를
+대체하지 않는다. 오래된 실행을 원본으로 다시 검증할 수 없다는 영향이 있다.
+
+트렌드 응답은 보관 종료 범위를 `retention_expired`에 반환한다. 겹치는 태그·점에는
+`raw_evidence.availability`와 `reason_code`가 `RETENTION_EXPIRED`인 근거를 붙인다.
+유효한 보존 분 집계의 값·품질·개수는 유지한다. 값이 없는 해당 점의 품질은
+`RETENTION_EXPIRED`이며 일반 `MISSING`으로 바꾸지 않는다. 보관 종료가 없으면
+기존 응답 필드를 유지한다.
+
+범위는 삭제 전 기록한 보수적 시간 포락선이며 개별 삭제 표본의 정확한 구간이 아니다.
+알려진 시각은 analytical UTC 포락선과 마지막 표본의 1초 슬롯을 사용한다.
+원래 UTC·저장 시각 포락선도 메타데이터로 남기지만 analytical UTC를 대신하지 않는다.
+시각 불명·analytical 경계 부재이면 요청한 같은 scope 전체에 보수적으로 표시하며,
+`raw_evidence.coverage_basis=CONSERVATIVE_ENVELOPE`로 명시한다.
+영구 clock registry의 후발 역행이 해당 보관 종료 범위에 닿으면 조회 시
+`time_unknown`으로 승격한다. 삭제된 표본의 정밀 재계산이 불가능한 역행은 해당
+source/stream의 보존 분 집계와 재계산 입력을 보수적으로 불명 처리한다.
+이는 일반 보관 종료에서 유효한 분 집계를 유지하는 규칙과 별개의 시각 무효화다.

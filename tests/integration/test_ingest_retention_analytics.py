@@ -1,0 +1,169 @@
+"""Expired raw provenance coexists with retained minutes, execution totals and clocks."""
+
+from dataclasses import replace
+from datetime import timedelta
+
+import pytest
+import sqlalchemy as sa
+
+from apps.api.bootstrap import LINE_ID
+from apps.api.capture_clock import read_capture_clock
+from apps.api.ingest_retention import expired_coverage
+from apps.api.reports import read_daily_report
+from apps.api.trend_history import TrendRetention, cleanup_trends, read_trends
+from tests.integration.test_alarm_consumer import capture
+from tests.integration.test_alarm_consumer import state as state
+from tests.integration.test_capture_clock import modified, same_host
+from tests.integration.test_capture_clock import service as service
+from tests.integration.test_ingest_retention import OLD, prune
+from tests.integration.test_trend_history import SCOPE, TAG, batch, submit
+
+AT = OLD.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+@pytest.fixture(autouse=True)
+def clock_policy(service):
+    service.trend_clock_policy = replace(
+        same_host(),
+        valid_from_api_utc=AT - timedelta(days=1),
+        valid_until_api_utc=AT + timedelta(days=2),
+    )
+
+
+def read(service, resolution):
+    with service.engine.connect() as db:
+        return read_trends(
+            db,
+            scope=SCOPE,
+            tags=[TAG],
+            start=AT,
+            end=AT + timedelta(minutes=2),
+            resolution=resolution,
+            now=AT + timedelta(minutes=3),
+        )
+
+
+def test_expired_raw_is_explicit_and_minute_values_are_preserved(service):
+    submit(service, batch(1, AT), now=OLD)
+    before = read(service, "minute")["series"][0]["points"][0]
+    assert before["value"] == 150.0
+    assert prune(service.engine)["deleted_count"] == 1
+    with service.engine.begin() as db:
+        cleanup_trends(db, now=AT + timedelta(days=8), retention=TrendRetention())
+    second = read(service, "second")
+    assert second["raw_evidence"]["availability"] == "RETENTION_EXPIRED"
+    assert second["retention_expired"][0]["from_capture_seq"] == "1"
+    point = second["series"][0]["points"][0]
+    assert point["quality"] == "RETENTION_EXPIRED"
+    assert point["value"] is None
+    minute = read(service, "minute")["series"][0]["points"][0]
+    assert minute["value"] == before["value"]
+    assert minute["valid_count"] == before["valid_count"]
+    assert minute["raw_evidence"]["availability"] == "RETENTION_EXPIRED"
+    with service.engine.connect() as db:
+        report = read_daily_report(
+            db,
+            LINE_ID,
+            AT.date(),
+            now=AT + timedelta(days=1),
+            scope=SCOPE,
+        )
+    assert report["raw_evidence"]["availability"] == "RETENTION_EXPIRED"
+
+
+def test_canonical_offset_envelope_is_distinct_from_original_capture(service):
+    from tests.integration.test_trend_history import policy
+
+    service.trend_clock_policy = policy().model_copy(
+        update={
+            "offset_lower_seconds": 0.9,
+            "offset_upper_seconds": 1.1,
+            "valid_from_api_utc": AT - timedelta(days=1),
+            "valid_until_api_utc": AT + timedelta(days=2),
+        }
+    )
+    submit(service, batch(1, AT), now=OLD + timedelta(seconds=2))
+    assert prune(service.engine)["deleted_count"] == 1
+    with service.engine.connect() as db:
+        coverage = db.execute(sa.text("SELECT * FROM ingest_retention_ranges")).mappings().one()
+    assert coverage["original_from"] == AT
+    assert coverage["analytical_from"] == AT + timedelta(seconds=1)
+    assert coverage["time_unknown"] is False
+    with service.engine.begin() as db:
+        cleanup_trends(db, now=AT + timedelta(days=8), retention=TrendRetention())
+    points = read(service, "second")["series"][0]["points"]
+    assert points[1]["quality"] == "RETENTION_EXPIRED"
+
+
+def test_unknown_clock_expiry_never_becomes_normal_missing_data(service):
+    service.trend_clock_policy = None
+    submit(service, batch(1, AT), now=OLD)
+    assert prune(service.engine)["deleted_count"] == 1
+    result = read(service, "second")
+    assert result["retention_expired"][0]["time_unknown"] is True
+    assert all(p["quality"] == "RETENTION_EXPIRED" for p in result["series"][0]["points"])
+
+
+def test_reversal_and_epoch_bootstrap_use_receipts_when_every_raw_is_gone(service):
+    submit(service, batch(1, AT + timedelta(seconds=1)), now=AT + timedelta(minutes=2))
+    submit(service, batch(3, AT + timedelta(seconds=61)), now=AT + timedelta(minutes=2))
+    assert prune(service.engine)["deleted_count"] == 2
+    with service.engine.connect() as db:
+        assert db.execute(sa.text("SELECT count(*) FROM ingest_batches")).scalar() == 0
+        assert db.execute(sa.text("SELECT count(*) FROM capture_clock_evidence")).scalar() == 0
+    submit(service, batch(2, AT + timedelta(seconds=62)), now=AT + timedelta(minutes=2))
+    with service.engine.connect() as db:
+        assert (
+            db.execute(
+                sa.text(
+                    "SELECT reversal_seq FROM analog_history_clock_state "
+                    "WHERE clock_epoch='clock-1'",
+                )
+            ).scalar_one()
+            == 3
+        )
+        coverage = expired_coverage(
+            db,
+            **SCOPE,
+            from_time=AT,
+            to_time=AT + timedelta(minutes=2),
+        )
+    assert any(item["time_unknown"] for item in coverage)
+    submit(service, batch(4, AT + timedelta(seconds=63)), now=AT + timedelta(minutes=2))
+    with service.engine.connect() as db:
+        decision = read_capture_clock(db, "gateway-1", "batch-4")
+    assert decision.status == "UNKNOWN"
+    assert decision.reason_code == "CLOCK_REVERSAL"
+    restarted = modified(
+        batch(5, AT + timedelta(seconds=64)),
+        lambda body: body["capture_time"].update(
+            clock_epoch="clock-after-restart", monotonic_seconds=1.0
+        ),
+    )
+    submit(service, restarted, now=AT + timedelta(minutes=2))
+    with service.engine.connect() as db:
+        assert read_capture_clock(db, "gateway-1", "batch-5").status == "GOOD"
+
+
+def test_alarm_decisions_remain_exact_when_parent_raw_is_retired(state):
+    value = capture(1)
+    state.service.ingest(
+        value,
+        authenticated_gateway_id="gateway",
+        authenticated_source_id="source",
+        authenticated_stream_id="stream",
+        now=OLD,
+    )
+    with state.engine.connect() as db:
+        before = db.execute(sa.text("SELECT * FROM alarm_capture_decisions")).all()
+        assert before
+    assert prune(state.engine)["deleted_count"] == 1
+    with state.engine.connect() as db:
+        assert db.execute(sa.text("SELECT * FROM alarm_capture_decisions")).all() == before
+        target = db.execute(
+            sa.text("""SELECT confrelid::regclass::text FROM pg_constraint
+            WHERE conrelid='alarm_capture_decisions'::regclass
+                AND confrelid='ingest_receipts'::regclass AND contype='f'""")
+        ).scalar_one()
+        assert target == "ingest_receipts"
+        assert db.execute(sa.text("SELECT count(*) FROM ingest_batches")).scalar() == 0

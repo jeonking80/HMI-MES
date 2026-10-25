@@ -25,6 +25,7 @@ from apps.api.alarm_consumer import (
 from apps.api.alarm_lifecycle import AlarmScope
 from apps.api.alarm_rules import PLCFaultRuleConfig, StoredRuleConfig, require_rule_target
 from apps.api.alarm_store import _channel, apply_fault_capture, break_continuity
+from apps.api.capture_clock import capture_frontier_table
 from apps.api.database import SUPPORTED_MIXED_ALARM_REVISIONS
 from apps.api.ingestion import IngestionService, SourceBindingError
 from contracts.models import ContractModel, Identifier, UInt64, UTCTimestamp
@@ -270,7 +271,7 @@ class AlarmCoordinator:
         fence = int(
             db.execute(
                 text(
-                    "SELECT COALESCE(max(capture_seq),0) FROM ingest_batches "
+                    f"SELECT COALESCE(max(capture_seq),0) FROM {capture_frontier_table(db)} "
                     "WHERE gateway_id=:g AND source_id=:s AND stream_id=:t "
                     "AND capture_generation=:generation"
                 ),

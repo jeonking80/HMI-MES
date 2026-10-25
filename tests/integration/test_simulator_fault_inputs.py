@@ -112,17 +112,42 @@ def test_offset_survives_restart_but_run_requires_explicit_recovery(tmp_path):
         assert inputs(restored, 0.0).recovery_required and not restored.state.run_output
 
 
+def legacy_snapshot(snapshot, *, version):
+    # These fields were added after runtime V2. Keep the historical shape exact
+    # so V1 recognition and V2 conservative defaults exercise real migrations.
+    for name in (
+        "recipe_baseline",
+        "recipe_baseline_version",
+        "auto_end_at_target",
+        "end_reason",
+        "start_when_ready",
+        "start_reservation",
+        "start_reservation_cancel_reason",
+    ):
+        snapshot.pop(name)
+    if version == 1:
+        snapshot["inputs"].pop("temperature_offset_c")
+    return snapshot
+
+
+def remove_new_parameter_history(db):
+    assert db.execute("SELECT COUNT(*) FROM runtime_parameter_changes").fetchone()[0] == 0
+    # DROP TABLE also removes its two immutable-history triggers.
+    db.execute("DROP TABLE runtime_parameter_changes")
+
+
 def legacy_database(path, *, mutation=None):
     with SimulatorStorage(path) as store:
         SimulatorController(store, now=AT)
         snapshot = json.loads(
             store.connection.execute("SELECT snapshot_json FROM runtime_state").fetchone()[0]
         )
-        snapshot["inputs"].pop("temperature_offset_c")
+        legacy_snapshot(snapshot, version=1)
         if mutation:
             mutation(snapshot)
         original = json.dumps(snapshot, separators=(",", ":"))
         with store.transaction():
+            remove_new_parameter_history(store.connection)
             store.connection.execute("UPDATE runtime_state SET snapshot_json=?", (original,))
             store.connection.execute("UPDATE runtime_schema_version SET version=1")
             store.connection.execute(
@@ -141,9 +166,9 @@ def test_exact_v1_snapshot_migration_adds_only_zero_bias_and_preserves_audit(tmp
         controller = SimulatorController(store, now=AT)
         assert (
             store.connection.execute("SELECT version FROM runtime_schema_version").fetchone()[0]
-            == 2
+            == 3
         )
-        assert store.connection.execute("PRAGMA user_version").fetchone()[0] == 3
+        assert store.connection.execute("PRAGMA user_version").fetchone()[0] == 4
         assert controller.state.inputs.temperature_offset_c == 0.0
         assert controller.state.recovery_required
         assert (
@@ -245,14 +270,13 @@ def test_startup_recomputes_stale_pv_before_recovery_or_start(tmp_path, version)
         controller.tick(now=AT)
         base = store.load_execution().temperature_c
         assert base < 30
-        legacy = controller.state.model_dump(mode="json")
+        legacy = legacy_snapshot(controller.state.model_dump(mode="json"), version=version)
         legacy["inputs"]["temperature_c"] = 150.0
         legacy["ready"] = True
         legacy["state"] = "READY"
         legacy["permissive"] = True
-        if version == 1:
-            legacy["inputs"].pop("temperature_offset_c")
         with store.transaction():
+            remove_new_parameter_history(store.connection)
             store.connection.execute(
                 "UPDATE runtime_state SET snapshot_json=?", (json.dumps(legacy),)
             )

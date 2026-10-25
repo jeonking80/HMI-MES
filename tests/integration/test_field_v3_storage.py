@@ -124,8 +124,8 @@ def test_direct_migration_exact_bytes_ids_nonfield_and_restart(store, version, m
     assert [r for r in ddl(store) if r[0] not in field_names and r[2] not in v3._OWNED] == [
         r for r in schema if r[0] not in field_names and r[2] not in v3._OWNED
     ]
-    assert store.connection.execute("PRAGMA user_version").fetchone()[0] == 3
-    assert store.connection.execute("SELECT version FROM runtime_schema_version").fetchone()[0] == 2
+    assert store.connection.execute("PRAGMA user_version").fetchone()[0] == 4
+    assert store.connection.execute("SELECT version FROM runtime_schema_version").fetchone()[0] == 3
     assert all(s.pending for s in c.describe())
     v3.FieldChannels(store)
 

@@ -19,14 +19,14 @@
 한 트랜잭션이 원문 inbox, 생산/설비 사건, execution별 양품·불량·폐기 수량,
 적용 오류, 연속 검증 커서, 누락 구간, 배치 원문과 ACK를 함께 저장한다.
 ACK는 트랜잭션 commit이 반환된 후에만 호출자에게 반환된다. commit 이전 실패는 전부 rollback된다.
-응답 유실 시 같은 배치를 보내면 저장된 ACK를 그대로 돌려준다.
+응답 유실 시 원본 보관 기간 안의 같은 배치는 저장된 ACK를 그대로 돌려준다. schema22 보관 종료 뒤에는 RETENTION_EXPIRED로 거절하며 ACK를 재구성하지 않는다.
 
 `(gateway_id, batch_id)`, `(gateway_id, capture_generation, capture_seq)`, 전역 event ID,
 `(source_id, stream_id, seq)`는 내용을 바꿀 수 없는 식별자다. 동일 사건을 새 배치에 담아도
 생산 수량을 다시 더하지 않는다. 다른 내용으로 식별자를 재사용하면 원래 내용과 충돌 내용을
 별도 `ingest_conflicts` 기록과 source hold로 commit하고 예외를 반환한다. 충돌 배치에는 ACK를
 발급하지 않으며 그 배치의 정상 사건 일부도 적용하지 않는다. 기존의 정확한 배치 재시도에는
-원래 ACK를 돌려주지만 이후 새 작업과 격리 재적용은 충돌 해소 전까지 제한한다.
+보관 중인 원래 ACK를 돌려주지만 이후 새 작업과 격리 재적용은 충돌 해소 전까지 제한한다.
 
 ## 격리와 진행 상태
 
@@ -36,7 +36,7 @@ ACK는 트랜잭션 commit이 반환된 후에만 호출자에게 반환된다. 
 
 관리 경로에서 원래 execution 등록 등 원인을 해결한 뒤 `replay_quarantined`를 호출하면
 최대 1,000개를 seq 순서대로 재적용한다. 이미 적용된 사건은 다시 적용하지 않는다.
-이후 현재 inbox 상태와 커서는 바뀌어도 이전 배치 ACK는 원래 접수 결과로 보존한다.
+이후 현재 inbox 상태와 커서는 바뀌어도 보관 중인 배치 ACK는 원래 접수 결과로 보존한다. 승인된18차 보관 종료 이후에는 ACK 대신 영구한 식별/hash와 보관 종료 구간을 남긴다.
 적용 실패 이력은 지우지 않는다. 이 서비스에는 자동 재시도 스케줄러나 충돌 해제 API가 없다.
 
 `latest_ingested_seq`는 관찰한 사건·누락 구간의 최댓값이다. `verified_through_seq`는
@@ -69,3 +69,13 @@ UV_CACHE_DIR=/tmp/hmi-uv-cache uv run ruff check apps/api/ingestion.py tests/int
 실제 작업지시/명령 흐름에 의한 execution 등록, 운영자 재조정·hold 해제 UI,
 PLC 누계 대사, 장시간 성능·복구·운영 수락 시험은 별도 작업이다.
 이 검증만으로 DEV 단계나 프로젝트 전체 완료를 뜻하지 않는다.
+
+## 18차 원본 정리와 재전송 계약
+
+변경 이유: 원본 무기한 보관의 용량 증가를 제한하기 위한 사용자 승인이다. schema22의 기본7일(HMI_INGEST_RETENTION_DAYS, 최소1일)이 지난 저장 원본 중 정산/커서/누락·격리/미결 명령 보호를 모두 통과한 것만 정리한다. 정산된 설정 변경 이력도 정확한 APPLIED 사건/원래 baseline과 대조하며, 이후 다른 작업 진행이나 승인된 generation 전환만으로 옛 정산 원본을 영구 보관하지 않는다.
+
+인증된 gateway/source/stream 확인 뒤 원래 batch ID와 gateway-wide generation/capture_seq의 종료 여부를 먼저 확인한다. 종료된 식별자는 HTTP410, reason_code=RETENTION_EXPIRED이며 ACK·내용 충돌 hold를 만들지 않는다. 다른 ID/순번으로 자동 재전송하지 않는다. 보관 중 원본의 기존 중복/충돌 규칙은 유지한다.
+
+내부 HTTP 수집은 업무 트랜잭션을 커밋한 뒤 별도 유지보수 트랜잭션을 시도한다. 1분당1회·스캔/삭제 상한·500ms soft budget과1500ms statement/100ms lock budget을 사용한다. BUSY/THROTTLED는 정상 건너뜀이다. 오류는 증거/삭제/진행 상태를 롤백하고 안전한 오류 클래스만 기록하며, 이미 커밋한 수집 ACK를 취소하지 않는다. 직접 서비스 호출은 자동 정리하지 않는다.
+
+보관 종료 범위와 batch 식별 기록·관련 clock/probe/raw 삭제는 원자적이다. 일반 runtime이 삭제 권한이나 사용자 GUC로 이 경로를 흉내 낼 수 없다. 원본과 전체 clock proof가 없어 오래된 실행을 원본으로 다시 검증할 수 없다는 영향, 영구 UUID metadata 증가, 보수적인 관측 배치 보호는 [INGEST_RETENTION.md](INGEST_RETENTION.md)에 명시한다.
