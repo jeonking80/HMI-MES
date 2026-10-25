@@ -4,14 +4,16 @@ import type { ScreenProjection, ScreenScope } from './screenState'
 import { createScreenPoller, screenTransport } from './screenPolling'
 
 type Phase = 'connecting' | 'awaiting_snapshot' | 'synced' | 'reconnecting' | 'stopped' | 'auth_required'
-interface Subscription { projection: ScreenProjection | null; phase: Phase; message: string; now: number }
+/** receivedAt is the local wall time the current projection arrived; ages are measured on the server clock from it. */
+interface Subscription { projection: ScreenProjection | null; phase: Phase; message: string; now: number; receivedAt: number }
 const delays = [1000, 2000, 4000, 8000, 15000]
 const transport = screenTransport(import.meta.env.VITE_SCREEN_TRANSPORT)
 
 /** One bounded connection lifecycle. Credentials are sent only in the first WS frame. */
 export function useScreenSubscription(scope: ScreenScope, csrf: string, onSessionInvalid: () => void) {
-  const [subscription, setSubscription] = useState<Subscription>(() => ({ projection: null, phase: 'connecting', message: '', now: Date.now() }))
+  const [subscription, setSubscription] = useState<Subscription>(() => ({ projection: null, phase: 'connecting', message: '', now: Date.now(), receivedAt: Date.now() }))
   const projection = useRef<ScreenProjection | null>(null)
+  const receivedAt = useRef(0)
   const [revision, setRevision] = useState(0)
   useEffect(() => {
     let alive = true
@@ -21,8 +23,8 @@ export function useScreenSubscription(scope: ScreenScope, csrf: string, onSessio
       const poller = createScreenPoller({
         scope: expectedScope, initialProjection: projection.current,
         online: () => navigator.onLine,
-        onProjection: value => { if (alive) projection.current = value },
-        onPhase: (phase, message) => { if (alive) setSubscription({ projection: projection.current, phase, message, now: Date.now() }) },
+        onProjection: value => { if (alive) { projection.current = value; receivedAt.current = Date.now() } },
+        onPhase: (phase, message) => { if (alive) setSubscription({ projection: projection.current, phase, message, now: Date.now(), receivedAt: receivedAt.current }) },
         onSessionInvalid,
       })
       poller.start()
@@ -40,7 +42,7 @@ export function useScreenSubscription(scope: ScreenScope, csrf: string, onSessio
     let protocol = beginScreen(projection.current)
     const expected = { line_id: scope.line_id, source_id: scope.source_id, stream_id: scope.stream_id }
     function publish(phase: Phase, message = '') {
-      if (alive) setSubscription({ projection: projection.current, phase, message, now: Date.now() })
+      if (alive) setSubscription({ projection: projection.current, phase, message, now: Date.now(), receivedAt: receivedAt.current })
     }
     function retire() {
       generation += 1
@@ -91,6 +93,7 @@ export function useScreenSubscription(scope: ScreenScope, csrf: string, onSessio
           if (next.phase !== 'synced') { fail('화면 정보를 다시 확인하기 위해 연결하고 있습니다.'); return }
           protocol = next
           projection.current = next.projection
+          receivedAt.current = Date.now()
           lastArrival = performance.now()
           publish('synced')
         } catch { fail('화면 정보를 확인할 수 없어 다시 연결하고 있습니다.') }
