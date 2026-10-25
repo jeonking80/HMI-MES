@@ -58,3 +58,57 @@ spread61B로 일정하게 유지됐고 최종 capture 위치86,400·verified 커
 호스트 UTC가 크게 앞으로 틀어지면 committed_at과의 나이 계산에 영향이 있으며 독립 시각 인증은 추가하지 않았다. metadata SUM·참조 조회 비용과 큰 ACK의 headroom도 무한 보장이 아니다. 로컬 삭제 뒤 원래 ACK와 ID 중복 근거는 복구할 수 없고 서버 증거에 의존한다. 과거 offline compaction 도구의 semantic snapshot은 기존 표 중심이며 새 checkpoint의 보존은 buffer 자체 검증·이번 회귀 시험으로 확인했다.
 
 운영 SQLite를 열어 이관/삭제하지 않았고, 공개 DB·source/generation·runtime·commission·생산 조작·배포는 수행하지 않았다. 운영 적용과 PR·병합·공개 확인은 Claude 담당이다. 최초 Ruff 실패와 검증 범위를 보고하며 추가 검사·14차 착수는 하지 않는다.
+
+## 16차 보정 — 2시간 보존·중간 예외를 건너뛰는 삭제 구간
+
+사용자16차 승인에 따라 `6712a0a` 위에서 구현했다. 앞의15차7일·연속 prefix 규칙과 해당 용량 한계는 아래 규칙으로 대체한다. PR·병합·배포·운영 적용은 Claude 담당이다.
+
+### 변경 규칙과 문서
+
+- 기본 ledger_retention은2시간이다. max_age보다 짧으면 BufferLimits 생성 시 거절한다. 테스트의 축소 설정도 이 조건을 지킨다. 30분·100MB·50MB는 유지한다.
+- 적격 ACK를 위치와 관계없이 정리한다. COMMITTED 계약·ID/hash/stream·보존 나이·참조·대기열 검사는 유지하며 EVICTED·유실 근거·젊은 ACK·미확정 행을 보존하고 뒤의 적격 행도 검사한다.
+- schema v3 ledger_pruned_ranges에 generation/from/through/누적 hash/건수/기록 시각/checksum/metadata_bytes를 저장한다. 연속 삭제는 병합하고 중간 행이 사라져 기존 좌우 구간을 잇는 경우도 함께 병합한다.
+- leaf는 불변 원장+정규화된 전체 ACK의 domain-separated commitment다. 병합은 generation/시작/끝/건수/hash를 포함한 순서 있는 자식 descriptor를 해시한다. 과거 hash를 버리지 않고 연결하지만 삭제 원문을 재생하는 평면 SHA 체인 또는 병합 분할 순서 독립성을 주장하지 않는다.
+- v1 전체 원장, v2 checkpoint+잔여 원장을 먼저 검증한 뒤 원자적으로 v3로 이관한다. v2 prefix는 검증된 전체 checkpoint descriptor의 v2-prefix domain hash를 가진 구간1행으로 옮긴다(빈 prefix는0행). 실패 시 schema/header/원장/증거가 모두 롤백된다.
+- 시작 검증은1..head를 남은 행과 삭제 구간의 정확한 disjoint union으로 검사한다. 겹침·빈틈·generation·hash/checksum·accounting 오류를 손상으로 차단한다. 누락된 구간표를 재생성하지 않는다.
+- enqueue 압력 정리의 첫 원장 검사도 제거해 EVICTED가 앞에 있어도 뒤를 정리한다. worker는 시간당1,000행 한 번으로 증가량을 못 따라잡지 않도록, 가득 찬 청크 뒤에는 event loop에 양보하며 다음 최대1,000행 트랜잭션을 처리한다. 적격 행이 더 없으면 다음1시간 주기로 돌아간다. ACK 경로 삭제·자동 새 ID 재전송은 없다.
+- 호환 metrics 이름 checkpoint_last_capture_seq는 이제 삭제된 최대 endpoint이고 연속 prefix를 뜻하지 않는다. checkpoint_deleted_count는 모든 삭제 구간의 건수 합이다.
+- GATEWAY_BUFFER.md에 변경 이유·영향과 위 규칙, 이전15차의 대체 범위, 시간당 청크 보완, UTC/논리 bytes/예외 증가에 따른 용량 한계를 명시했다.
+
+### 검사 결과
+
+브라우저용 폴링 빌드1회(타입 검사 포함) 통과. 아래 시험을 **한 번 실행해796개 전부 통과**, 경고5건,463.82초였다.
+
+```sh
+.venv/bin/python -m pytest tests/unit tests/integration/test_gateway_buffer.py tests/integration/test_gateway_setup.py tests/integration/test_gateway_recovery_bounds.py tests/integration/test_gateway_pipeline.py tests/integration/test_gateway_opcua.py tests/integration/test_gateway_fifo_recovery.py tests/integration/test_gateway_command_launcher.py tests/integration/test_gateway_retention_server.py tests/integration/test_ingestion.py --junitxml=/tmp/hmi-v16-tests.xml -q
+```
+
+운영 모양(1..101 ACK,102..554 EVICTED453행+유실 근거,555..600 ACK)에서 적격147행 삭제·구간2행·예외/유실 원문 보존·재오픈이 통과했다. v1/v2 이관·이관 오류 롤백, checksum이 유효한 잘못된 겹침/빈틈·generation 및 hash 변조, 좌우 bridge 병합, 최소 보존 설정 거절, EVICTED 앞부분을 가진 enqueue 압력 정리, worker 청크 재개도 검증했다. 기존 서버의 원래 ACK/동일 ID 충돌 및 실제 브라우저 FIFO(219.799초)도 통과했다.
+
+포맷 검사1회는 변경 Python7개 전부 통과했다. Ruff check1회는 buffer.py에서 안 쓰게 된 datetime.UTC import1건(F401)으로 실패했다. import만 제거했고 지정된1회 제한으로 재검사하지 않았다. 제품 동작 변경이나 시험 재실행은 없다. **시험 통과와 Ruff 재검사 미실행을 구분하며 전체 검사 통과로 표시하지 않는다.** 최초 로그는 `/tmp/hmi-v16-tests.log`, JUnit은 `/tmp/hmi-v16-tests.xml`이다. 최종 high 읽기 전용 검토에서 차단 문제 없음; 구현과 시험 분담은 gpt-6.1-sol medium이었다.
+
+### 86,400건 가속 적재
+
+앞에 EVICTED3행과 유실 근거를 만든 뒤 실제 enqueue/ACK86,400쌍을 추가했다. 최종 capture head86,403, verified86,403이며 예외·유실 근거는 그대로다. max_age2초/보존8초(기본값과 같은4:1 비율), metadata300,000B,100건마다 정리하는 시험 전용 설정이다. 실제 경과50.843초이며 실제24시간·8시간 운전은 하지 않았다.
+
+정리 후87개 시점의 메타데이터는 **16,556~16,596B**, 남은 원장은 예외3+최근 ACK8 =11행이었다. 첫1,000건16,556B → 마지막86,400건16,596B로40B 차이였다. 이 수치는 정리 후 표본이지 청크 사이 모든 순간의 peak가 아니다. 예외가 고정된 이 시험에서 용량이 선형 증가하지 않음을 확인했고, 기본2시간과 실제1시간 maintenance 주기의 운영 성능을 보장하는 결과로 확대하지 않는다. 시계열: `evidence/CX-31-ledger-retention-v16-86400.json`.
+
+### 운영 사본 이관·정리1회
+
+운영 원본 SQLite는 열지 않았다.13차 때 SQLite backup으로 만든 일관된 사본(2026-10-25 04:32:16Z)을 새 보호 경로 `/tmp/hmi-v16-copy-check/gateway.sqlite3`로 복제해 사용했다. 이는 최신 운영 원본을 다시 측정한 값이 아니다. 파생 사본을 v1→v3로 이관하고05:35:59Z 기준2시간 보존으로 정리 함수를1회 호출(limit20,000)했다. 원본 이관·정리·재시도는 없다.
+
+| 항목 | 전 | 후 |
+|---|---:|---:|
+| metadata_bytes(구간 포함) | 9,999,850 | 2,376,190 |
+| batch_ledger 행 | 9,644 | 1,477 |
+| batch_ledger metadata | 8,854,082 | 1,228,657 |
+| missing_ranges 행/bytes | 453 / 1,145,112 | 453 / 1,145,112 |
+| source_progress 행/bytes | 1 / 656 | 1 / 656 |
+| loss_intervals 행 | 0 | 0 |
+| 삭제 구간 행/bytes | 0 / 0 | 2 / 1,765 |
+
+8,167행을 삭제하고7,623,660B를 회수했다. 삭제 구간은1..101(101건),555..8620(8,066건)이다.102..554 EVICTED453행, source progress, 모든 유실 근거·연결·대기열은 정확히 동일했다. 남은1,477행은 EVICTED453+아직2시간이 지나지 않은 ACK1,024행이다. 정리 뒤 전체 _verify도 통과했다. 증거: `evidence/CX-31-ledger-retention-v16-copy.json`.
+
+### 운영 영향과 남은 범위
+
+2시간 원장 추정량은 약6.8MB이지만 시간당 주기의 추가 원장·유실 근거·예외·구간·커서가 더해진다. 예외가 계속 늘면 증거도 늘며 무한 고정 용량 보장은 아니다. 과거 ID 판정은 서버, 원래 ACK 로컬 재조회 상실, UTC 시각 의존성, 논리/물리 파일 크기 차이는 C안 그대로다. 공개 DB·운영 원본·runtime·commission·생산 조작·배포는 수행하지 않았다. 운영 적용은 병합 후 별도 사용자 요청이다.

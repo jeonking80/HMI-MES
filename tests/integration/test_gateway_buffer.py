@@ -115,7 +115,7 @@ def test_default_limits_identity_schema_durability_and_single_owner(buffer):
     assert buffer._db.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
     assert buffer._db.execute("PRAGMA synchronous").fetchone()[0] == 2
     assert buffer._db.execute("PRAGMA foreign_keys").fetchone()[0] == 1
-    assert buffer._db.execute("PRAGMA user_version").fetchone()[0] == 2
+    assert buffer._db.execute("PRAGMA user_version").fetchone()[0] == 3
     assert buffer.path.stat().st_mode & 0o777 == 0o600
     with pytest.raises(BlockingIOError):
         GatewayBuffer(buffer.path)

@@ -37,6 +37,7 @@ async def test_periodic_prune_bounded_utc_owner_thread_and_independent(monkeypat
 
     def prune(*, now, limit):
         calls.append((loop.time(), now, limit, threading.get_ident()))
+        return {"pruned_rows": 0}
 
     pump = make_pump(SimpleNamespace(prune_acknowledged=prune))
 
@@ -63,6 +64,30 @@ async def test_periodic_prune_bounded_utc_owner_thread_and_independent(monkeypat
         now.tzinfo is UTC and limit == 1000 and thread == owner for _, now, limit, thread in calls
     )
     assert len(cancelled) == 2
+
+
+async def test_full_maintenance_chunk_continues_without_another_hour_wait(monkeypatch):
+    monkeypatch.setattr(worker, "LEDGER_PRUNE_INTERVAL_SECONDS", 0.2)
+    stop = asyncio.Event()
+    calls = []
+
+    def prune(*, now, limit):
+        calls.append((asyncio.get_running_loop().time(), limit))
+        if len(calls) == 3:
+            stop.set()
+        return {"pruned_rows": limit if len(calls) < 3 else 7}
+
+    pump = make_pump(SimpleNamespace(prune_acknowledged=prune))
+
+    async def blocked():
+        await asyncio.Event().wait()
+
+    pump.capture_once = blocked
+    pump.deliver_once = blocked
+    await asyncio.wait_for(pump.run(stop), timeout=1)
+    assert len(calls) == 3
+    assert all(limit == 1000 for _, limit in calls)
+    assert calls[-1][0] - calls[0][0] < 0.2
 
 
 async def test_prune_corruption_stops_and_cancels_workers(monkeypatch):

@@ -270,7 +270,7 @@ class GatewayPump:
     async def run(self, stop_event: asyncio.Event, *, on_status=None) -> None:
         """Independent collectors/uploaders: a slow or unavailable API cannot stall polling.
 
-        Retained ledger prefixes are pruned hourly outside the ACK transaction.
+        Old eligible ledger receipts are pruned hourly outside the ACK transaction.
         Callback receives operation/state/error class and a validated BufferFull reason code.
         Storage corruption and source identity mismatches stop both loops for reconciliation.
         """
@@ -341,8 +341,17 @@ class GatewayPump:
                 # SQLite stays on its owner thread. This bounded synchronous
                 # transaction cannot interleave with capture or ACK mutations.
                 # UTC selects aged receipts; monotonic time schedules maintenance.
-                self.buffer.prune_acknowledged(now=datetime.now(UTC), limit=LEDGER_PRUNE_LIMIT)
+                result = self.buffer.prune_acknowledged(
+                    now=datetime.now(UTC), limit=LEDGER_PRUNE_LIMIT
+                )
                 report("maintenance", "pruned")
+                if result["pruned_rows"] == LEDGER_PRUNE_LIMIT:
+                    # Drain an hourly backlog in bounded transactions, yielding
+                    # to collection/delivery between chunks rather than waiting
+                    # another hour after each 1,000-row chunk at 1 Hz input.
+                    deadline = loop.time()
+                    await asyncio.sleep(0)
+                    continue
                 deadline = loop.time() + LEDGER_PRUNE_INTERVAL_SECONDS
 
         tasks = [

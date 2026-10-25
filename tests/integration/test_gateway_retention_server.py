@@ -55,7 +55,7 @@ def test_pruned_id_replay_uses_server_original_receipt_and_rejects_changed_conte
     with GatewayBuffer(
         tmp_path / "gateway.sqlite3",
         gateway_id="gateway-1",
-        limits=BufferLimits(ledger_retention=timedelta(seconds=1)),
+        limits=BufferLimits(max_age=timedelta(seconds=1), ledger_retention=timedelta(seconds=1)),
     ) as buffer:
         buffer.enqueue(original, now=AT)
         original_ack = service.ingest(original, **SCOPE, now=AT)
