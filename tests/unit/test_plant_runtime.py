@@ -255,8 +255,10 @@ def test_explicit_commission_authenticates_rotates_and_uses_only_safe_routes(pre
     ]
 
 
-@pytest.mark.parametrize("run_state", ["ENDED", "RUNNING"])
-def test_commission_with_retained_execution_only_allows_ended(prepared, monkeypatch, run_state):
+@pytest.mark.parametrize("run_state", ["ENDED", "LOADED", "RUNNING", "PAUSED"])
+def test_commission_with_retained_execution_allows_only_stationary_jobs(
+    prepared, monkeypatch, run_state
+):
     paths = []
     real_client = httpx.Client
 
@@ -298,7 +300,7 @@ def test_commission_with_retained_execution_only_allows_ended(prepared, monkeypa
             checks={name: True for name in runtime.CHECKS},
         )
 
-    if run_state == "RUNNING":
+    if run_state in {"RUNNING", "PAUSED"}:
         with pytest.raises(ValueError, match="no active execution, WIP or motion"):
             commission()
         assert paths == ["/auth/challenge", "/auth/login", "/snapshot", "/auth/logout"]

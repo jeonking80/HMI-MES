@@ -270,7 +270,7 @@ class GatewayPump:
     async def run(self, stop_event: asyncio.Event, *, on_status=None) -> None:
         """Independent collectors/uploaders: a slow or unavailable API cannot stall polling.
 
-        Old eligible ledger receipts are pruned hourly outside the ACK transaction.
+        Old eligible ledger receipts are pruned at start and hourly outside the ACK transaction.
         Callback receives operation/state/error class and a validated BufferFull reason code.
         Storage corruption and source identity mismatches stop both loops for reconciliation.
         """
@@ -331,7 +331,9 @@ class GatewayPump:
 
         async def maintain():
             loop = asyncio.get_running_loop()
-            deadline = loop.time() + LEDGER_PRUNE_INTERVAL_SECONDS
+            # Run once at start: a restart after a long stop may already hold
+            # hours of aged receipts, so do not wait a full interval first.
+            deadline = loop.time()
             while not stop_event.is_set():
                 await pause(max(0, deadline - loop.time()))
                 if stop_event.is_set():

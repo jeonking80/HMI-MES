@@ -57,7 +57,7 @@ async def test_periodic_prune_bounded_utc_owner_thread_and_independent(monkeypat
 
     await asyncio.wait_for(pump.run(stop, on_status=status), timeout=1)
     assert len(calls) == 2
-    assert calls[0][0] - started >= interval
+    assert calls[0][0] - started < interval
     assert calls[1][0] - calls[0][0] >= interval
     assert all(before <= now <= datetime.now(UTC) for _, now, _, _ in calls)
     assert all(
