@@ -265,6 +265,8 @@ def test_legacy_buffer_upgrades_only_known_absent_proof(tmp_path, acknowledged):
             buffer.acknowledge(make_ack(original))
     with sqlite3.connect(path) as db:
         db.execute("ALTER TABLE batch_ledger DROP COLUMN envelope_sha256")
+        db.execute("DROP TABLE ledger_checkpoint")
+        db.execute("PRAGMA user_version=1")
     with GatewayBuffer(path) as buffer:
         assert buffer.enqueue(original, now=AT).duplicate
         assert buffer._db.execute("SELECT envelope_sha256 FROM batch_ledger").fetchone()[0] == (

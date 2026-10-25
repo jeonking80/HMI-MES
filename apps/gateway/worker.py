@@ -3,6 +3,7 @@
 import asyncio
 import re
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from pydantic import TypeAdapter
@@ -19,6 +20,9 @@ from contracts.transport import (
     StreamGap,
     batch_digest,
 )
+
+LEDGER_PRUNE_INTERVAL_SECONDS = 3600
+LEDGER_PRUNE_LIMIT = 1000
 
 
 class SourceCursorError(ValueError):
@@ -266,6 +270,7 @@ class GatewayPump:
     async def run(self, stop_event: asyncio.Event, *, on_status=None) -> None:
         """Independent collectors/uploaders: a slow or unavailable API cannot stall polling.
 
+        Retained ledger prefixes are pruned hourly outside the ACK transaction.
         Callback receives operation/state/error class and a validated BufferFull reason code.
         Storage corruption and source identity mismatches stop both loops for reconciliation.
         """
@@ -324,9 +329,26 @@ class GatewayPump:
                     report("clock-probe", "unavailable", error)
                 await pause(0.2)
 
+        async def maintain():
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + LEDGER_PRUNE_INTERVAL_SECONDS
+            while not stop_event.is_set():
+                await pause(max(0, deadline - loop.time()))
+                if stop_event.is_set():
+                    break
+                if loop.time() < deadline:
+                    continue
+                # SQLite stays on its owner thread. This bounded synchronous
+                # transaction cannot interleave with capture or ACK mutations.
+                # UTC selects aged receipts; monotonic time schedules maintenance.
+                self.buffer.prune_acknowledged(now=datetime.now(UTC), limit=LEDGER_PRUNE_LIMIT)
+                report("maintenance", "pruned")
+                deadline = loop.time() + LEDGER_PRUNE_INTERVAL_SECONDS
+
         tasks = [
             asyncio.create_task(collect()),
             asyncio.create_task(deliver()),
+            asyncio.create_task(maintain()),
             asyncio.create_task(stop_event.wait()),
         ]
         if self.measured_clock:
