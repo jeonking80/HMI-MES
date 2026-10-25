@@ -8,7 +8,7 @@ export type WorkflowIntent = { work_order_id: string; actor: string } & (Release
 export interface ReleaseReceipt { release_id: string; work_order_id: string; released_by: string; released_at: string; status: 'RELEASED'; row_version: string }
 export interface BindReceipt extends CommandScope { work_order_id: string; execution_id: string; command_id: string; work_order_row_version: string; load_request: CommandRequest }
 export interface WorkflowRecord { intent: WorkflowIntent; receipt: ReleaseReceipt | BindReceipt }
-export interface WorkflowAttempt { kind: WorkflowKind; intent: WorkflowIntent; knownIntent: boolean; expectedOrder: { recipe_version_id: string; target_quantity: number } | null; phase: 'sending' | 'uncertain' | 'confirmed' | 'conflict'; record: WorkflowRecord | null; message: string; loadResult?: CommandResult }
+export interface WorkflowAttempt { kind: WorkflowKind; intent: WorkflowIntent; knownIntent: boolean; expectedOrder: { recipe_version_id: string; target_quantity: number } | null; phase: 'sending' | 'uncertain' | 'confirmed' | 'conflict' | 'rejected'; record: WorkflowRecord | null; message: string; loadResult?: CommandResult; sentAt?: number; postStatus?: number }
 export function sameWorkflowValue(a: unknown, b: unknown): boolean {
   if (a === b) return true
   if (!a || !b || typeof a !== 'object' || typeof b !== 'object' || Array.isArray(a) !== Array.isArray(b)) return false
