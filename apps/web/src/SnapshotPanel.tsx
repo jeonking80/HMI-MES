@@ -87,9 +87,13 @@ function LiveSnapshot({ source, session, tracked, setTracked, workflow, selected
   const stream = useScreenSubscription(source, session.csrf_token, onSessionInvalid)
   const snapshot = stream.projection
   const error = stream.message
-  const now = stream.now
+  // Ages run on the server clock: the emission time plus local time since arrival.
+  // A browser clock that is off by a second or two no longer flips every value
+  // between GOOD and unknown; the 3 s limit itself is unchanged.
+  const sinceArrival = Math.max(0, stream.now - stream.receivedAt)
+  const now = snapshot ? Date.parse(snapshot.screen.emitted_at) + sinceArrival : stream.now
   const freshTime = (value: string) => { const age = now - Date.parse(value); return age >= 0 && age < 3000 }
-  const current = stream.phase === 'synced' && snapshot !== null && freshTime(snapshot.screen.emitted_at)
+  const current = stream.phase === 'synced' && snapshot !== null && sinceArrival < 3000
   const sampleFresh = (sample: Sample | undefined) => {
     const evidence = snapshot?.evidence.find(item => item.tag_id === sample?.tag_id)
     return current && !!sample && evidence?.fresh === true && freshTime(evidence.captured_at) && freshTime(evidence.stored_at) && freshTime(sample.acquired_at)
