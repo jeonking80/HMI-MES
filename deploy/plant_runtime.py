@@ -413,7 +413,11 @@ def commission(directory, *, password_file, new_password_file, checks):
             snapshot = client.get("/snapshot")
             snapshot.raise_for_status()
             state = snapshot.json()["state"]
-            if state["run_output"] or state["wip_quantity"] or state["execution_id"] is not None:
+            if (
+                state["run_output"]
+                or state["wip_quantity"]
+                or (state["execution_id"] is not None and state["run_state"] != "ENDED")
+            ):
                 raise ValueError("Commissioning requires no active execution, WIP or motion")
             if state["recovery_required"]:
                 post("/recover", checks, csrf)
