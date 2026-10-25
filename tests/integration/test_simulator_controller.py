@@ -308,8 +308,10 @@ def test_settings_change_preserves_wip_and_keeps_applied_intervals(runtime):
         "SELECT event_json FROM runtime_parameter_changes WHERE execution_id='run-A'"
     ).fetchall()
     assert len(history) == 1 and json.loads(history[0][0]) == change.model_dump(mode="json")
-    for identifier, recipe, speed in (("replace-recipe", "recipe-2", 7.2),
-                                      ("outside-original-range", "recipe-1", 12.0)):
+    for identifier, recipe, speed in (
+        ("replace-recipe", "recipe-2", 7.2),
+        ("outside-original-range", "recipe-1", 12.0),
+    ):
         refused = request(
             controller,
             "SET_PARAMETERS",

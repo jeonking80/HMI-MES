@@ -196,9 +196,7 @@ def execute_load(state, controller, receipt):
     with state.engine.begin() as db:
         work = claim_next(db, **SCOPE, now=AT)
         assert work.action == "SUBMIT"
-    submission = controller.submit(
-        request, now=AT, authenticated_gateway_principal="gateway"
-    )
+    submission = controller.submit(request, now=AT, authenticated_gateway_principal="gateway")
     assert submission.submission.disposition == "ACCEPTED"
     controller.tick(now=AT)
     result = controller.get_result(request.command_id)

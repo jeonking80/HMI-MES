@@ -3,6 +3,7 @@ import type { SetStateAction } from 'react'
 import type { Session } from './auth'
 import type { WorkOrder } from './mesApi'
 import { MesHTTPError, mesRequest } from './mesApi'
+import { conflictMessage } from './conflictReasons'
 import { parseWorkflow, workflowBody, workflowIdentity, workflowPath } from './workflow'
 import type { WorkflowAttempt, WorkflowIntent, WorkflowKind } from './workflow'
 import type { CommandResult } from './commands'
@@ -43,6 +44,7 @@ export function useWorkOrderWorkflow(session: Session | null, onSessionInvalid: 
       setAttempt({ ...initial, intent: record.intent, knownIntent: true, phase: 'confirmed', record, message: kind === 'release' ? '배포 기록을 확인했습니다. 설비 실행 완료를 뜻하지 않습니다.' : '실행 연결 등록을 확인했습니다. 작업 불러오기의 PLC 결과를 별도로 확인해 주세요.' })
     } catch (cause) {
       const status = cause instanceof MesHTTPError ? cause.status : 0
+      const reason = conflictMessage(cause instanceof MesHTTPError ? cause.reasonCode : null)
       const tried = post ? { ...initial, postStatus: status } : initial
       if (post && status === 409) {
         // A 409 is a server answer, not a lost response: read the original ID once to tell a stored duplicate from a rejection.
@@ -51,7 +53,7 @@ export function useWorkOrderWorkflow(session: Session | null, onSessionInvalid: 
           setAttempt({ ...tried, intent: stored.intent, knownIntent: true, phase: 'confirmed', record: stored, message: '원래 ID의 저장 기록을 확인했습니다.' })
         } catch (lookup) {
           const missing = lookup instanceof MesHTTPError && lookup.status === 404
-          setAttempt({ ...tried, phase: missing ? 'rejected' : 'conflict', message: missing ? notStored(kind) : '원래 ID의 요청이 충돌했습니다. 원래 기록을 조회하고 내용을 확인해 주세요.' })
+          setAttempt({ ...tried, phase: missing ? 'rejected' : 'conflict', message: missing ? (reason ? `${reason} (저장된 요청은 없습니다.)` : notStored(kind)) : '원래 ID의 요청이 충돌했습니다. 원래 기록을 조회하고 내용을 확인해 주세요.' })
         }
       } else if (!post && status === 404 && settled(initial)) {
         setAttempt({ ...initial, phase: 'rejected', message: initial.postStatus === 409 ? notStored(initial.kind) : initial.sentAt !== undefined ? `요청 후 ${Math.round(SERVER_DEADLINE_MS / 1000)}초가 지나도 저장 기록이 없습니다. 서버 처리 시한이 지났으므로 저장되지 않은 요청으로 확정합니다.` : '조회한 ID의 저장 기록이 없습니다. 조회를 닫을 수 있습니다.' })

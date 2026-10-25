@@ -1,3 +1,4 @@
+import { reasonCodeOf } from './conflictReasons'
 import { screenUInt64 } from './screenState'
 
 export type RegistrationKind = 'recipe' | 'order'
@@ -23,7 +24,7 @@ export const validDate = (value: unknown): value is string => {
   const date = new Date(`${value}T00:00:00Z`)
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value
 }
-export class MesHTTPError extends Error { constructor(public readonly status: number) { super('MES request was not confirmed') } }
+export class MesHTTPError extends Error { constructor(public readonly status: number, public readonly reasonCode: string | null = null) { super('MES request was not confirmed') } }
 export async function mesRequest(path: string, signal: AbortSignal, csrf?: string, definition?: object): Promise<unknown> {
   const response = await fetch(path, {
     method: definition ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store',
@@ -31,7 +32,7 @@ export async function mesRequest(path: string, signal: AbortSignal, csrf?: strin
     ...(definition ? { body: JSON.stringify(definition) } : {}),
     signal: AbortSignal.any([signal, AbortSignal.timeout(12_000)]),
   })
-  if (!response.ok) throw new MesHTTPError(response.status)
+  if (!response.ok) throw new MesHTTPError(response.status, await reasonCodeOf(response))
   return response.json()
 }
 function record(value: unknown): Record<string, unknown> {
@@ -82,4 +83,20 @@ export function sameDefinition(kind: RegistrationKind, stored: Registration, exp
 
 export function mesDetailPath(kind: RegistrationKind, id: string) {
   return `/api/v1/${kind === 'recipe' ? 'recipe-version-detail' : 'work-order-detail'}?${new URLSearchParams({ [kind === 'recipe' ? 'recipe_version_id' : 'work_order_id']: id })}`
+}
+
+/** CX-37 item master. Registrations may reference only enabled, registered items. */
+export interface ItemMaster { id: string; name: string; unit: string; enabled: boolean }
+export const itemsPath = '/api/v1/items'
+export function itemPage(value: unknown): Page<ItemMaster> {
+  const raw = record(value)
+  if (!Array.isArray(raw.items) || !(raw.next_cursor === null || validId(raw.next_cursor))) throw new Error('Unconfirmed item page')
+  return {
+    items: raw.items.map(entry => {
+      const item = record(entry)
+      if (!validId(item.id) || typeof item.name !== 'string' || typeof item.unit !== 'string' || typeof item.enabled !== 'boolean') throw new Error('Unconfirmed item')
+      return { id: item.id, name: item.name, unit: item.unit, enabled: item.enabled }
+    }),
+    next_cursor: raw.next_cursor,
+  }
 }

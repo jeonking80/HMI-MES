@@ -28,10 +28,10 @@ export function freezeArchivedWorkflow(entry: ArchivedWorkflow): ArchivedWorkflo
 }
 const fail = (): never => { throw new Error('Unconfirmed execution record') }
 function need(value: unknown): asserts value { if (!value) fail() }
-function object(value: unknown, keys: readonly string[]): Record<string, unknown> {
+function object(value: unknown, keys: readonly string[], optional: readonly string[] = []): Record<string, unknown> {
   need(value && typeof value === 'object' && !Array.isArray(value))
   const result = value as Record<string, unknown>
-  need(Object.keys(result).length === keys.length && keys.every(key => Object.hasOwn(result, key)))
+  need(keys.every(key => Object.hasOwn(result, key)) && Object.keys(result).every(key => keys.includes(key) || optional.includes(key)))
   return result
 }
 const time = (value: unknown): value is string => typeof value === 'string'
@@ -109,7 +109,11 @@ export function parseExecution(value: unknown, expected: BindReceipt): Execution
   if (settlement.summary === null) need(settlement.status === 'PENDING' && settlement.checked_at === null && settlement.received_at === null)
   else {
     need(time(settlement.checked_at) && time(settlement.received_at))
-    const summary = object(settlement.summary, ['schema_version', 'source_id', 'stream_id', 'execution_id', 'state', 'as_of', 'counter_epoch', 'recipe_version', 'parameters', 'input_quantity', 'good_quantity', 'reject_quantity', 'scrap_quantity', 'wip_quantity', 'last_event_seq', 'final', 'ended_at'])
+    const summary = object(settlement.summary, ['schema_version', 'source_id', 'stream_id', 'execution_id', 'state', 'as_of', 'counter_epoch', 'recipe_version', 'parameters', 'input_quantity', 'good_quantity', 'reject_quantity', 'scrap_quantity', 'wip_quantity', 'last_event_seq', 'final', 'ended_at'], ['end_reason', 'baseline_parameters', 'parameter_changes'])
+    // CX-33/35: why the run ended, and the LOAD baseline when speed was adjusted during the run.
+    need(!Object.hasOwn(summary, 'end_reason') || ['TARGET_REACHED', 'OPERATOR'].includes(summary.end_reason as string))
+    need(!Object.hasOwn(summary, 'parameter_changes') || (Array.isArray(summary.parameter_changes) && Object.hasOwn(summary, 'baseline_parameters')))
+    if (Object.hasOwn(summary, 'baseline_parameters')) parameters(summary.baseline_parameters)
     need(summary.schema_version === '1.0' && summary.execution_id === execution.execution_id && summary.source_id === scope.source_id && summary.stream_id === scope.stream_id)
     need(workflowId(summary.counter_epoch) && workflowId(summary.recipe_version) && time(summary.as_of) && nullableTime(summary.ended_at))
     parameters(summary.parameters)
@@ -120,7 +124,8 @@ export function parseExecution(value: unknown, expected: BindReceipt): Execution
     need(completed === 0n || summary.last_event_seq !== '0')
     need(summary.final === (summary.state === 'ENDED'))
     need(summary.final ? summary.wip_quantity === 0 && time(summary.ended_at) && Date.parse(summary.ended_at) <= Date.parse(summary.as_of) : summary.ended_at === null)
-    if (settlement.status === 'SETTLED') need(summary.final && summary.counter_epoch === execution.counter_epoch && summary.recipe_version === execution.recipe_version && sameWorkflowValue(summary.parameters, execution.parameters))
+    // The server already verified any speed-change evidence; the LOAD baseline must still be the original parameters.
+    if (settlement.status === 'SETTLED') need(summary.final && summary.counter_epoch === execution.counter_epoch && summary.recipe_version === execution.recipe_version && sameWorkflowValue(Object.hasOwn(summary, 'baseline_parameters') ? summary.baseline_parameters : summary.parameters, execution.parameters))
   }
   function freeze(v: unknown) { if (v && typeof v === 'object') { Object.values(v).forEach(freeze); Object.freeze(v) } }
   freeze(raw)

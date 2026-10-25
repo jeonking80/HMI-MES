@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Session } from './auth'
-import { MesHTTPError, mesDetailPath, mesPaths, mesRequest, orderPage, recipePage, registrationFrom, sameDefinition, validDate, validId } from './mesApi'
+import { itemPage, itemsPath, MesHTTPError, mesDetailPath, mesPaths, mesRequest, orderPage, recipePage, registrationFrom, sameDefinition, validDate, validId } from './mesApi'
 import type { Definition, OrderDefinition, Page, RecipeDefinition, RecipeVersion, Registration, RegistrationKind, WorkOrder } from './mesApi'
 import type { WorkOrderWorkflow } from './useWorkOrderWorkflow'
 import type { CancellationWorkflow } from './useCancellation'
+import { conflictMessage } from './conflictReasons'
+import LineQueuePanel from './LineQueuePanel'
 import { DEFAULT_PARAMETERS, DEFAULT_TARGET, knownItems, parameterProblem, recipeGroups, SPEED_RANGE, suggestOrderId, suggestRecipe, TEMPERATURE_RANGE, todayKst } from './mesAutofill'
 
 interface Attempt {
@@ -88,7 +90,11 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
   const allRecipes = useAll(mesPaths.recipe, recipePage, `recipes-${choiceRevision}`)
   const allOrders = useAll(mesPaths.order, orderPage, `orders-${choiceRevision}-${cancellation.ledger?.receipt?.cancellation_id ?? ''}`)
   const groups = recipeGroups(allRecipes)
-  const items = knownItems(allRecipes, allOrders)
+  // Item master (CX-37); an empty list on a server without it keeps the earlier free-text behaviour.
+  const masterItems = useAll(itemsPath, itemPage, `items-${choiceRevision}`)
+  const masterIds = new Set(masterItems.map(item => item.id))
+  const items = [...new Set([...masterItems.filter(item => item.enabled).map(item => item.id), ...knownItems(allRecipes, allOrders)])]
+  const newItem = masterItems.length > 0 && recipe.item.trim() !== '' && !masterIds.has(recipe.item.trim())
   const releaseAfterRegister = useRef(false)
   const [moving, setMoving] = useState('')
   const [lines, setLines] = useState<LineChoice[] | null>(null)
@@ -198,7 +204,7 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
       if (cause instanceof MesHTTPError && (cause.status === 401 || cause.status === 403)) { onSessionInvalid(); return }
       const status = cause instanceof MesHTTPError ? cause.status : 0
       const phase = status === 409 ? 'conflict' : [400, 404, 413, 415, 422, 429].includes(status) ? 'rejected' : 'uncertain'
-      const message = phase === 'conflict' ? '같은 ID 또는 설정 그룹·버전에 다른 내용이 이미 등록되어 있습니다. 기존 내용을 덮어쓰지 않았습니다.'
+      const message = phase === 'conflict' ? conflictMessage(cause instanceof MesHTTPError ? cause.reasonCode : null) ?? '같은 ID 또는 설정 그룹·버전에 다른 내용이 이미 등록되어 있습니다. 기존 내용을 덮어쓰지 않았습니다.'
         : phase === 'rejected' ? status === 404 ? '선택한 라인이나 공정 설정을 찾을 수 없습니다. 목록과 입력을 확인해 주세요.' : '등록 요청이 거절되었습니다. 입력 조건을 확인해 주세요.'
           : '등록 결과를 확인할 수 없습니다. 입력과 ID를 그대로 보관했습니다. 원래 ID로 조회해 주세요.'
       setAttempts(previous => ({ ...previous, [kind]: { definition, stored: null, phase, message } }))
@@ -238,7 +244,14 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
     const problem = parameterProblem(temperature, speed)
     if (problem) { setValidation(previous => ({ ...previous, recipe: problem })); return }
     const definition: RecipeDefinition = { id: recipe.id, recipe_id: recipe.family, version: recipe.version, item_id: recipe.item, parameters: { temperature_c: temperature, speed_m_per_min: speed } }
-    void submit('recipe', definition)
+    if (!newItem) { void submit('recipe', definition); return }
+    // A first-time item is registered just before its recipe; an existing identical item is accepted as is.
+    void mesRequest(itemsPath, new AbortController().signal, session.csrf_token, { id: recipe.item.trim(), name: recipe.item.trim(), unit: '개', enabled: true })
+      .then(() => { setChoiceRevision(value => value + 1); void submit('recipe', definition) })
+      .catch(cause => {
+        if (cause instanceof MesHTTPError && (cause.status === 401 || cause.status === 403)) { onSessionInvalid(); return }
+        setValidation(previous => ({ ...previous, recipe: cause instanceof MesHTTPError && cause.status === 409 ? '같은 품목 ID가 다른 이름·단위로 이미 등록되어 있습니다. 품목 목록에서 골라 주세요.' : '새 품목을 등록하지 못했습니다. 잠시 후 다시 시도해 주세요.' }))
+      })
   }
   function submitOrder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -275,7 +288,7 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
         {validation.recipe && <p className="message error" role="alert">{validation.recipe}</p>}
         <form id="mes-recipe-form" onSubmit={submitRecipe}><fieldset disabled={locked('recipe')}><legend className="sr-only">공정 설정 등록 내용</legend><div className="mes-form-grid">
           <div><label htmlFor="mes-recipe-base">기존 설정에서 시작 (선택)</label><select id="mes-recipe-base" value="" onChange={event => chooseBase(event.target.value)}><option value="">{groups.length ? '기존 설정을 고르면 다음 버전으로 채웁니다' : '등록된 설정이 없습니다'}</option>{groups.map(group => <option key={group.recipe_id} value={group.recipe_id}>{group.item_id} · {group.recipe_id} (최신 {group.latest.version}, {group.latest.parameters.temperature_c} ℃ / {group.latest.parameters.speed_m_per_min} m/min)</option>)}</select></div>
-          <div><label htmlFor="mes-recipe-item">품목</label><input id="mes-recipe-item" required maxLength={128} list="mes-item-choices" placeholder="목록에서 고르거나 새 품목 입력" value={recipe.item} onChange={event => chooseItem(event.target.value)} /><datalist id="mes-item-choices">{items.map(item => <option key={item} value={item} />)}</datalist></div>
+          <div><label htmlFor="mes-recipe-item">품목</label><input id="mes-recipe-item" required maxLength={128} list="mes-item-choices" placeholder="목록에서 고르거나 새 품목 입력" value={recipe.item} onChange={event => chooseItem(event.target.value)} /><datalist id="mes-item-choices">{items.map(item => <option key={item} value={item}>{masterItems.find(entry => entry.id === item)?.name}</option>)}</datalist>{newItem && <p className="input-help">처음 쓰는 품목입니다. 공정 설정을 등록할 때 품목 목록에도 함께 등록합니다(단위: 개).</p>}</div>
           <div><label htmlFor="mes-recipe-temperature">설정 온도 (℃)</label><input id="mes-recipe-temperature" type="number" required min={TEMPERATURE_RANGE.min} max={TEMPERATURE_RANGE.max} step="any" value={recipe.temperature} onChange={event => { setParamsManual(true); setRecipe(previous => ({ ...previous, temperature: event.target.value })) }} /><p className="input-help">허용 범위 {TEMPERATURE_RANGE.min}~{TEMPERATURE_RANGE.max} ℃</p></div>
           <div><label htmlFor="mes-recipe-speed">설정 속도 (m/min)</label><input id="mes-recipe-speed" type="number" required min={SPEED_RANGE.min} max={SPEED_RANGE.max} step="any" value={recipe.speed} onChange={event => { setParamsManual(true); setRecipe(previous => ({ ...previous, speed: event.target.value })) }} /><p className="input-help">허용 범위 {SPEED_RANGE.min}~{SPEED_RANGE.max} m/min</p></div>
         </div>
@@ -309,6 +322,7 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
         <AttemptResult kind="order" attempt={attempts.order} checking={checking.order} onLookup={() => void lookup('order')} onReset={() => reset('order')} />
       </details>}
     </section>
+    <LineQueuePanel session={session} orders={allOrders} onSessionInvalid={onSessionInvalid} />
   </section>
 }
 
