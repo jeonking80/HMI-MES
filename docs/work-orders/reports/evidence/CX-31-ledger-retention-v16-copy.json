@@ -1,0 +1,71 @@
+{
+  "source_snapshot_time": "2026-10-25T04:32:16.932494Z",
+  "copy_source_sha256": "d214635175b540a7fbe6b63bfee68ee5c7d0a29e699f0c7540aed724a22f27c1",
+  "prune_at": "2026-10-25T05:35:59.347122+00:00",
+  "before_schema": 1,
+  "after_schema": 3,
+  "retention_seconds": 7200.0,
+  "prune_calls": 1,
+  "prune_result": {
+    "pruned_rows": 8167,
+    "metadata_bytes_before": 9999850,
+    "metadata_bytes_after": 2376190,
+    "metadata_bytes_reclaimed": 7623660,
+    "checkpoint_last_capture_seq": 8620,
+    "checkpoint_deleted_count": 8167
+  },
+  "before": {
+    "batch_ledger": {
+      "rows": 9644,
+      "metadata_bytes": 8854082
+    },
+    "source_progress": {
+      "rows": 1,
+      "metadata_bytes": 656
+    },
+    "missing_ranges": {
+      "rows": 453,
+      "metadata_bytes": 1145112
+    },
+    "loss_intervals": {
+      "rows": 0,
+      "metadata_bytes": 0
+    }
+  },
+  "after": {
+    "batch_ledger": {
+      "rows": 1477,
+      "metadata_bytes": 1228657
+    },
+    "source_progress": {
+      "rows": 1,
+      "metadata_bytes": 656
+    },
+    "missing_ranges": {
+      "rows": 453,
+      "metadata_bytes": 1145112
+    },
+    "loss_intervals": {
+      "rows": 0,
+      "metadata_bytes": 0
+    }
+  },
+  "ranges": [
+    {
+      "generation": 1,
+      "from_capture_seq": 1,
+      "through_capture_seq": 101,
+      "deleted_count": 101,
+      "metadata_bytes": 882
+    },
+    {
+      "generation": 1,
+      "from_capture_seq": 555,
+      "through_capture_seq": 8620,
+      "deleted_count": 8066,
+      "metadata_bytes": 883
+    }
+  ],
+  "protected_evidence_exactly_equal": true,
+  "full_verify_after_prune": true
+}
