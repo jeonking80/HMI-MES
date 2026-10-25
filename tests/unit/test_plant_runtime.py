@@ -253,3 +253,57 @@ def test_explicit_commission_authenticates_rotates_and_uses_only_safe_routes(pre
         "/inputs",
         "/auth/logout",
     ]
+
+
+@pytest.mark.parametrize("run_state", ["ENDED", "RUNNING"])
+def test_commission_with_retained_execution_only_allows_ended(prepared, monkeypatch, run_state):
+    paths = []
+    real_client = httpx.Client
+
+    def handler(request):
+        paths.append(request.url.path)
+        if request.url.path == "/auth/challenge":
+            return httpx.Response(200, json={"csrf_token": "challenge"})
+        if request.url.path == "/auth/login":
+            return httpx.Response(
+                200, json={"csrf_token": "session", "must_change_password": False}
+            )
+        if request.url.path == "/snapshot":
+            return httpx.Response(
+                200,
+                json={
+                    "state": {
+                        "run_output": False,
+                        "wip_quantity": 0,
+                        "execution_id": "retained-execution",
+                        "run_state": run_state,
+                        "recovery_required": True,
+                        "inputs": {"guard_closed": True},
+                    }
+                },
+            )
+        return httpx.Response(200, json={})
+
+    monkeypatch.setattr(
+        runtime.httpx,
+        "Client",
+        lambda **kwargs: real_client(**kwargs, transport=httpx.MockTransport(handler)),
+    )
+
+    def commission():
+        runtime.commission(
+            prepared,
+            password_file=prepared / "console-password",
+            new_password_file=None,
+            checks={name: True for name in runtime.CHECKS},
+        )
+
+    if run_state == "RUNNING":
+        with pytest.raises(ValueError, match="no active execution, WIP or motion"):
+            commission()
+        assert paths == ["/auth/challenge", "/auth/login", "/snapshot", "/auth/logout"]
+    else:
+        commission()
+        assert paths == [
+            "/auth/challenge", "/auth/login", "/snapshot", "/recover", "/inputs", "/auth/logout"
+        ]

@@ -529,3 +529,7 @@ M1의 주요 독립 운전·권한·실제 생산 경로는 확인했지만, 원
 - main193246c 반영 후 생산 실연1회 통과(2026-10-24 18:39~18:48 KST): 기존 작업지시로 LOAD_JOB·START·480초 운전 후 END_RUN 모두 성공, 실행3ac06c2b-ccd5-4a80-afd5-8c5e26ed204f가 ENDED/final/SETTLED였다. 서버/시뮬레이터 양품531·불량265·폐기0·재공0 및 최종 요약이 일치하고 verified/latest819·제한/충돌 플래그false를 확인했다. 수집523/COMMITTED523, METADATA_FULL 없음, 정상 정리 완료. 공개 DB 용량·분석 화면은 Claude 담당이며 장기 archive와 전체 미실행 조건은 별도로 남는다.
 
 - Claude 공개 확인(main 193246c 실연): 공개 DB·게스트 API로 수량 531/265/0 일치, SETTLED, 커서 819 gap 0, 시간 근거 GOOD 522/UNKNOWN 2, 대시보드 가동 483초, 트렌드 GOOD 518점, DB 75MB를 확인했다. `hmi_app` 금지 DML 실측은 미실행이고 게이트웨이 장기 고정 용량은 미설계다.
+
+- commission ENDED 후속(2026-10-25): 실행 ID가 남아도 ENDED·재공0·구동 출력 없음이면 허용하도록 조건만 수정했다. ENDED 성공/RUNNING 거절 매개변수 시험을 추가해 해당 모듈 10개가 1회 실행에서 통과했다(3.13초). Ruff 1회는 신규 시험의 E501 1건(101자)으로 실패했다. 줄바꿈은 수정했으나 사용자 지정 1회 제한에 따라 재검사하지 않았고 전체 검사 통과로 표시하지 않는다. PR 생성 조회는 GitHub GraphQL Forbidden으로 차단됐다. PR 생성·runtime 30분 재실행·생산 조작은 하지 않았다.
+
+- commission ENDED 재검사(2026-10-25): 사용자 추가 지시로 수정 제품 파일·시험 파일의 Ruff를 1회 재실행해 통과했다. 앞선 단위 시험 10개 통과와 함께 검증됐으며, 해당 수정만 codex/kuls-backend-v3에 커밋한다. PR은 Claude 담당이고 runtime 재실행·생산 조작은 이번 범위에서 수행하지 않는다.
