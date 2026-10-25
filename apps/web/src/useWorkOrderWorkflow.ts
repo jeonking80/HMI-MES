@@ -11,6 +11,12 @@ import type { ArchivedWorkflow } from './executionApi'
 import { sameWorkflowValue } from './workflow'
 import type { WorkOrderMutationGuard } from './workOrderMutationGuard'
 
+/** The server function stops by 60s; past this a missing record can no longer be committed late. */
+const SERVER_DEADLINE_MS = 70_000
+const notStored = (kind: WorkflowKind) => `서버가 이 ${kind === 'release' ? '배포' : '실행 연결'} 요청을 거절했고, 원래 ID로 저장된 기록이 없습니다. 작업지시 상태와 라인 조건을 확인한 뒤 새로 요청할 수 있습니다.`
+/** A 404 closes an attempt only once nothing can still commit it: a 409 answer, the server deadline, or a read-only query. */
+const settled = (attempt: WorkflowAttempt) => attempt.postStatus === 409 || !attempt.knownIntent || (attempt.sentAt !== undefined && Date.now() - attempt.sentAt > SERVER_DEADLINE_MS)
+
 /** Lives above authenticated components. No request retry or browser persistence. */
 export function useWorkOrderWorkflow(session: Session | null, onSessionInvalid: () => void, onArchived: () => void, guard: WorkOrderMutationGuard) {
   const [{ attempt, history }, setLedger] = useState<{ attempt: WorkflowAttempt | null; history: readonly ArchivedWorkflow[] }>({ attempt: null, history: [] })
@@ -29,7 +35,7 @@ export function useWorkOrderWorkflow(session: Session | null, onSessionInvalid: 
     setChecking(true)
     const controller = new AbortController()
     active.current = controller
-    const initial: WorkflowAttempt = previous ?? { kind, intent: Object.freeze({ ...intent }), knownIntent: post, expectedOrder: order ? { recipe_version_id: order.recipe_version_id, target_quantity: order.target_quantity } : null, phase: post ? 'sending' : 'uncertain', record: null, message: '' }
+    const initial: WorkflowAttempt = previous ?? { kind, intent: Object.freeze({ ...intent }), knownIntent: post, expectedOrder: order ? { recipe_version_id: order.recipe_version_id, target_quantity: order.target_quantity } : null, phase: post ? 'sending' : 'uncertain', record: null, message: '', ...(post ? { sentAt: Date.now() } : {}) }
     setAttempt(initial)
     try {
       const response = await mesRequest(workflowPath(kind, intent.work_order_id, post ? undefined : workflowIdentity(intent)), controller.signal, post ? session.csrf_token : undefined, post ? workflowBody(kind, intent) : undefined)
@@ -37,7 +43,21 @@ export function useWorkOrderWorkflow(session: Session | null, onSessionInvalid: 
       setAttempt({ ...initial, intent: record.intent, knownIntent: true, phase: 'confirmed', record, message: kind === 'release' ? '배포 기록을 확인했습니다. 설비 실행 완료를 뜻하지 않습니다.' : '실행 연결 등록을 확인했습니다. 작업 불러오기의 PLC 결과를 별도로 확인해 주세요.' })
     } catch (cause) {
       const status = cause instanceof MesHTTPError ? cause.status : 0
-      setAttempt({ ...initial, phase: status === 409 ? 'conflict' : 'uncertain', message: status === 409 ? '원래 ID의 요청이 충돌했습니다. 원래 기록을 조회하고 내용을 확인해 주세요.' : status === 404 ? '원래 ID의 저장 기록을 아직 확인하지 못했습니다. 요청이 뒤늦게 저장될 수 있어 새 요청을 보내지 않습니다.' : '응답 결과를 확인할 수 없습니다. 원래 ID와 요청 내용을 보존하며 조회만 가능합니다.' })
+      const tried = post ? { ...initial, postStatus: status } : initial
+      if (post && status === 409) {
+        // A 409 is a server answer, not a lost response: read the original ID once to tell a stored duplicate from a rejection.
+        try {
+          const stored = parseWorkflow(kind, await mesRequest(workflowPath(kind, intent.work_order_id, workflowIdentity(intent)), controller.signal), intent.work_order_id, workflowIdentity(intent), intent, initial.expectedOrder)
+          setAttempt({ ...tried, intent: stored.intent, knownIntent: true, phase: 'confirmed', record: stored, message: '원래 ID의 저장 기록을 확인했습니다.' })
+        } catch (lookup) {
+          const missing = lookup instanceof MesHTTPError && lookup.status === 404
+          setAttempt({ ...tried, phase: missing ? 'rejected' : 'conflict', message: missing ? notStored(kind) : '원래 ID의 요청이 충돌했습니다. 원래 기록을 조회하고 내용을 확인해 주세요.' })
+        }
+      } else if (!post && status === 404 && settled(initial)) {
+        setAttempt({ ...initial, phase: 'rejected', message: initial.postStatus === 409 ? notStored(initial.kind) : initial.sentAt !== undefined ? `요청 후 ${Math.round(SERVER_DEADLINE_MS / 1000)}초가 지나도 저장 기록이 없습니다. 서버 처리 시한이 지났으므로 저장되지 않은 요청으로 확정합니다.` : '조회한 ID의 저장 기록이 없습니다. 조회를 닫을 수 있습니다.' })
+      } else {
+        setAttempt({ ...tried, phase: status === 409 ? 'conflict' : 'uncertain', message: status === 409 ? '원래 ID의 요청이 충돌했습니다. 원래 기록을 조회하고 내용을 확인해 주세요.' : status === 404 ? '원래 ID의 저장 기록을 아직 확인하지 못했습니다. 요청이 뒤늦게 저장될 수 있어 새 요청을 보내지 않습니다.' : '응답 결과를 확인할 수 없습니다. 원래 ID와 요청 내용을 보존하며 조회만 가능합니다.' })
+      }
       if (!controller.signal.aborted && (status === 401 || status === 403)) onSessionInvalid()
     } finally { locked.current = false; setChecking(false) }
   }
@@ -80,6 +100,7 @@ export function useWorkOrderWorkflow(session: Session | null, onSessionInvalid: 
       const intent: WorkflowIntent = kind === 'release' ? { work_order_id: order, actor: session?.login ?? '', release_id: id, expected_row_version: '1' } : { work_order_id: order, actor: session?.login ?? '', command_id: id, line_id: '', source_id: '', stream_id: '', expected_work_order_version: '1', expected_control_version: '0' }
       return perform(kind, intent, false)
     },
+    dismissRejected: () => { if (!locked.current && attempt?.phase === 'rejected') { guard.release(attempt.intent.work_order_id, 'workflow', workflowIdentity(attempt.intent)); setAttempt(null) } },
     acknowledgeRelease: () => { if (!locked.current && attempt?.kind === 'release' && attempt.phase === 'confirmed') { guard.release(attempt.intent.work_order_id, 'workflow', workflowIdentity(attempt.intent)); setAttempt(null) } },
     orderBlocked: (id: string) => guard.blocked(id),
     recordLoadResult,

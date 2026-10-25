@@ -13,11 +13,12 @@ export default function WorkflowTracker({ workflow, login, onSessionInvalid }: {
     <h2 id="workflow-heading">작업지시 요청 기록</h2>
     <p className="form-help">응답 불명일 때 원래 ID만 조회합니다. 배포와 연결 등록은 PLC 실행 완료가 아닙니다. 새로고침 후에는 작업지시와 원래 요청 ID로 조회해 주세요.</p>
     {attempt ? <>
-      <p id="workflow-status" className="message caution" role="status" data-state={attempt.phase}>{attempt.phase === 'sending' ? '요청 응답 확인 중' : attempt.message}</p>
+      <p id="workflow-status" className={`message ${attempt.phase === 'rejected' ? 'error' : 'caution'}`} role="status" data-state={attempt.phase}>{attempt.phase === 'sending' ? '요청 응답 확인 중' : attempt.message}</p>
       <dl className="command-facts"><div><dt>요청 종류 · 작업지시</dt><dd>{attempt.kind === 'release' ? '배포' : '실행 연결'} · {attempt.intent.work_order_id}</dd></div><div><dt>원래 요청 ID</dt><dd id="workflow-original-id">{workflowIdentity(attempt.intent)}</dd></div><div><dt>원래 요청자</dt><dd id="workflow-actor">{attempt.knownIntent ? attempt.intent.actor : '저장 기록 확인 전'}</dd></div></dl>
       {attempt.knownIntent && login !== attempt.intent.actor && <p className="message caution">다른 계정의 원래 요청입니다. 권한이 허용하는 저장 기록 조회만 가능합니다.</p>}
       {attempt.record && 'execution_id' in attempt.record.receipt && <p>연결된 실행: <strong id="workflow-execution">{attempt.record.receipt.execution_id}</strong> · 작업 불러오기 결과는 원래 명령 ID로 확인합니다.</p>}
       <button id="workflow-lookup" type="button" className="button secondary" disabled={workflow.checking} onClick={() => void workflow.lookup()}>{workflow.checking ? '원래 기록 조회 중…' : '원래 요청 기록 조회'}</button>
+      {attempt.phase === 'rejected' && <button id="workflow-dismiss" type="button" className="button secondary" onClick={workflow.dismissRejected}>거절 확인 · 다시 준비</button>}
       {attempt.kind === 'release' && attempt.phase === 'confirmed' && <button id="workflow-acknowledge" type="button" className="button secondary" onClick={workflow.acknowledgeRelease}>배포 기록 확인 · 다음 업무 준비</button>}
       {attempt.record && 'execution_id' in attempt.record.receipt && <ExecutionRecordPanel key={attempt.record.receipt.command_id} original={attempt} login={login} workflow={workflow} onSessionInvalid={onSessionInvalid} />}
     </> : <form id="workflow-recovery" className="mes-form-grid" onSubmit={event => { event.preventDefault(); if (workflowId(order) && workflowId(id)) void workflow.recover(kind, order, id) }}>
