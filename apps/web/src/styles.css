@@ -168,6 +168,11 @@ input:disabled { background:#f1f4f7; }
 .mes-form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.2rem 1.25rem; }
 .mes-form-grid .input-help { font-size:.72rem; }
 .mes-registration-result { margin-top:1rem; }
+.text { background:transparent; border-color:transparent; color:#215e91; min-height:32px; padding:.2rem .1rem; font-size:.76rem; text-decoration:underline; }
+.mes-generated-ids { margin:.25rem 0 1rem !important; padding:.75rem 1rem .25rem !important; border:1px dashed #c4cfdb !important; border-radius:7px; background:#f7fafc; }
+.mes-generated-ids legend { padding:0 .35rem; font-size:.74rem; font-weight:700; color:#5b6d80; }
+.mes-generated-ids input { background:#fff; }
+#mes-release-next .button { display:inline-block; }
 .mes-result-facts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; font-size:.8rem; padding:1rem; background:#f2f6fa; border-radius:7px; }
 .mes-result-facts dt { color:#65778a; }
 .mes-result-facts dd { margin:.3rem 0 0; overflow-wrap:anywhere; }
@@ -180,3 +185,16 @@ input:disabled { background:#f1f4f7; }
 #workflow-history { margin-top:1.5rem; padding-top:1.25rem; border-top:1px solid #dce3ed; }
 #workflow-history details { border:1px solid #dce3ed; border-radius:8px; padding:1rem; margin-top:.75rem; overflow-wrap:anywhere; }
 #workflow-history summary { cursor:pointer; font-weight:600; min-height:28px; line-height:1.5; }
+
+.command-guide { margin:1rem 0; padding:.85rem 1rem; border-radius:8px; border:1px solid #c9d8e6; background:#f3f8fc; font-size:.84rem; line-height:1.6; }
+.command-guide.tone-good { border-color:#a8d0be; background:#edf7f3; }
+.command-guide.tone-warn { border-color:#e3c98c; background:#fdf7e8; }
+.command-guide.tone-bad { border-color:#e2a7a7; background:#fdf0f0; }
+.command-guide p { margin:.5rem 0 0; }
+.command-steps { display:flex; gap:.35rem; margin:0; padding:0; list-style:none; font-size:.72rem; font-weight:700; color:#7a8a9b; flex-wrap:wrap; }
+.command-steps li { padding:.2rem .55rem; border-radius:999px; background:#fff; border:1px solid #d5dee8; }
+.command-steps li.done { color:#286046; border-color:#a8d0be; }
+.command-steps li.current { color:#fff; background:#215e91; border-color:#215e91; }
+.command-progress { height:8px; margin-top:.6rem; border-radius:999px; background:#dfe7ef; overflow:hidden; }
+.command-progress span { display:block; height:100%; border-radius:999px; background:#2f7d5b; }
+.button.recommended { box-shadow:0 0 0 3px #f2b63c; }

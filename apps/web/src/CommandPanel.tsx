@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from 'react'
 import type { Session } from './auth'
 import { CommandHTTPError, commandHTTP, commandLookupPath, commandLabels, newCommandRequest, parseResult, sameScope, statusLabels, terminal, uint64String } from './commands'
 import type { CommandKind, CommandRequest, CommandScope, TrackedCommand } from './commands'
+import { STEPS, stepGuide } from './commandGuide'
 
 interface Props {
   source: CommandScope; session: Session; blockedReason: string; values: Record<string, unknown>
@@ -68,7 +69,8 @@ export default function CommandPanel({ source, session, blockedReason, newIntent
     if (session.must_change_password) return '초기 비밀번호를 변경해 주세요.'
     if ((kind === 'END_RUN' ? !operator && !producer : !operator)) return '이 명령을 요청할 역할이 없습니다.'
     if (['START', 'RESET_FAULT'].includes(kind) && newIntentBlocked) return newIntentBlocked
-    if (tracked) return '기존 명령의 결과를 확인한 뒤 다음 요청을 준비해 주세요.'
+    // A terminal result is final; only an open or unknown request blocks the next command.
+    if (tracked && !finished) return '기존 명령의 결과를 확인한 뒤 다음 요청을 준비해 주세요.'
     if (blockedReason) return blockedReason
     if (values['Line.ControlMode'] !== 1) return '현장 모드에서는 원격 명령을 요청할 수 없습니다.'
     if (!identifier(values['Line.ActiveExecutionId']) || !identifier(values['Line.CounterEpoch'])) return '현재 실행 ID와 카운터 구간을 확인할 수 없습니다.'
@@ -142,12 +144,18 @@ export default function CommandPanel({ source, session, blockedReason, newIntent
   const sharedReason = kinds.length > 1 && reasons.every(reason => reason === reasons[0]) ? reasons[0] : null
   // The control version a new request would carry; acceptance runs wait on it before clicking.
   const shownVersion = uint64String(values['Line.ControlVersion']) ? String(values['Line.ControlVersion']) : undefined
+  const guide = blockedReason ? null : stepGuide(values)
   return <section id="command-panel" className="command-panel" aria-labelledby="command-heading" data-control-version={shownVersion}>
     <div className="monitor-heading"><div><p className="section-kicker">COMMAND REQUEST</p><h2 id="command-heading">현재 실행 제어 요청</h2></div><span className="read-only-tag">서버 · PLC 재검증</span></div>
     <p className="form-help">요청 저장과 PLC 접수는 실행 완료가 아닙니다. 현재 실행에 대한 요청만 제공합니다. 작업지시 화면에서 배포 후 실행 연결을 준비할 수 있습니다.</p>
+    {guide && <div id="command-guide" className={`command-guide tone-${guide.tone}`} data-step={guide.step} role="status">
+      <ol className="command-steps" aria-label="운전 단계">{STEPS.map((label, index) => <li key={label} className={index < guide.step ? 'done' : index === guide.step ? 'current' : ''}>{label}</li>)}</ol>
+      <p><strong>{guide.title}</strong> {guide.next}</p>
+      {guide.progress !== null && <div className="command-progress" aria-label={`목표 대비 양품 ${Math.round(guide.progress * 100)}%`}><span style={{ width: `${Math.min(100, guide.progress * 100)}%` }} /></div>}
+    </div>}
     {kinds.length ? <><div className="command-actions">{kinds.map(kind => {
       const reason = disabledReason(kind)
-      return <div key={kind}><button id={`command-${kind}`} type="button" className={`button ${kind === 'START' ? 'primary' : kind === 'END_RUN' ? 'danger' : 'secondary'}`} disabled={!!reason} aria-describedby={`command-${kind}-reason`} onClick={() => kind === 'END_RUN' ? setConfirmEnd({ execution: String(values['Line.ActiveExecutionId']), version: String(values['Line.ControlVersion']), epoch: String(values['Line.CounterEpoch']) }) : void submit(kind)}>{commandLabels[kind]}</button><p id={`command-${kind}-reason`} className={sharedReason === null ? 'command-reason' : 'command-reason sr-only'}>{reason || '요청 시 서버와 PLC가 조건을 다시 확인합니다.'}</p></div>
+      return <div key={kind}><button id={`command-${kind}`} type="button" className={`button ${kind === 'START' ? 'primary' : kind === 'END_RUN' ? 'danger' : 'secondary'}${guide?.recommended === kind ? ' recommended' : ''}`} disabled={!!reason} aria-describedby={`command-${kind}-reason`} onClick={() => kind === 'END_RUN' ? setConfirmEnd({ execution: String(values['Line.ActiveExecutionId']), version: String(values['Line.ControlVersion']), epoch: String(values['Line.CounterEpoch']) }) : void submit(kind)}>{commandLabels[kind]}</button><p id={`command-${kind}-reason`} className={sharedReason === null ? 'command-reason' : 'command-reason sr-only'}>{reason || '요청 시 서버와 PLC가 조건을 다시 확인합니다.'}</p></div>
     })}</div>{sharedReason !== null && <p className="command-reason command-reason-shared" aria-hidden="true">{sharedReason || '요청 시 서버와 PLC가 조건을 다시 확인합니다.'}</p>}</> : <p className="message caution">현재 역할은 운전 요청 권한이 없습니다. 명령 결과 조회는 가능합니다.</p>}
     {confirmEnd && <div className="end-confirm" role="group" aria-labelledby="end-confirm-heading">
       <h3 id="end-confirm-heading">현재 작업의 종료를 요청하시겠습니까?</h3><p>실행 {confirmEnd.execution}의 신규 투입을 중지하고 재공 정리 후 종료하도록 요청합니다. 종료가 확정되면 이 실행을 다시 시작할 수 없습니다. MES 실적 정산 완료와는 구분됩니다.</p>
@@ -166,3 +174,4 @@ export default function CommandPanel({ source, session, blockedReason, newIntent
     <p className="form-help">결과 불명일 때 새 명령을 생성하거나 자동 재전송하지 않습니다. 원래 명령 ID를 기록해 주세요. 새로고침·로그아웃 후에는 재로그인하고 이 ID로 다시 조회할 수 있습니다.</p>
   </section>
 }
+
