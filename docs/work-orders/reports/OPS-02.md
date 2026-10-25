@@ -421,3 +421,71 @@ command·settlement에 초기 blocked가 각각 1회 있었고 클래스/코드�
 command·settlement 초기 blocked는 각각 1회이며 클래스·코드는 없다. 독립 medium 관찰자가 시작 byte 1,418,022 이후 로그와 [안전 실행 메타데이터](evidence/OPS-02-v9-buttons-run.json)를 읽어 수치를 확인했다. 마지막 로그는 supervisor 정상 종료·영속 상태 보존이며, 두 자식 PID와 processes.json이 없음을 확인했다.
 
 승인된 1회 종료 후 화면 재연결·추가 실행·큐/커서 수정·DB 이관·재배포는 하지 않았다. 비밀번호·세션 쿠키는 출력하거나 파일에 저장하지 않았다. START 후 8분 운전과 수량 대조는 시작하지 못했으며 OPS-02 생산 수락은 미완료다. 실패 기록 후 중단한다.
+
+## main 193246c 반영 후 생산 실연 1회 — 성공
+
+사용자가 main `193246c` 반영과 생산 실연 1회를 지시했다. main을 fast-forward로 반영했고 실제 실행 코드는 `193246c82ff4c9b18f9d63dfb974942f7f2def47`이다. 기존 미커밋 브라우저 시험 수정은 stash로 보존·복구했으며 실행이나 수정하지 않았다. 이 작업에서 제품 코드·배포·공개 DB·안전 조건을 바꾸거나 이관을 반복하지 않았다. 공개 응답이 0.5초로 개선됐다는 것은 사용자의 배포 측정이며 이번에 별도 성능 측정을 반복하지 않았다.
+
+기존 runtime·source/generation·인증서·토큰·RELEASED 작업지시 `000-v7-order-20261024T075220304749Z`를 사용했다. 정상 공개 UI 로그인·Origin·CSRF·권한 경로로 원래 배포 기록을 확인·acknowledge한 후 실행 연결했다. 추가 안정화 판정 없이 각 버튼은 활성화되면 누르고 최대 300초 기다리는 절차를 사용했다. POST 원래 ID를 요청 이벤트에서 먼저 보존했고, 전송된 요청을 새 ID로 다시 누르지 않았다.
+
+| 단계 | 결과 및 원래 ID |
+|---|---|
+| LOAD_JOB | SUCCEEDED, c58ac43a-bcad-42da-9444-9179607ab8ce |
+| execution_id | **3ac06c2b-ccd5-4a80-afd5-8c5e26ed204f** |
+| START | SUCCEEDED, 854a2ff7-9bfc-4392-916e-dc10b4d8c923 |
+| END_RUN | SUCCEEDED, fd37d1b2-6015-4024-9095-e84302e5b808 |
+| 최종 실행·저장 정산 | **ENDED / final=true / SETTLED** |
+
+START 성공을 확인한 시점부터 **480초** 기다린 뒤 활성화된 정상 종료 버튼과 확인 버튼을 눌렀다. 같은 실행의 재공 정리·최종 저장 정산을 확인했으며 PAUSE·RESET·새 START를 추가하지 않았다. 이후 정상 로그아웃과 소유 runtime 정리를 수행했다.
+
+| 시각 | UTC / KST |
+|---|---|
+| runtime 시작 | 2026-10-24T09:39:50.651759Z / 18:39:50 |
+| START 성공 확인 | 09:40:31.658244Z / 18:40:31 |
+| 최종 종료 요약 | 09:48:35.125901Z / 18:48:35 |
+| runtime 정리 완료 | 09:48:38.749336Z / 18:48:38 |
+| 전체 runtime 경과 | **528.1초** |
+
+### 원래 실행 수량 대조
+
+서버의 인증된 원래 execution-record 조회와 runtime 정리 후 읽기 전용 simulator runtime_runs 조회를 비교했다. 최종 요약 전체(변동 가능한 as_of 제외)·실행 ID·counter_epoch·레시피·공정 설정이 일치하고 서버 사건 집계도 일치한다. 실제 as_of 역시 이번에는 같았다.
+
+| 수량 | 서버 집계/요약 | 시뮬레이터 최종 요약 |
+|---|---:|---:|
+| 투입(요약) | 796 | 796 |
+| 양품 | **531** | **531** |
+| 불량 | **265** | **265** |
+| 폐기 | **0** | **0** |
+| 재공(요약) | **0** | **0** |
+
+서버 source의 verified_through_seq와 latest_ingested_seq는 모두 **819**이며 conflicted/reconciliation_required/control_restricted는 모두 false다. stream_gaps 테이블 자체를 별도로 조회한 것은 아니므로 그 테이블의 전체 행 수가 0이라고 주장하지 않는다. 목표 100,000개는 시간 내 자동 종료를 피하기 위한 설정이며 사용자가 요청한 정상 END_RUN으로 조기 종료했다.
+
+### 운영 로그와 정리
+
+새 supervisor 구간(시작 byte 1,502,799)에서 capture collected 523회·GatewayReadError blocked 2회·uncertain 1회, delivery COMMITTED 523회를 확인했다. command reported 5회는 전송 보고 상태의 로그 횟수이며 새 사용자 명령 5개를 뜻하지 않는다. 원래 사용자 명령 ID는 위의 3개다. command 초기 blocked 2회도 있었으므로 오류/막힘 0회로 표시하지 않는다. BufferFull/METADATA_FULL 및 cursor/conflict/batch-limit 오류 코드 기록은 없었다.
+
+독립 `gpt-6.1-sol medium` 관찰자는 [실행 메타데이터](evidence/OPS-02-main193246c-run.json)와 지정 로그 구간만 읽어 수량·최종 상태·로그 집계를 확인했다. supervisor 정상 종료·영속 상태 보존, 두 자식 PID 없음, processes.json 없음도 확인했다. 비밀번호·세션 쿠키는 메모리에서만 사용했고 코드·파일·로그에 저장하지 않았다.
+
+**이번 요청의 생산 실연·정상 종료·원래 실행 수량 대조는 통과했다.** 공개 DB 전후 용량·행 수와 대시보드의 GOOD/가동 시간 수치·화면 확인은 기존 분담대로 Claude 담당이며 여기서 새로 측정하지 않았다. 장기 고정 용량 archive, 미실행 수락/운영 항목이나 프로젝트 전체 완료까지 확대하지 않는다. 추가 실연이나 후속 명령은 보내지 않았다.
+
+## Claude 공개 확인 — main `193246c` 생산 실연 (2026-10-24)
+
+공개 DB는 소유자 HTTPS SQL 읽기 전용 조회로, 화면용 API는 공개 사이트 게스트 세션으로 확인했다. 쓰기는 하지 않았다.
+
+| 항목 | 결과 | 판정 |
+|---|---|---|
+| 실행 `3ac06c2b-…` 수량(`execution_totals`) | 양품 531 / 불량 265 / 폐기 0 | 시뮬레이터 값과 일치 |
+| 생산 사건(`production_events`, 09:40:31~09:48:35Z) | GOOD 531건 합 531, REJECT 265건 합 265 | 사건 합과 집계 일치 |
+| 정산(`run_reconciliations`) | `SETTLED` 1건 | 통과 |
+| 커서 | `verified_through_seq = latest_ingested_seq = 819`, `stream_gaps` 0행 | 통과 |
+| 시간 근거(09:30Z 이후 캡처) | `MEASURED_ROUND_TRIP`/GOOD 522, `NONE`/UNKNOWN 2 | 통과. 불명 2건은 불명으로 남아 있음 |
+| 대시보드 API(2026-10-24) | 양품 531, 불량 265, **가동 483초**, 정지 952초 | 가동 > 0 통과 |
+| 실적 보고서 API | `SETTLED`, 가동 483.45초, 정지 29.41초, 불명 0.91초, `provisional_reasons=["UNKNOWN_TIME"]` | 통과. 불명 0.91초 때문에 잠정 표시가 남는 것이 맞다 |
+| 트렌드 API(`Sealer.TemperaturePV`, `Sealer.ActualSpeed`, 09:40~09:49Z) | GOOD 518점, MISSING 22점(실연 전후 구간) | 통과 |
+| 공개 DB 용량 | 75MB(6차 실연 뒤 41MB) | 무료 0.5GB 이내 |
+
+**판정:** OPS-02의 공개 실연 항목(새 캡처 GOOD 트렌드, 가동 > 0, 불명 근거 보존, 원래 실행 수량 대조, 용량)을 모두 확인했다. 다만 다음은 이 확인에 포함되지 않는다.
+
+- `hmi_app` 금지 DML 실측: 계속 미실행
+- 게이트웨이 장기 고정 용량(archive 계약): 미설계
+- 실연 전 용량은 Codex 쪽에서 측정하지 않았다. 41MB는 6차 실연 뒤의 값이다. 이 사이에는 7~9차 시도 데이터도 포함돼 있어, 이번 실연만의 증가량은 알 수 없다.
