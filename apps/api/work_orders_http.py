@@ -7,6 +7,7 @@ from starlette.concurrency import run_in_threadpool
 
 from apps.api.auth import AuthorizationError, UserAuth
 from apps.api.commands import CommandConflict, CommandScopeError
+from apps.api.control_http import CommandPreflightConflict
 from apps.api.ingestion import IngestConflict
 from apps.api.settlement import SettlementScopeError
 from apps.api.work_order_workflow import (
@@ -28,6 +29,7 @@ from apps.api.work_orders import (
     register_recipe_version,
     register_work_order,
 )
+from contracts.conflict_codes import ConflictReason
 from contracts.models import Identifier
 
 
@@ -50,14 +52,34 @@ def mount_work_order_routes(
     async def mapped(operation):
         try:
             return await run_in_threadpool(operation)
-        except (
-            RegistrationConflict,
-            CommandConflict,
-            CommandScopeError,
-            SettlementScopeError,
-            IngestConflict,
-        ):
-            raise HTTPException(409, "registration conflicts with immutable content") from None
+        except CommandPreflightConflict as exc:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "detail": "current evidence does not permit this command",
+                    "reason_code": exc.reason_code,
+                },
+            )
+        except (RegistrationConflict, CommandConflict, CommandScopeError) as exc:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "detail": "registration conflicts with immutable content",
+                    "reason_code": exc.reason_code,
+                },
+            )
+        except (SettlementScopeError, IngestConflict) as exc:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "detail": "registration conflicts with immutable content",
+                    "reason_code": (
+                        ConflictReason.ID_CONTENT_CONFLICT
+                        if isinstance(exc, IngestConflict)
+                        else ConflictReason.STATE_NOT_ALLOWED
+                    ),
+                },
+            )
         except RegistrationNotFound:
             raise HTTPException(404, "registration or reference not found") from None
         except WorkOrdersUnavailable:

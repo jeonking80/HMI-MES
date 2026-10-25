@@ -168,16 +168,18 @@ async def test_auth_initial_password_and_mutation_protection_are_required(state,
 async def test_conflicts_references_and_immutable_surface(state, client):
     await create_pair(state, client)
     recipe = {**RECIPE, "parameters": {"temperature_c": 151.0, "speed_m_per_min": 6.0}}
-    assert (
-        await client.post("/api/v1/recipe-versions", json=recipe, headers=protection(state.session))
-    ).status_code == 409
-    assert (
-        await client.post(
-            "/api/v1/work-orders",
-            json={**ORDER, "target_quantity": 101},
-            headers=protection(state.session),
-        )
-    ).status_code == 409
+    recipe_conflict = await client.post(
+        "/api/v1/recipe-versions", json=recipe, headers=protection(state.session)
+    )
+    assert recipe_conflict.status_code == 409
+    assert recipe_conflict.json()["reason_code"] == "ID_CONTENT_CONFLICT"
+    order_conflict = await client.post(
+        "/api/v1/work-orders",
+        json={**ORDER, "target_quantity": 101},
+        headers=protection(state.session),
+    )
+    assert order_conflict.status_code == 409
+    assert order_conflict.json()["reason_code"] == "ID_CONTENT_CONFLICT"
     for changes, status in (
         ({"line_id": "absent"}, 404),
         ({"recipe_version_id": "absent"}, 404),

@@ -9,6 +9,7 @@ from pydantic import BeforeValidator, Field, TypeAdapter
 from sqlalchemy import Connection, text
 
 from apps.api.database import SCHEMA_LOCK_ID, SUPPORTED_REGISTRATION_REVISIONS
+from contracts.conflict_codes import ConflictError, ConflictReason
 from contracts.models import ContractModel, Identifier, Parameters, UInt64, UTCTimestamp
 
 _ID = TypeAdapter(Identifier)
@@ -52,8 +53,10 @@ class WorkOrder(WorkOrderDefinition):
     created_at: UTCTimestamp
 
 
-class RegistrationConflict(ValueError):
+class RegistrationConflict(ConflictError):
     """Identity already belongs to another immutable definition."""
+
+    default_reason_code = ConflictReason.ID_CONTENT_CONFLICT
 
 
 class RegistrationNotFound(LookupError):
