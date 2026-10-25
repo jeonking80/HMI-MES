@@ -54,7 +54,7 @@ def test_fresh_initialization_and_repeat(store):
     b = FieldChannels(store)
     assert a.states() == b.states()
     assert len(a.states()) == 3
-    assert store.connection.execute("PRAGMA user_version").fetchone()[0] == 3
+    assert store.connection.execute("PRAGMA user_version").fetchone()[0] == 4
 
 
 def test_component_init_rollback(store):

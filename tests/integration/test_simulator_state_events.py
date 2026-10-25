@@ -135,7 +135,7 @@ def legacy_file(tmp_path):
 def test_v1_migration_preserves_all_data_and_next_global_sequence(tmp_path):
     path, original, identity = legacy_file(tmp_path)
     with SimulatorStorage(path) as database:
-        assert database.connection.execute("PRAGMA user_version").fetchone()[0] == 3
+        assert database.connection.execute("PRAGMA user_version").fetchone()[0] == 4
         expected = {
             **original,
             "simulator_identity": [(*original["simulator_identity"][0][:-1], 1)],

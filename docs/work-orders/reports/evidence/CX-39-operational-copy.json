@@ -1,0 +1,24 @@
+{
+  "source_read_only": true,
+  "copy_only": true,
+  "before_versions_and_event_count": [
+    3,
+    2,
+    10643
+  ],
+  "after_versions_and_event_count": [
+    4,
+    3,
+    10644
+  ],
+  "integrity": "ok",
+  "foreign_keys_clean": true,
+  "field_environment": "PASS",
+  "source_still_versions_and_event_count": [
+    3,
+    2,
+    10643
+  ],
+  "original_event_prefix_preserved": true,
+  "existing_field_tables_preserved": true
+}

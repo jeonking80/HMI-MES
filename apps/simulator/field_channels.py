@@ -133,6 +133,20 @@ _NONFIELD_TRIGGERS = {
         "json_extract(OLD.summary_json,'$.final')=1 BEGIN SELECT RAISE(ABORT,'Final summary "
         "is immutable'); END",
     ),
+    "runtime_parameters_no_update": (
+        "trigger",
+        "runtime_parameter_changes",
+        "CREATE TRIGGER runtime_parameters_no_update BEFORE UPDATE ON "
+        "runtime_parameter_changes BEGIN SELECT "
+        "RAISE(ABORT,'Parameter history is immutable'); END",
+    ),
+    "runtime_parameters_no_delete": (
+        "trigger",
+        "runtime_parameter_changes",
+        "CREATE TRIGGER runtime_parameters_no_delete BEFORE DELETE ON "
+        "runtime_parameter_changes BEGIN SELECT "
+        "RAISE(ABORT,'Parameter history is immutable'); END",
+    ),
 }
 
 
@@ -333,12 +347,12 @@ class FieldChannels:
             found[name] = (kind, table, sql)
         if found != required:
             self._environment_unavailable("Unknown or missing nonfield trigger protection")
-        if db.execute("PRAGMA main.user_version").fetchone()[0] != 3:
+        if db.execute("PRAGMA main.user_version").fetchone()[0] != 4:
             self._environment_unavailable("Unsupported storage schema")
         if runtime and (
             "runtime_schema_version" not in tables
             or [tuple(r) for r in db.execute("SELECT * FROM main.runtime_schema_version")]
-            != [(1, 2)]
+            != [(1, 3)]
         ):
             self._environment_unavailable("Unsupported runtime metadata")
         for table in tables - _OWNED:
