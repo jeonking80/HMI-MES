@@ -107,7 +107,7 @@ def ingest(service, *seqs, execution_id="run-1", gaps=(), **changes):
         item.update(changes)
         events.append(item)
     body.update(
-        batch_id="batch-" + "-".join(map(str, seqs)) + execution_id,
+        batch_id="batch-" + "-".join(map(str, seqs)) + str(execution_id),
         capture_seq=str(max(seqs, default=9)),
         events=events,
         samples=[],
@@ -267,6 +267,93 @@ def test_late_original_execution_event_revokes_previously_settled_check(service)
     ingest(service, 3)
     result = reconcile(service)
     assert (result.status, result.reason_code) == ("MISMATCH", "EVENT_AFTER_FINAL_BOUNDARY")
+
+
+def recovery_event(service, seq, previous_state, state, *, execution_id="run-1"):
+    return ingest(
+        service,
+        seq,
+        execution_id=execution_id,
+        kind="STATE_CHANGED",
+        payload={
+            "previous_state": previous_state,
+            "state": state,
+            "control_version": str(seq),
+        },
+    )
+
+
+@pytest.mark.parametrize("execution_id", ["run-1", None])
+def test_applied_stopped_recovery_suffix_preserves_immutable_final(service, execution_id):
+    ingest(service, 1, 2)
+    original = record(service).summary
+    recovery_event(service, 3, "STOPPED", "RECOVERY_REQUIRED", execution_id=execution_id)
+    assert reconcile(service).status == "MISMATCH"
+    recovery_event(service, 4, "RECOVERY_REQUIRED", "STOPPED", execution_id=execution_id)
+    result = reconcile(service)
+    assert (result.status, result.reason_code) == ("SETTLED", "MATCHED")
+    assert result.summary == original
+    assert result.summary.last_event_seq == 2
+    assert service.get_totals("run-1")["good_quantity"] == 2
+
+
+@pytest.mark.parametrize(
+    "previous_state,state",
+    [("STOPPED", "RUNNING"), ("RUNNING", "STOPPED"), ("STOPPED", "RECOVERY_REQUIRED")],
+)
+def test_non_recovery_or_unfinished_suffix_cannot_settle(service, previous_state, state):
+    ingest(service, 1, 2)
+    assert record(service).status == "SETTLED"
+    recovery_event(service, 3, previous_state, state, execution_id=None)
+    result = reconcile(service)
+    assert (result.status, result.reason_code) == ("MISMATCH", "EVENT_AFTER_FINAL_BOUNDARY")
+
+
+def test_other_execution_production_after_final_is_not_a_recovery_suffix(service):
+    ingest(service, 1, 2)
+    assert record(service).status == "SETTLED"
+    service.register_execution(
+        execution_id="run-next",
+        source_id="simulator-1",
+        stream_id="stream-1",
+        work_order_id="job-next",
+        recipe_version="recipe-1",
+        counter_epoch="epoch-1",
+        parameters=Parameters(temperature_c=150.0, speed_m_per_min=6.0),
+        now=AT,
+    )
+    ingest(service, 3, execution_id="run-next")
+    assert reconcile(service).status == "MISMATCH"
+
+
+def test_missing_recovery_suffix_event_cannot_settle(service):
+    ingest(service, 1, 2)
+    assert record(service).status == "SETTLED"
+    recovery_event(service, 4, "RECOVERY_REQUIRED", "STOPPED", execution_id=None)
+    assert reconcile(service).status == "MISMATCH"
+
+
+@pytest.mark.parametrize("change", ["payload", "scope", "quarantined"])
+def test_invalid_or_quarantined_recovery_suffix_cannot_settle(service, change):
+    ingest(service, 1, 2)
+    assert record(service).status == "SETTLED"
+    recovery_event(service, 3, "STOPPED", "RECOVERY_REQUIRED")
+    recovery_event(service, 4, "RECOVERY_REQUIRED", "STOPPED")
+    with service.engine.begin() as connection:
+        if change == "payload":
+            sql = "UPDATE event_inbox SET body=body #- '{payload,control_version}' WHERE seq=4"
+        elif change == "scope":
+            sql = (
+                "UPDATE event_inbox SET body=jsonb_set(body,'{source_id}',"
+                "'\"other-source\"'::jsonb) WHERE seq=4"
+            )
+        else:
+            sql = (
+                "UPDATE event_inbox SET applied_at=NULL,reason_code='TEST_QUARANTINE',"
+                "reason='Unresolved suffix event' WHERE seq=4"
+            )
+        connection.execute(sa.text(sql))
+    assert reconcile(service).status == "MISMATCH"
 
 
 @pytest.mark.parametrize("reserved", [False, True])
