@@ -24,6 +24,7 @@ from contracts.models import (
     UInt64,
     UTCTimestamp,
 )
+from contracts.parameter_history import validate_speed_adjustment
 
 Number = Annotated[float, Field(strict=True, ge=0)]
 Mode = Literal["LOCAL", "REMOTE"]
@@ -105,6 +106,9 @@ class PLCState(ContractModel):
     work_order_id: Identifier | None = None
     recipe_version: Identifier | None = None
     parameters: Parameters | None = None
+    # Original LOAD values bound every subsequent active speed adjustment.
+    recipe_baseline: Parameters | None = None
+    recipe_baseline_version: Identifier | None = None
     target_quantity: UInt32 = 0
     auto_end_at_target: StrictBool = False
     start_when_ready: StrictBool = False
@@ -143,7 +147,14 @@ class PLCState(ContractModel):
         ):
             raise ValueError("stop purpose must match pending command")
         if self.execution_id is None and any(
-            x is not None for x in (self.parameters, self.recipe_version, self.run_state)
+            x is not None
+            for x in (
+                self.parameters,
+                self.recipe_baseline,
+                self.recipe_baseline_version,
+                self.recipe_version,
+                self.run_state,
+            )
         ):
             raise ValueError("execution settings require an execution")
         if self.run_output and self.state not in {LineState.RUNNING, LineState.STOPPING}:
@@ -503,15 +514,47 @@ def _guards(
         ):
             return _deny("UNSAFE_WIP", "WIP drain requires live pressure and equipment permissives")
     elif kind == "SET_PARAMETERS":
-        if (
+        args = request.command.args
+        if s.state in {LineState.RUNNING, LineState.PAUSED}:
+            if (
+                s.execution_id is None
+                or s.run_state != s.state.value
+                or s.parameters is None
+                or s.recipe_baseline is None
+                or s.recipe_baseline_version is None
+                or not s.permissive
+                or (
+                    s.state == LineState.PAUSED
+                    and (s.inputs.run_feedback or s.inputs.speed_m_per_min != 0)
+                )
+            ):
+                return _deny(
+                    "PARAMETERS_BLOCKED", "Speed adjustment requires a safe active execution"
+                )
+            if (
+                args.recipe_version != s.recipe_version
+                or args.recipe_version != s.recipe_baseline_version
+                or args.parameters.temperature_c != s.parameters.temperature_c
+                or args.parameters.temperature_c != s.recipe_baseline.temperature_c
+            ):
+                return _deny(
+                    "PARAMETERS_BLOCKED", "Active adjustment must retain recipe and temperature"
+                )
+            try:
+                validate_speed_adjustment(args.parameters, s.recipe_baseline)
+            except ValueError:
+                return _deny(
+                    "PARAMETERS_OUT_OF_RANGE", "Speed must stay within 20 percent of LOAD recipe"
+                )
+        elif (
             s.execution_id is None
             or s.run_state in {None, "ENDING", "ENDED"}
-            or s.state not in {LineState.STOPPED, LineState.READY, LineState.PAUSED}
+            or s.state not in {LineState.STOPPED, LineState.READY}
             or s.inputs.run_feedback
             or s.inputs.speed_m_per_min != 0
         ):
             return _deny("PARAMETERS_BLOCKED", "Parameters require a stopped active execution")
-        if request.command.args.recipe_version == s.recipe_version:
+        elif args.recipe_version == s.recipe_version:
             return _deny("RECIPE_VERSION_REUSED", "A setting change requires a new recipe version")
     if kind in {"LOAD_JOB", "SET_PARAMETERS"} and not _within_limits(
         request.command.args.parameters,
@@ -574,6 +617,8 @@ def execute_command(
             work_order_id=command.args.work_order_id,
             recipe_version=command.args.recipe_version,
             parameters=command.args.parameters,
+            recipe_baseline=command.args.parameters,
+            recipe_baseline_version=command.args.recipe_version,
             target_quantity=command.args.target_quantity,
             auto_end_at_target=command.args.auto_end_at_target,
             start_when_ready=command.args.start_when_ready,

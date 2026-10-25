@@ -225,13 +225,25 @@ def test_prepolicy_controller_snapshots_reopen_with_conservative_policy(tmp_path
         )
         snapshot.pop("auto_end_at_target")
         snapshot.pop("end_reason")
-        for field in ("start_when_ready", "start_reservation", "start_reservation_cancel_reason"):
+        for field in (
+            "start_when_ready",
+            "start_reservation",
+            "start_reservation_cancel_reason",
+            "recipe_baseline",
+            "recipe_baseline_version",
+        ):
             snapshot.pop(field)
         if version == 1:
             snapshot["inputs"].pop("temperature_offset_c")
         store.connection.execute(
             "UPDATE runtime_state SET snapshot_json=?", (json.dumps(snapshot),)
         )
+        # A genuine pre-CX35 runtime has no parameter history component.
+        assert (
+            store.connection.execute("SELECT count(*) FROM runtime_parameter_changes").fetchone()[0]
+            == 0
+        )
+        store.connection.execute("DROP TABLE runtime_parameter_changes")
         store.connection.execute("UPDATE runtime_schema_version SET version=?", (version,))
         before = journal(controller)
     with SimulatorStorage(path) as store:

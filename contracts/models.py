@@ -414,6 +414,23 @@ class StateEvent(EventBase):
     payload: StatePayload
 
 
+class ParametersChangedPayload(ContractModel):
+    command_id: Identifier
+    requested_by: Identifier
+    recipe_version: Identifier
+    baseline_parameters: Parameters
+    previous_parameters: Parameters
+    parameters: Parameters
+    control_version: UInt64
+
+
+class ParametersChangedEvent(EventBase):
+    kind: Literal["PARAMETERS_CHANGED"]
+    equipment_id: Literal["Line"]
+    execution_id: Identifier
+    payload: ParametersChangedPayload
+
+
 class FaultPayload(ContractModel):
     fault_code: Annotated[int, Field(strict=True, gt=0, le=2**32 - 1)]
     active: StrictBool
@@ -425,7 +442,8 @@ class FaultEvent(EventBase):
 
 
 Event = Annotated[
-    ProductionEvent | ScrapEvent | StateEvent | FaultEvent, Field(discriminator="kind")
+    ProductionEvent | ScrapEvent | StateEvent | FaultEvent | ParametersChangedEvent,
+    Field(discriminator="kind"),
 ]
 EVENT_ADAPTER = TypeAdapter(Event)
 
@@ -527,6 +545,8 @@ class RunSummary(ContractModel):
     final: StrictBool
     ended_at: UTCTimestamp | None = None
     end_reason: Literal["TARGET_REACHED", "OPERATOR"] | None = None
+    baseline_parameters: Parameters | None = None
+    parameter_changes: tuple[ParametersChangedEvent, ...] = ()
 
     @model_serializer(mode="wrap")
     def serialize_end_reason(self, handler):
@@ -534,6 +554,10 @@ class RunSummary(ContractModel):
         # Unknown legacy reasons must not change stored final-summary hashes.
         if self.end_reason is None:
             body.pop("end_reason", None)
+        if self.baseline_parameters is None:
+            body.pop("baseline_parameters", None)
+        if not self.parameter_changes:
+            body.pop("parameter_changes", None)
         return body
 
     @model_validator(mode="after")

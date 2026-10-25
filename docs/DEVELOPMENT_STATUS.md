@@ -553,3 +553,5 @@ M1의 주요 독립 운전·권한·실제 생산 경로는 확인했지만, 원
 - 14차 CX-33(2026-10-25): 새LOAD 기본true 목표 자동종료·TARGET_REACHED/OPERATOR와 원자적 완료 proof를 구현했다. 기존policy-free 작업/저널은false·기존final hash보존, 수동END증거·정산미정명령차단 유지. 최초513통과/크래시관찰fixture3실패(186.14초) 후 데이터관찰만 수정해3개1.97초 통과. 포맷11개1회 통과; Ruff I0011건 정렬 수정후1회제한으로재검미실행. highbackend검토완료. UI exactparser 변경은 Claude의 공개배포 선행조건, runtime·WO-T1·공개DB 미변경. CX-33.md 참조.
 
 - 14차 CX-34(2026-10-25): 명시적 시작예약 defaultfalse·성공원래LOAD provenance·load+operate 권한·READY 일회시작·안전/모드/재시작취소를 구현했다. high제어검토 완료. 최초404통과/manager FK fixture6오류(135.53초) 뒤 데이터만고쳐 해당6개11.56초통과. Ruff·포맷 각1회통과, fixture이후재검미실행. UI parser는 Claude 배포선행작업, runtime·WO-T1·공개DB·생산조작없음. CX-34.md 참조.
+
+- 14차 CX-35(2026-10-25): 원래LOAD 레시피 ±20%·PLC1~60·온도불변의 RUNNING/PAUSED 속도조정, PARAMETERS_CHANGED/영구history/정확한inbox 정산을 구현했다. storage4/runtime3 원자이관·보존/FK/크래시·권한 high검토 완료. 최초626통과/4schema·fixture·구PAUSED기대값실패(149.72초) 뒤 제품추가변경없이 해당4개0.54초통과. Ruff1회SQL길이3건·포맷1회들여쓰기1건 수동수정후재검미실행. runtime·WO-T1·공개DB·UI미변경; 배포전UI parser Claude담당. CX-35.md 참조.

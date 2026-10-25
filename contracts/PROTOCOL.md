@@ -209,3 +209,14 @@ Safety/mode changes or restart cancel the reservation with durable audit reason.
 Normal warmup is allowed; cancellation never automatically rearms. Existing
 policy-free canonical requests remain byte-compatible, independently per flag.
 See `docs/architecture/START_RESERVATION.md` for provenance and rollout conditions.
+
+### Active speed adjustments (CX-35)
+
+SET_PARAMETERS has an additional RUNNING/PAUSED form: retain the original
+execution, recipe and temperature; speed must stay within ±20% of original LOAD
+and PLC 1..60 m/min. PLC acceptance and execution guards remain authoritative.
+PARAMETERS_CHANGED records the original command and before/after baseline chain.
+RunSummary optionally carries baseline_parameters and the complete ordered
+parameter_changes. Legacy absent history retains strict original settings and
+canonical bytes. Settlement requires exact applied source-event evidence; the
+original registered baseline never changes. See SPEED_ADJUSTMENTS.md.

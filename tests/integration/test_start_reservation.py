@@ -601,7 +601,13 @@ def test_pre_start_policy_v2_snapshot_reopens_conservatively_without_rewriting_l
         snapshot = json.loads(
             store.connection.execute("SELECT snapshot_json FROM runtime_state").fetchone()[0]
         )
-        for field in ("start_when_ready", "start_reservation", "start_reservation_cancel_reason"):
+        for field in (
+            "start_when_ready",
+            "start_reservation",
+            "start_reservation_cancel_reason",
+            "recipe_baseline",
+            "recipe_baseline_version",
+        ):
             snapshot.pop(field)
         store.connection.execute(
             "UPDATE runtime_state SET snapshot_json=?", (json.dumps(snapshot),)

@@ -7,6 +7,7 @@ from sqlalchemy import Connection, text
 
 from apps.api.database import SUPPORTED_WORKFLOW_REVISIONS
 from apps.api.ingestion import _exact
+from apps.api.parameter_history import validate_parameter_evidence
 from apps.api.work_order_workflow import BindingRecovery
 from apps.api.work_orders import WorkOrdersUnavailable, _ready
 from contracts.models import (
@@ -98,7 +99,16 @@ SELECT e.*, s.line_id, s.gateway_id, s.capture_generation, s.conflicted,
  links.stream_id AS linked_stream_id,links.load_command_id,
  links.original_intent,links.original_request,links.receipt AS binding_receipt,
  c.request AS load_request,c.result AS load_result,c.collision_latched,
- r.status AS settlement_status,r.reason_code,r.checked_at,r.received_at,r.final_summary
+ r.status AS settlement_status,r.reason_code,r.checked_at,r.received_at,r.final_summary,
+ COALESCE((SELECT jsonb_agg(jsonb_build_object(
+  'event_id',i.event_id,'source_id',i.source_id,'stream_id',i.stream_id,
+  'execution_id',i.execution_id,'kind',i.kind,'seq',i.seq,'body',i.body,
+  'content_sha256',i.content_sha256,'applied',i.applied_at IS NOT NULL) ORDER BY i.seq)
+  FROM event_inbox i WHERE i.source_id=e.source_id AND i.stream_id=e.stream_id
+   AND (i.execution_id=e.execution_id OR i.body->>'execution_id'=e.execution_id)
+   AND (i.kind='PARAMETERS_CHANGED' OR i.body->>'kind'='PARAMETERS_CHANGED')
+   AND i.seq <= (r.final_summary->>'last_event_seq')::numeric), '[]'::jsonb)
+ AS parameter_evidence
 FROM production_executions e
 JOIN source_streams s ON s.source_id=e.source_id AND s.stream_id=e.stream_id
 LEFT JOIN execution_totals t ON t.execution_id=e.execution_id
@@ -218,9 +228,12 @@ def _view(row, lookup):
             summary.final
             and summary.counter_epoch == identity.counter_epoch
             and summary.recipe_version == identity.recipe_version
-            and summary.parameters == identity.parameters
         ):
             raise ValueError("Settled summary does not match original execution")
+        if settlement.status == "SETTLED":
+            validate_parameter_evidence(
+                summary, identity.parameters, identity.recipe_version, row["parameter_evidence"]
+            )
     result = ExecutionView(
         execution=identity,
         scope=ExecutionScope(**lookup.model_dump(exclude={"execution_id"})),

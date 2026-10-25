@@ -270,6 +270,7 @@ def test_duplicate_precedes_expiry_version_and_id_conflict_never_replaces(runtim
 
 
 def test_settings_change_preserves_wip_and_keeps_applied_intervals(runtime):
+    """CX-35 keeps the original recipe interval and records paused speed changes separately."""
     controller = runtime
     load(controller)
     action(controller, "START", "start")
@@ -280,29 +281,44 @@ def test_settings_change_preserves_wip_and_keeps_applied_intervals(runtime):
         controller,
         "SET_PARAMETERS",
         "settings",
-        recipe_version="recipe-2",
-        parameters={"temperature_c": 150.0, "speed_m_per_min": 12.0},
+        recipe_version="recipe-1",
+        parameters={"temperature_c": 150.0, "speed_m_per_min": 7.2},
     )
     after = controller.storage.load_execution()
     assert after.slots == before.slots and after.input_quantity == before.input_quantity
-    assert after.config.speed_m_per_min == 12.0
-    assert controller.get_summary("run-A").recipe_version == "recipe-2"
+    assert after.config.speed_m_per_min == 7.2
+    summary = controller.get_summary("run-A")
+    assert summary.recipe_version == "recipe-1"
+    assert summary.baseline_parameters.speed_m_per_min == 6.0
+    assert len(summary.parameter_changes) == 1
+    change = summary.parameter_changes[0]
+    assert change.execution_id == "run-A" and change.payload.command_id == "settings"
+    assert change.payload.recipe_version == "recipe-1"
+    assert change.payload.previous_parameters == change.payload.baseline_parameters
+    assert change.payload.baseline_parameters == summary.baseline_parameters
+    assert change.payload.parameters == summary.parameters
+    assert change.payload.parameters.speed_m_per_min == 7.2
     assert [
         row[0]
         for row in controller.storage.connection.execute(
             "SELECT recipe_version FROM runtime_settings ORDER BY effective_tick"
         )
-    ] == ["recipe-1", "recipe-2"]
-    retry_version = request(
-        controller,
-        "SET_PARAMETERS",
-        "reuse",
-        recipe_version="recipe-1",
-        parameters={"temperature_c": 150.0, "speed_m_per_min": 6.0},
-    )
-    assert (
-        controller.submit(retry_version, now=AT).submission.reason_code == "RECIPE_VERSION_REUSED"
-    )
+    ] == ["recipe-1"]
+    history = controller.storage.connection.execute(
+        "SELECT event_json FROM runtime_parameter_changes WHERE execution_id='run-A'"
+    ).fetchall()
+    assert len(history) == 1 and json.loads(history[0][0]) == change.model_dump(mode="json")
+    for identifier, recipe, speed in (("replace-recipe", "recipe-2", 7.2),
+                                      ("outside-original-range", "recipe-1", 12.0)):
+        refused = request(
+            controller,
+            "SET_PARAMETERS",
+            identifier,
+            recipe_version=recipe,
+            parameters={"temperature_c": 150.0, "speed_m_per_min": speed},
+        )
+        assert controller.submit(refused, now=AT).submission.disposition == "REJECTED"
+    assert controller.get_summary("run-A").parameter_changes == (change,)
 
 
 def test_fault_during_end_waits_for_explicit_scrap_and_keeps_fault(runtime):

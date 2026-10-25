@@ -30,7 +30,8 @@ from apps.api.models import Line
 from apps.api.settlement import SettlementScopeError, reconcile_execution
 from apps.api.snapshot import SnapshotNotFound, read_snapshot
 from contracts.conflict_codes import ConflictReason
-from contracts.models import CommandRequest, ContractModel, Identifier
+from contracts.models import CommandRequest, ContractModel, Identifier, Parameters
+from contracts.parameter_history import validate_speed_adjustment
 from contracts.tags.validate import load_contract
 
 _TAGS = {tag["logical_name"] for tag in load_contract()["tags"]}
@@ -191,7 +192,23 @@ def _preflight(connection, body, source, now):
             _deny(ConflictReason.PHYSICAL_EXECUTION_MISMATCH)
     elif kind == "SET_PARAMETERS":
         if active is not None or request.execution_id is not None:
-            _deny()
+            if (
+                execution is None
+                or active != request.execution_id
+                or execution["counter_epoch"] != values["Line.CounterEpoch"]
+            ):
+                _deny(ConflictReason.PHYSICAL_EXECUTION_MISMATCH)
+            if values["Line.State"] not in {2, 3}:
+                _deny()
+            args = request.command.args
+            if args.recipe_version != execution["recipe_version"]:
+                _deny()
+            try:
+                validate_speed_adjustment(
+                    args.parameters, Parameters.model_validate(execution["parameters"])
+                )
+            except ValueError:
+                _deny()
     elif kind == "LOAD_JOB":
         if values["Line.State"] != 0 or values["Line.WipCount"] != 0:
             _deny()

@@ -19,6 +19,7 @@ from apps.simulator.command_store import CommandStore, JournalSubmission
 from apps.simulator.process import ProcessConfig, fresh_execution, scrap, step
 from apps.simulator.storage import (
     FaultEventInput,
+    ParametersEventInput,
     RecoveryRequired,
     RetentionBlocked,
     RetentionResult,
@@ -37,16 +38,19 @@ from contracts.models import (
     CompletionEvidence,
     Identifier,
     LineState,
+    Parameters,
+    ParametersChangedEvent,
     ReadEventsRequest,
     RunNotFound,
     RunSummary,
     StateEvent,
     UTCTimestamp,
 )
+from contracts.parameter_history import validate_parameter_history, validate_speed_adjustment
 
 _TIME = TypeAdapter(UTCTimestamp)
 _ID = TypeAdapter(Identifier)
-_VERSION = 2
+_VERSION = 3
 _PROCESS_DEFAULT = ProcessConfig()
 _START_STATE_FIELDS = frozenset(
     {"start_when_ready", "start_reservation", "start_reservation_cancel_reason"}
@@ -156,10 +160,11 @@ class SimulatorController:
             "runtime_settings",
             "runtime_audit",
             "runtime_command_authority",
+            "runtime_parameter_changes",
         }
         if "runtime_schema_version" in tables:
             versions = [tuple(row) for row in db.execute("SELECT * FROM runtime_schema_version")]
-            if versions not in ([(1, 1)], [(1, _VERSION)]):
+            if versions not in ([(1, 1)], [(1, 2)], [(1, _VERSION)]):
                 raise ValueError("Unsupported runtime schema; explicit migration required")
             expected = {
                 "runtime_schema_version": ("singleton", "version"),
@@ -183,11 +188,22 @@ class SimulatorController:
                 ),
                 "runtime_command_authority": ("command_id", "authority"),
             }
+            if versions == [(1, _VERSION)]:
+                expected["runtime_parameter_changes"] = (
+                    "command_id",
+                    "execution_id",
+                    "event_seq",
+                    "event_json",
+                )
             for table, columns in expected.items():
                 if tuple(row[1] for row in db.execute(f"PRAGMA table_info({table})")) != columns:
                     raise ValueError("Invalid runtime schema; explicit migration required")
             if versions == [(1, 1)]:
                 self._migrate_runtime_v1()
+            if versions != [(1, _VERSION)]:
+                self._create_parameter_history()
+                db.execute("UPDATE runtime_schema_version SET version=?", (_VERSION,))
+                self._before_runtime_migration_commit()
             return
         if names & tables:
             raise ValueError("Unversioned runtime component; explicit migration required")
@@ -218,7 +234,149 @@ class SimulatorController:
         )
         for statement in statements:
             db.execute(statement)
+        self._create_parameter_history()
         db.execute("INSERT INTO runtime_schema_version VALUES (1,?)", (_VERSION,))
+
+    def _create_parameter_history(self) -> None:
+        db = self.storage.connection
+        db.execute(
+            "CREATE TABLE runtime_parameter_changes (command_id TEXT PRIMARY KEY NOT NULL "
+            "REFERENCES command_journal(command_id),execution_id TEXT NOT NULL "
+            "REFERENCES executions(execution_id),event_seq TEXT NOT NULL UNIQUE,"
+            "event_json TEXT NOT NULL)"
+        )
+        for operation in ("UPDATE", "DELETE"):
+            db.execute(
+                f"CREATE TRIGGER runtime_parameters_no_{operation.lower()} BEFORE {operation} "
+                "ON runtime_parameter_changes BEGIN "
+                "SELECT RAISE(ABORT,'Parameter history is immutable'); END"
+            )
+
+    def _original_baseline(self, execution_id: str) -> Parameters:
+        rows = self.storage.connection.execute(
+            "SELECT request_json,result_json FROM command_journal "
+            "WHERE json_extract(request_json,'$.command.kind')='LOAD_JOB' "
+            "AND json_extract(request_json,'$.execution_id')=? "
+            "AND json_extract(result_json,'$.status')='SUCCEEDED'",
+            (execution_id,),
+        ).fetchall()
+        try:
+            if len(rows) != 1:
+                raise ValueError("Exactly one successful original LOAD is required")
+            request = CommandRequest.model_validate_json(rows[0][0])
+            result = CommandResult.model_validate_json(rows[0][1])
+            settings = self.storage.connection.execute(
+                "SELECT parameters_json FROM runtime_settings WHERE execution_id=? "
+                "AND recipe_version=?",
+                (execution_id, request.command.args.recipe_version),
+            ).fetchone()
+            baseline = request.command.args.parameters
+            if (
+                result.evidence.execution_id != execution_id
+                or result.evidence.recipe_version != request.command.args.recipe_version
+                or settings is None
+                or Parameters.model_validate_json(settings[0]) != baseline
+            ):
+                raise ValueError("Original LOAD/settings disagree")
+            return baseline
+        except (TypeError, ValueError, AttributeError) as error:
+            raise StorageCorruption("Invalid original recipe baseline") from error
+
+    def _original_recipe_version(self, execution_id: str) -> str:
+        rows = self.storage.connection.execute(
+            "SELECT request_json FROM command_journal "
+            "WHERE json_extract(request_json,'$.command.kind')='LOAD_JOB' "
+            "AND json_extract(request_json,'$.execution_id')=? "
+            "AND json_extract(result_json,'$.status')='SUCCEEDED'",
+            (execution_id,),
+        ).fetchall()
+        if len(rows) != 1:
+            raise StorageCorruption("Original LOAD recipe identity is ambiguous")
+        try:
+            return CommandRequest.model_validate_json(rows[0][0]).command.args.recipe_version
+        except (TypeError, ValueError, AttributeError) as error:
+            raise StorageCorruption("Invalid original LOAD recipe identity") from error
+
+    def _parameter_history(self, execution_id: str, *, provisional: bool = False):
+        events = []
+        try:
+            rows = self.storage.connection.execute(
+                "SELECT * FROM runtime_parameter_changes WHERE execution_id=? ORDER BY event_seq",
+                (execution_id,),
+            ).fetchall()
+            if not rows:
+                return ()
+            baseline = self._original_baseline(execution_id)
+            original = self.storage.connection.execute(
+                "SELECT request_json FROM command_journal "
+                "WHERE json_extract(request_json,'$.command.kind')='LOAD_JOB' "
+                "AND json_extract(request_json,'$.execution_id')=? "
+                "AND json_extract(result_json,'$.status')='SUCCEEDED'",
+                (execution_id,),
+            ).fetchone()
+            recipe_version = CommandRequest.model_validate_json(
+                original[0]
+            ).command.args.recipe_version
+            previous = baseline
+            previous_version = -1
+            previous_time = None
+            for row in rows:
+                event = ParametersChangedEvent.model_validate_json(row["event_json"])
+                record = self.commands.lookup(row["command_id"])
+                if (
+                    event.execution_id != execution_id
+                    or event.seq != decode_uint64(row["event_seq"])
+                    or event.source_id != self.storage.identity.source_id
+                    or event.stream_id != self.storage.identity.stream_id
+                    or event.payload.recipe_version != recipe_version
+                    or event.payload.control_version <= previous_version
+                    or (previous_time is not None and event.occurred_at < previous_time)
+                    or event.payload.command_id != row["command_id"]
+                    or record is None
+                    or record.request.command.kind != "SET_PARAMETERS"
+                    or record.request.execution_id != execution_id
+                    or record.request.requested_by != event.payload.requested_by
+                    or record.request.command.args.recipe_version != event.payload.recipe_version
+                    or record.request.command.args.parameters != event.payload.parameters
+                    or record.result.status
+                    not in ({"SUCCEEDED", "ACCEPTED"} if provisional else {"SUCCEEDED"})
+                    or event.payload.baseline_parameters != baseline
+                    or event.payload.previous_parameters != previous
+                ):
+                    raise ValueError("Parameter history provenance disagrees")
+                if record.result.status == "SUCCEEDED" and (
+                    record.result.applied_control_version != event.payload.control_version
+                    or record.result.evidence.execution_id != execution_id
+                    or record.result.evidence.last_event_seq < event.seq
+                ):
+                    raise ValueError("Parameter completion evidence disagrees")
+                live = self.storage.connection.execute(
+                    "SELECT body FROM source_events WHERE event_id=?", (event.event_id,)
+                ).fetchone()
+                archived = self.storage.connection.execute(
+                    "SELECT seq,execution_id,kind,body_sha256 FROM archived_event_keys "
+                    "WHERE event_id=?",
+                    (event.event_id,),
+                ).fetchone()
+                if live is not None:
+                    if live[0] != row["event_json"]:
+                        raise ValueError("Parameter source body disagrees")
+                elif (
+                    archived is None
+                    or archived[0] != row["event_seq"]
+                    or archived[1] != execution_id
+                    or archived[2] != event.kind
+                    or archived[3] != hashlib.sha256(row["event_json"].encode()).hexdigest()
+                ):
+                    raise ValueError("Parameter source evidence is missing")
+                validate_speed_adjustment(event.payload.parameters, baseline)
+                previous = event.payload.parameters
+                previous_version = event.payload.control_version
+                previous_time = event.occurred_at
+                events.append(event)
+            return tuple(events)
+        except (TypeError, ValueError, AttributeError) as error:
+            raise StorageCorruption("Invalid durable parameter history") from error
 
     def _migrate_runtime_v1(self) -> None:
         """Recognize frozen V1 snapshots and add conservative defaults atomically."""
@@ -238,6 +396,16 @@ class SimulatorController:
                 raise ValueError("V1 inputs require exact recognized fields")
             payload["inputs"]["temperature_offset_c"] = 0.0
             payload.update(auto_end_at_target=False, end_reason=None)
+            payload["recipe_baseline"] = (
+                self._original_baseline(payload["execution_id"]).model_dump()
+                if payload["execution_id"] is not None
+                else None
+            )
+            payload["recipe_baseline_version"] = (
+                self._original_recipe_version(payload["execution_id"])
+                if payload["execution_id"] is not None
+                else None
+            )
             migrated = plc.PLCState.model_validate_json(json.dumps(payload, allow_nan=False))
         except (TypeError, ValueError) as error:
             self.storage.mark_corrupt()
@@ -277,7 +445,20 @@ class SimulatorController:
             if not isinstance(payload, dict):
                 raise ValueError("Persisted PLC snapshot must be an object")
             fields = set(plc.PLCState.model_fields)
-            if set(payload) == _LEGACY_STATE_FIELDS:
+            baseline_fields = {"recipe_baseline", "recipe_baseline_version"}
+            old_fields = fields - baseline_fields
+            if set(payload) in (old_fields, old_fields - _START_STATE_FIELDS, _LEGACY_STATE_FIELDS):
+                payload["recipe_baseline"] = (
+                    self._original_baseline(payload["execution_id"]).model_dump()
+                    if payload.get("execution_id") is not None
+                    else None
+                )
+                payload["recipe_baseline_version"] = (
+                    self._original_recipe_version(payload["execution_id"])
+                    if payload.get("execution_id") is not None
+                    else None
+                )
+            if set(payload) == _LEGACY_STATE_FIELDS | baseline_fields:
                 payload.update(auto_end_at_target=False, end_reason=None)
             if set(payload) == fields - _START_STATE_FIELDS:
                 payload.update(
@@ -449,6 +630,19 @@ class SimulatorController:
         if row is None:
             raise StorageCorruption("Active run summary is missing")
         summary = self.get_summary(state.execution_id)
+        history = self._parameter_history(state.execution_id)
+        if (
+            state.recipe_baseline != self._original_baseline(state.execution_id)
+            or state.recipe_baseline_version != self._original_recipe_version(state.execution_id)
+            or summary.parameter_changes != history
+            or (history and summary.baseline_parameters != state.recipe_baseline)
+        ):
+            raise StorageCorruption("Parameter baseline or history projection disagrees")
+        if history and summary.recipe_version == history[0].payload.recipe_version:
+            try:
+                validate_parameter_history(summary, state.recipe_baseline, summary.recipe_version)
+            except ValueError as error:
+                raise StorageCorruption("Invalid summary parameter chain") from error
         if (
             summary.recipe_version != state.recipe_version
             or summary.parameters != state.parameters
@@ -565,6 +759,9 @@ class SimulatorController:
                     (execution_id, encode_uint64(summary.last_event_seq)),
                 ).fetchone():
                     raise StorageCorruption("Production or scrap occurred after the final boundary")
+            history = self._parameter_history(execution_id)
+            if summary.parameter_changes != history:
+                raise StorageCorruption("Final summary parameter history disagrees")
             settings = self.storage.connection.execute(
                 "SELECT recipe_version,parameters_json FROM runtime_settings WHERE execution_id=? "
                 "ORDER BY effective_tick DESC,effective_seq DESC,recipe_version DESC LIMIT 1",
@@ -577,7 +774,8 @@ class SimulatorController:
             if (
                 settings is None
                 or settings[0] != summary.recipe_version
-                or applied != summary.parameters.model_dump(mode="json")
+                or applied
+                != (summary.baseline_parameters or summary.parameters).model_dump(mode="json")
                 or process.config.temperature_sp_c != summary.parameters.temperature_c
                 or process.config.speed_m_per_min != summary.parameters.speed_m_per_min
             ):
@@ -716,6 +914,7 @@ class SimulatorController:
                 if (
                     allowed
                     and candidate.command.kind == "SET_PARAMETERS"
+                    and state.state not in {LineState.RUNNING, LineState.PAUSED}
                     and (
                         self.storage.connection.execute(
                             "SELECT 1 FROM runtime_settings "
@@ -987,6 +1186,7 @@ class SimulatorController:
             return old
         process = self.storage.load_execution(state.execution_id)
         final = state.run_state == "ENDED"
+        history = self._parameter_history(state.execution_id, provisional=True)
         summary = RunSummary(
             source_id=self.storage.identity.source_id,
             stream_id=self.storage.identity.stream_id,
@@ -996,6 +1196,8 @@ class SimulatorController:
             counter_epoch=self.storage.identity.counter_epoch,
             recipe_version=state.recipe_version,
             parameters=state.parameters,
+            baseline_parameters=state.recipe_baseline if history else None,
+            parameter_changes=history,
             input_quantity=process.input_quantity,
             good_quantity=process.good_quantity,
             reject_quantity=process.reject_quantity,
@@ -1135,11 +1337,51 @@ class SimulatorController:
                             temperature_c=after.parameters.temperature_c,
                             speed_m_per_min=after.parameters.speed_m_per_min,
                         )
+                active_adjustment = (
+                    transition.status == "SUCCEEDED"
+                    and request.command.kind == "SET_PARAMETERS"
+                    and state.state in {LineState.RUNNING, LineState.PAUSED}
+                )
+                previous_parameters = state.parameters
                 state = self._record_change(state, after, now=now, cause=request.command_id)
-                if transition.status != "FAILED" and request.command.kind in {
-                    "LOAD_JOB",
-                    "SET_PARAMETERS",
-                }:
+                if active_adjustment and previous_parameters != state.parameters:
+                    (event,) = self.storage.append_control_events(
+                        (
+                            ParametersEventInput(
+                                occurred_at=now,
+                                execution_id=state.execution_id,
+                                payload={
+                                    "command_id": request.command_id,
+                                    "requested_by": request.requested_by,
+                                    "recipe_version": state.recipe_version,
+                                    "baseline_parameters": state.recipe_baseline,
+                                    "previous_parameters": previous_parameters,
+                                    "parameters": state.parameters,
+                                    "control_version": state.control_version,
+                                },
+                            ),
+                        )
+                    )
+                    self.storage.connection.execute(
+                        "INSERT INTO runtime_parameter_changes VALUES (?,?,?,?)",
+                        (
+                            request.command_id,
+                            state.execution_id,
+                            encode_uint64(event.seq),
+                            event.model_dump_json(),
+                        ),
+                    )
+                    self._audit(state, now, "PARAMETERS_CHANGED", event.model_dump_json())
+                    state = self._save(state, now)
+                if (
+                    transition.status != "FAILED"
+                    and not active_adjustment
+                    and request.command.kind
+                    in {
+                        "LOAD_JOB",
+                        "SET_PARAMETERS",
+                    }
+                ):
                     self._settings(state, now)
                 self._summary(state, now)
                 completion = transition
@@ -1256,6 +1498,13 @@ class SimulatorController:
                 or summary.counter_epoch != identity.counter_epoch
             ):
                 raise ValueError("Run summary identity disagrees with storage")
+            if summary.parameter_changes:
+                baseline = self._original_baseline(execution_id)
+                if summary.recipe_version == summary.parameter_changes[0].payload.recipe_version:
+                    validate_parameter_history(summary, baseline, summary.recipe_version)
+                durable = self._parameter_history(execution_id, provisional=True)
+                if durable[: len(summary.parameter_changes)] != summary.parameter_changes:
+                    raise ValueError("Run summary parameter history disagrees with storage")
             return summary
         except (TypeError, ValueError) as error:
             self.storage.mark_corrupt()
