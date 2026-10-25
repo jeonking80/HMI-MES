@@ -305,5 +305,10 @@ def test_commission_with_retained_execution_only_allows_ended(prepared, monkeypa
     else:
         commission()
         assert paths == [
-            "/auth/challenge", "/auth/login", "/snapshot", "/recover", "/inputs", "/auth/logout"
+            "/auth/challenge",
+            "/auth/login",
+            "/snapshot",
+            "/recover",
+            "/inputs",
+            "/auth/logout",
         ]
