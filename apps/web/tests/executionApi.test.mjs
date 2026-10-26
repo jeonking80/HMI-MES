@@ -53,6 +53,17 @@ test('CX-33/34 policy flags on the original intent and LOAD args, and end_reason
   const bad = fixture(); bad.view.binding.intent.unexpected = true
   assert.throws(() => parseExecution(bad.view, bad.receipt))
 })
+test('a run whose speed changed while running stays archivable against its LOAD baseline', () => {
+  const { view, original, receipt } = fixture()
+  view.settlement.summary.baseline_parameters = clone(parameters)
+  view.settlement.summary.parameters = { ...clone(parameters), speed_m_per_min: 7 }
+  view.settlement.summary.parameter_changes = [{ speed_m_per_min: 7 }]
+  assert.equal(archiveBlocked(parseExecution(view, receipt), original, 'operator'), '')
+  const bad = fixture()
+  bad.view.settlement.summary.baseline_parameters = { ...clone(parameters), speed_m_per_min: 5 }
+  bad.view.settlement.summary.parameter_changes = []
+  assert.throws(() => parseExecution(bad.view, bad.receipt))
+})
 test('UInt64 maximum totals remain exact, balanced and unrounded', () => {
   const { view, original, receipt } = fixture()
   view.totals.good_quantity = view.settlement.summary.good_quantity = view.settlement.summary.input_quantity = '18446744073709551615'

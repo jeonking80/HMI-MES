@@ -69,3 +69,13 @@ CX-41 측정에서 `ingest_retired_batch_chunks`는 **297행이 약 196MB**를 �
 ## 5. 보고
 
 `reports/CX-42.md`. `docs/DEVELOPMENT_STATUS.md`에 한 줄.
+
+## 6. 추가 — 대기열이 작업 종료 뒤 다음 작업을 연결하지 않음 (2026-10-26, Claude 실측)
+
+- **재현:** `scripts/check-operable-system.py --extended-dir <dir>` 실행. 실제 시뮬레이터·게이트웨이·API·브라우저에서 E1(자동 시작·목표 자동 종료)과 E2(운전 중 속도 변경)는 통과한다. E3에서 실패한다.
+- **E3 절차:** 직전 실행이 SETTLED되고 라인이 STOPPED·ENDED인 상태에서, 배포된 `queue-1`, `queue-2`를 대기열에 넣고 `auto_advance=true`로 저장한다. 60초 동안 두 항목 모두 `WAITING`이고 `blocked_reason=null`이다.
+- **원인:** `apps/api/line_queue.py`의 `_safe_values`가 `Sealer.Ready=True`를 요구한다. 실제 시뮬레이터는 실행이 끝나면 `Sealer.Ready=False`가 된다. 실측값은 Line.State 0, WIP 0, 각 구간 정지·속도 0, 모드 REMOTE/AUTO, 수집 CAPTURE_FRESH, 하트비트 GOOD이다. 그래서 `advance_line_once`가 아무 기록 없이 `None`을 반환하고, 대기열은 영원히 멈춘다. 같은 상태에서 사람이 직접 하는 실행 연결은 성공한다.
+- **할 일:**
+  1. 대기열 연결 조건을 수동 실행 연결(`bind_work_order`)의 조건과 맞춘다. 종료 직후 실제 물리 상태(예열 전 Sealer.Ready=False)에서도 다음 LOAD가 나가야 한다. 안전 조건(정지·WIP 0·모드·하트비트·수집 신선도)은 유지한다.
+  2. 조건을 만족하지 못해 진행하지 않는 경우에는 이유를 `blocked_reason`이나 읽기 응답에 드러낸다. 조용히 멈추지 않는다.
+  3. 실제 시뮬레이터 상태로 이 경로를 재현하는 통합 시험을 추가한다. `check-operable-system.py --extended-dir`의 E3도 통과해야 한다(이 스크립트는 Claude 소유이며 실행만 한다).

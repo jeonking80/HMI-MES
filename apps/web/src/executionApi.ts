@@ -10,6 +10,7 @@ export interface RunSummary extends Configuration, Totals {
   schema_version: '1.0'; source_id: string; stream_id: string; execution_id: string
   state: 'LOADED' | 'RUNNING' | 'PAUSED' | 'ENDING' | 'ENDED'; as_of: string
   input_quantity: string; wip_quantity: number; last_event_seq: string; final: boolean; ended_at: string | null
+  end_reason?: 'TARGET_REACHED' | 'OPERATOR'; baseline_parameters?: Configuration['parameters']; parameter_changes?: unknown[]
 }
 export interface ExecutionView {
   execution: Configuration & { execution_id: string; work_order_id: string; registered_at: string; target_quantity: number | null }
@@ -141,7 +142,8 @@ export function archiveBlocked(view: ExecutionView, original: WorkflowAttempt, l
   if (!view.load || view.load.result.status !== 'SUCCEEDED' || view.load.collision_latched || !sameWorkflowValue(view.load.request, original.record.receipt.load_request)) return '원래 작업 불러오기의 확정 성공과 충돌 없음이 필요합니다.'
   const summary = view.settlement.summary
   if (view.settlement.status !== 'SETTLED' || !summary?.final || !view.settlement.checked_at || !view.settlement.received_at) return '정확한 최종 저장 정산 일치 기록이 필요합니다.'
-  if (summary.counter_epoch !== view.execution.counter_epoch || summary.recipe_version !== view.execution.recipe_version || !sameWorkflowValue(summary.parameters, view.execution.parameters)) return '원래 카운터 구간과 공정 설정이 일치하지 않습니다.'
+  // A run whose speed changed while running settles with the LOAD baseline kept separately.
+  if (summary.counter_epoch !== view.execution.counter_epoch || summary.recipe_version !== view.execution.recipe_version || !sameWorkflowValue(summary.baseline_parameters ?? summary.parameters, view.execution.parameters)) return '원래 카운터 구간과 공정 설정이 일치하지 않습니다.'
   if (['good_quantity', 'reject_quantity', 'scrap_quantity'].some(key => summary[key as keyof Totals] !== view.totals[key as keyof Totals])) return '저장 정산 이후 현재 집계 수량이 달라졌습니다. 다시 대조해야 합니다.'
   if (view.source.conflicted || view.source.reconciliation_required || view.source.control_restricted || view.source.verified_through_seq !== view.source.latest_ingested_seq || BigInt(summary.last_event_seq) > BigInt(view.source.verified_through_seq)) return '현재 수집원 제한과 사건 대조 구간을 확인해야 합니다.'
   return ''

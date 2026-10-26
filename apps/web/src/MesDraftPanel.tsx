@@ -88,7 +88,9 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
   const [orderIdManual, setOrderIdManual] = useState(false)
   const [choiceRevision, setChoiceRevision] = useState(0)
   const { items: allRecipes } = useAll(mesPaths.recipe, recipePage, `recipes-${choiceRevision}`)
-  const { items: allOrders } = useAll(mesPaths.order, orderPage, `orders-${choiceRevision}-${cancellation.ledger?.receipt?.cancellation_id ?? ''}`)
+  // A confirmed release changes an order to RELEASED, so the queue choices reload with it.
+  const releasedKey = workflow.attempt?.kind === 'release' && workflow.attempt.phase === 'confirmed' ? workflow.attempt.intent.work_order_id : ''
+  const { items: allOrders } = useAll(mesPaths.order, orderPage, `orders-${choiceRevision}-${releasedKey}-${cancellation.ledger?.receipt?.cancellation_id ?? ''}`)
   const groups = recipeGroups(allRecipes)
   // Item master (CX-37); an empty list on a server without it keeps the earlier free-text behaviour.
   const { items: masterItems, loaded: masterLoaded } = useAll(itemsPath, itemPage, `items-${choiceRevision}`)

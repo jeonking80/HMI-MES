@@ -60,6 +60,7 @@ async def exercise(
     capture_dir=None,
     analytics_dir=None,
     guest_dir=None,
+    extended_dir=None,
 ):
     import httpx
     from alembic import command
@@ -592,6 +593,18 @@ async def exercise(
                         await exercise_analytics(page, origin, analytics_dir, execution_id, record)
                     if guest_dir is not None:
                         await exercise_guest(browser, origin, guest_dir)
+                    if extended_dir is not None:
+                        await exercise_extended(
+                            page,
+                            context,
+                            origin,
+                            scope,
+                            extended_dir,
+                            sim_snapshot,
+                            wait_json,
+                            command_ui,
+                            errors,
+                        )
                 finally:
                     if sys.exc_info()[0] is not None and "page" in locals():
                         if await page.locator("#workspace-drafts").is_visible():
@@ -611,6 +624,7 @@ async def exercise(
             )
 
 
+LINE_ID_E = "packaging-line-1"
 ANALYTICS_PAGES = ("dashboard", "trends", "reports", "spc")
 
 
@@ -761,6 +775,315 @@ async def exercise_guest(browser, origin, out):
         await context.close()
 
 
+async def exercise_extended(
+    page, context, origin, scope, out, sim_snapshot, wait_json, command_ui, errors
+):
+    """Automation and control scenarios on the same live stack, all through the browser.
+
+    E1 new item + auto start when ready + auto end at the good target, no manual command.
+    E2 manual START, running speed change, END_RUN; settlement carries the change.
+    E3 line queue: the server loads the next queued order after the previous settles.
+    A sampler records every screen health/line-state value meanwhile (flicker check).
+    """
+    from playwright.async_api import expect
+
+    out.mkdir(parents=True, exist_ok=True)
+    results = {}
+    samples = []
+    sampling = asyncio.Event()
+
+    async def sampler():
+        while not sampling.is_set():
+            try:
+                health = await page.locator("#snapshot-health").inner_text(timeout=1000)
+                state = await page.locator("#line-state").inner_text(timeout=1000)
+                samples.append((time.monotonic(), health, state))
+            except Exception:
+                samples.append((time.monotonic(), "<absent>", "<absent>"))
+            await asyncio.sleep(0.5)
+
+    async def record_of(execution_id):
+        response = await context.request.get(
+            origin
+            + "/api/v1/execution-record?"
+            + urlencode(
+                {
+                    **{k: scope[k] for k in ("line_id", "source_id", "stream_id")},
+                    "execution_id": execution_id,
+                }
+            )
+        )
+        require(response.status == 200, "Execution GET failed")
+        return await response.json()
+
+    async def settled(execution_id, timeout=60):
+        return await wait_json(
+            lambda: record_of(execution_id),
+            lambda r: r["settlement"]["status"] == "SETTLED",
+            timeout,
+            "Execution did not settle: " + execution_id,
+        )
+
+    async def drafts():
+        await page.locator("#workspace-drafts").click()
+
+    async def monitoring():
+        await page.locator("#workspace-operations").click()
+
+    async def fresh_form(kind):
+        # A confirmed registration locks its form until the operator starts a new one.
+        if await page.locator(f"#mes-{kind}-reset").is_visible():
+            await page.locator(f"#mes-{kind}-reset").click()
+
+    async def register_release(order_id, target, recipe=None):
+        await drafts()
+        await fresh_form("order")
+        if recipe is not None:
+            await page.locator("#mes-order-recipe").select_option(recipe)
+        await page.locator("#mes-order-id").fill(order_id)
+        await page.locator("#mes-order-target").fill(str(target))
+        await page.locator("#mes-order-date").fill(datetime.now(UTC).date().isoformat())
+        await page.locator("#mes-order-line").select_option(LINE_ID_E)
+        await page.locator("#mes-order-submit").click()
+        await expect(page.locator("#mes-order-status")).to_have_attribute("data-state", "confirmed")
+        await page.locator(f'[data-release-order="{order_id}"]').click()
+        await page.locator("#release-submit").click()
+        await expect(page.locator("#workflow-status")).to_have_attribute("data-state", "confirmed")
+        await page.locator("#workflow-acknowledge").click()
+        await (
+            page.locator("section.mes-card")
+            .filter(has=page.locator("#mes-orders-heading"))
+            .get_by_role("button", name="목록 새로 조회", exact=True)
+            .click()
+        )
+
+    async def clear_previous():
+        # Leave the previous run's trackers through their own buttons, as an operator would.
+        await monitoring()
+        if await page.locator("#command-acknowledge").is_visible():
+            await page.locator("#command-acknowledge").click()
+        archive = page.locator("#execution-archive")
+        if await archive.is_visible():
+            # The archive needs a fresh read of the stored settlement first.
+            await page.locator("#execution-refresh").click()
+            await expect(archive).to_be_enabled(timeout=15_000)
+            await archive.click()
+            await expect(archive).to_have_count(0)
+        if await page.locator("#workflow-acknowledge").is_visible():
+            await page.locator("#workflow-acknowledge").click()
+
+    async def bind(order_id, auto_end, start_when_ready):
+        await drafts()
+        await page.locator(f'[data-bind-order="{order_id}"]').click()
+        await expect(page.locator("#binding-prepare")).to_be_enabled(timeout=30_000)
+        await page.locator("#binding-prepare").click()
+        await page.locator("#binding-auto-end").set_checked(auto_end)
+        await page.locator("#binding-start-when-ready").set_checked(start_when_ready)
+        async with page.expect_response(
+            lambda r: "/api/v1/work-order-actions/bind" in r.url and r.request.method == "POST"
+        ) as bound:
+            await page.locator("#binding-submit").click()
+        response = await bound.value
+        require(response.status == 200, "Binding failed: HTTP " + str(response.status))
+        receipt = await response.json()
+        await expect(page.locator("#load-command-status")).to_have_attribute(
+            "data-status", "SUCCEEDED", timeout=30_000
+        )
+        return receipt["execution_id"]
+
+    task = asyncio.create_task(sampler())
+    try:
+        # E1 ---------------------------------------------------------------
+        checkpoint("E1 new item recipe through the item master")
+        await clear_previous()
+        await drafts()
+        await fresh_form("recipe")
+        for field, value in {
+            "id": "auto-recipe-v1",
+            "family": "auto-recipe",
+            "version": "v1",
+            "item": "auto-item",
+            "temperature": "150",
+            "speed": "10",
+        }.items():
+            await page.locator("#mes-recipe-" + field).fill(value)
+        await page.locator("#mes-recipe-submit").click()
+        await expect(page.locator("#mes-recipe-status")).to_have_attribute(
+            "data-state", "confirmed"
+        )
+        items = await context.request.get(origin + "/api/v1/items?limit=20")
+        require(
+            items.status == 200
+            and any(i["id"] == "auto-item" for i in (await items.json())["items"]),
+            "New item was not registered in the item master",
+        )
+        checkpoint("E1 auto start when ready + auto end at target 5, no manual command")
+        await register_release("auto-order", 5, "auto-recipe-v1")
+        started = time.monotonic()
+        e1 = await bind("auto-order", True, True)
+        await monitoring()
+        await wait_json(
+            sim_snapshot,
+            lambda s: s["state"]["state"] == "RUNNING" and s["state"]["execution_id"] == e1,
+            60,
+            "PLC did not start by itself after READY",
+        )
+        record = await settled(e1, 120)
+        summary = record["settlement"]["summary"]
+        require(
+            summary.get("end_reason") == "TARGET_REACHED" and int(summary["good_quantity"]) >= 5,
+            "Run did not end at the good target by itself",
+        )
+        await page.locator("#execution-refresh").click()
+        await expect(page.locator('[data-settlement-status="SETTLED"]')).to_be_visible()
+        results["E1"] = {
+            "execution_id": e1,
+            "end_reason": summary["end_reason"],
+            "good": summary["good_quantity"],
+            "reject": summary["reject_quantity"],
+            "seconds_bind_to_settled": round(time.monotonic() - started, 1),
+        }
+        await page.screenshot(path=str(out / "e1-auto.png"), full_page=True)
+
+        # E2 ---------------------------------------------------------------
+        checkpoint("E2 manual START, speed change 10 -> 12 m/min while running, END_RUN")
+        await clear_previous()
+        await register_release("speed-order", 500, "auto-recipe-v1")
+        e2 = await bind("speed-order", True, False)
+        await monitoring()
+        await wait_json(
+            sim_snapshot, lambda s: s["state"]["state"] == "READY", 60, "No READY for E2"
+        )
+        await command_ui("START")
+        await wait_json(
+            sim_snapshot,
+            lambda s: s["state"]["execution_id"] == e2 and int(s["tags"]["Line.GoodTotal"]) >= 2,
+            30,
+            "E2 produced no good output",
+        )
+        await page.locator("#speed-adjust-value").fill("12")
+        await page.locator("#command-SET_PARAMETERS").click()
+        await expect(page.locator("#command-status")).to_have_attribute(
+            "data-status", "SUCCEEDED", timeout=35_000
+        )
+        await page.locator("#command-acknowledge").click()
+        snap = await sim_snapshot()
+        speed = snap["tags"].get("Line.SpeedSetpoint") or snap["tags"].get("Line.Speed")
+        await asyncio.sleep(3)
+        await command_ui("PAUSE")
+        await wait_json(sim_snapshot, lambda s: s["state"]["state"] == "PAUSED", 10, "No PAUSE")
+        await expect(page.locator("#line-state")).to_have_text("일시 정지", timeout=10_000)
+        await command_ui("END_RUN")
+        record = await settled(e2, 60)
+        summary = record["settlement"]["summary"]
+        require(
+            float(summary["parameters"]["speed_m_per_min"]) == 12.0
+            and summary.get("parameter_changes"),
+            "Settlement does not carry the running speed change",
+        )
+        results["E2"] = {
+            "execution_id": e2,
+            "speed_tag_after_change": speed,
+            "final_parameters": summary["parameters"],
+            "baseline_parameters": summary.get("baseline_parameters"),
+            "parameter_changes": len(summary["parameter_changes"]),
+            "good": summary["good_quantity"],
+        }
+        await page.locator("#execution-refresh").click()
+        await expect(page.locator('[data-settlement-status="SETTLED"]')).to_be_visible()
+        await page.screenshot(path=str(out / "e2-speed.png"), full_page=True)
+
+        # E3 ---------------------------------------------------------------
+        checkpoint("E3 line queue loads the next order after settlement")
+        await clear_previous()
+        await register_release("queue-1", 3, "auto-recipe-v1")
+        await register_release("queue-2", 3, "auto-recipe-v1")
+        await drafts()
+        queue = page.locator("#line-queue")
+        await queue.get_by_role("button", name="+ queue-1").click()
+        await queue.get_by_role("button", name="+ queue-2").click()
+        await page.locator("#line-queue-auto").set_checked(True)
+        await page.locator("#line-queue-save").click()
+        await expect(queue.get_by_text("대기열을 저장했습니다.")).to_be_visible()
+        path = f"{origin}/api/v1/lines/{scope['line_id']}/queue"
+
+        async def queue_state():
+            response = await context.request.get(path)
+            require(response.status == 200, "Queue GET failed")
+            return await response.json()
+
+        def state_of(q, order):
+            return next((e["state"] for e in q["entries"] if e["work_order_id"] == order), None)
+
+        q = await wait_json(
+            queue_state,
+            lambda q: state_of(q, "queue-1") == "BOUND",
+            60,
+            "Queue did not load the first order",
+        )
+        snap = await wait_json(
+            sim_snapshot,
+            lambda s: s["state"]["state"] in ("LOADED", "WARMING", "READY"),
+            30,
+            "PLC did not load the queued order",
+        )
+        e3 = snap["state"]["execution_id"]
+        await page.reload()
+        await monitoring()
+        await wait_json(
+            sim_snapshot, lambda s: s["state"]["state"] == "READY", 60, "No READY for queue-1"
+        )
+        await command_ui("START")
+        record = await settled(e3, 120)
+        q = await wait_json(
+            queue_state,
+            lambda q: state_of(q, "queue-2") == "BOUND",
+            60,
+            "Queue did not load the second order after settlement",
+        )
+        results["E3"] = {
+            "first_execution": e3,
+            "first_end_reason": record["settlement"]["summary"].get("end_reason"),
+            "entries": [(e["work_order_id"], e["state"]) for e in q["entries"]],
+            "blocked_reason": q.get("blocked_reason"),
+        }
+        await drafts()
+        await page.screenshot(path=str(out / "e3-queue.png"), full_page=True)
+    except BaseException:
+        import traceback
+
+        try:
+            queue_body = await context.request.get(
+                f"{origin}/api/v1/lines/{scope['line_id']}/queue"
+            )
+            print("QUEUE", await queue_body.text(), flush=True)
+            print("SIM", json.dumps((await sim_snapshot())["state"]), flush=True)
+        except Exception:
+            pass
+
+        traceback.print_exc(limit=4)
+        raise
+    finally:
+        sampling.set()
+        await task
+        bad = [s for s in samples if s[1] != "최근 수집 확인"]
+        results["screen_samples"] = {
+            "total": len(samples),
+            "not_fresh": len(bad),
+            "not_fresh_values": sorted({s[1] for s in bad}),
+            "line_states": sorted({s[2] for s in samples}),
+            "health_changes": sum(
+                1 for a, b in zip(samples, samples[1:], strict=False) if a[1] != b[1]
+            ),
+        }
+        results["browser_errors"] = list(errors)
+        (out / "extended.json").write_text(
+            json.dumps(results, ensure_ascii=False, indent=2, default=str) + "\n"
+        )
+        print(json.dumps(results, ensure_ascii=False, default=str), flush=True)
+    checkpoint("extended scenarios passed")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -782,6 +1105,11 @@ def main():
         type=Path,
         help="Also check the reporting pages on the settled run (analytics-enabled build)",
     )
+    parser.add_argument(
+        "--extended-dir",
+        type=Path,
+        help="After the first settlement, also run the automation/control scenarios",
+    )
     args = parser.parse_args()
     if not args.chromium or not (args.web_dir / "index.html").is_file():
         print("FAIL: Chromium and a built polling web directory are required", file=sys.stderr)
@@ -798,6 +1126,7 @@ def main():
                     args.capture_dir.resolve() if args.capture_dir else None,
                     args.analytics_dir.resolve() if args.analytics_dir else None,
                     args.guest_dir.resolve() if args.guest_dir else None,
+                    args.extended_dir.resolve() if args.extended_dir else None,
                 )
             )
     except BaseException as error:
