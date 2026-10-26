@@ -84,7 +84,8 @@ export function parseExecution(value: unknown, expected: BindReceipt): Execution
   else {
     need(raw.load !== null)
     const binding = object(raw.binding, ['intent', 'receipt'])
-    const original = object(binding.intent, ['work_order_id', 'actor', 'command_id', 'line_id', 'source_id', 'stream_id', 'expected_work_order_version', 'expected_control_version'])
+    // CX-33/34 policy flags are optional on the original intent; parseWorkflow checks their types.
+    const original = object(binding.intent, ['work_order_id', 'actor', 'command_id', 'line_id', 'source_id', 'stream_id', 'expected_work_order_version', 'expected_control_version'], ['auto_end_at_target', 'start_when_ready'])
     need(workflowId(original.command_id))
     const parsed = parseWorkflow('bind', raw.binding, execution.work_order_id as string, original.command_id)
     const receipt = parsed.receipt as BindReceipt

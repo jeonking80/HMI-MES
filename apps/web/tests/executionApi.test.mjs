@@ -44,6 +44,15 @@ test('exact managed execution preserves immutable original evidence and is eligi
   assert.throws(() => { parsed.binding.intent.actor = 'other' }, TypeError)
   assert.equal(executionPath(receipt), '/api/v1/execution-record?line_id=line-A&source_id=source-A&stream_id=stream-A&execution_id=exec-A')
 })
+test('CX-33/34 policy flags on the original intent and LOAD args, and end_reason, are accepted', () => {
+  const { view, original, receipt } = fixture()
+  for (const target of [view.binding.intent, original.intent]) Object.assign(target, { auto_end_at_target: true, start_when_ready: false })
+  for (const request of [view.binding.receipt.load_request, view.load.request, receipt.load_request]) Object.assign(request.command.args, { auto_end_at_target: true, start_when_ready: false })
+  view.settlement.summary.end_reason = 'OPERATOR'
+  assert.equal(parseExecution(view, receipt).settlement.status, 'SETTLED')
+  const bad = fixture(); bad.view.binding.intent.unexpected = true
+  assert.throws(() => parseExecution(bad.view, bad.receipt))
+})
 test('UInt64 maximum totals remain exact, balanced and unrounded', () => {
   const { view, original, receipt } = fixture()
   view.totals.good_quantity = view.settlement.summary.good_quantity = view.settlement.summary.input_quantity = '18446744073709551615'
