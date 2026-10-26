@@ -1,0 +1,20 @@
+{
+  "tests": 153,
+  "failures": 0,
+  "errors": 0,
+  "elapsed_stdout_seconds": 104.18,
+  "modules": [
+    "test_line_queue.py",
+    "test_line_queue_migration.py",
+    "test_work_order_workflow.py",
+    "test_control_http.py",
+    "test_target_auto_end.py"
+  ],
+  "extended_attempts": 1,
+  "extended_result": "BLOCKED after first queued LOAD; reload requires re-login before workspace selector",
+  "E3_complete": false,
+  "script_modified": false,
+  "UI_modified": false,
+  "public_operations": false,
+  "user_runtime_changes": false
+}
