@@ -15,7 +15,7 @@ from tests.integration.test_alarm_consumer import capture
 from tests.integration.test_alarm_consumer import state as state
 from tests.integration.test_capture_clock import modified, same_host
 from tests.integration.test_capture_clock import service as service
-from tests.integration.test_ingest_retention import OLD, prune
+from tests.integration.test_ingest_retention import OLD, finish_compaction, prune
 from tests.integration.test_trend_history import SCOPE, TAG, batch, submit
 
 AT = OLD.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -107,7 +107,7 @@ def test_unknown_clock_expiry_never_becomes_normal_missing_data(service):
 def test_reversal_and_epoch_bootstrap_use_compacted_frontiers_when_every_raw_is_gone(service):
     submit(service, batch(1, AT + timedelta(seconds=1)), now=AT + timedelta(minutes=2))
     submit(service, batch(3, AT + timedelta(seconds=61)), now=AT + timedelta(minutes=2))
-    assert prune(service.engine)["deleted_count"] == 2
+    assert finish_compaction(service.engine, prune(service.engine))["deleted_count"] == 2
     with service.engine.connect() as db:
         assert db.execute(sa.text("SELECT count(*) FROM ingest_batches")).scalar() == 0
         assert db.execute(sa.text("SELECT count(*) FROM capture_clock_evidence")).scalar() == 0
@@ -185,7 +185,7 @@ def test_alarm_decisions_remain_exact_when_parent_raw_is_retired(state):
 def test_merged_compacted_epoch_endpoints_preserve_chronology_and_reversal(service, coordinate):
     for seq in (1, 2, 3):
         submit(service, batch(seq, AT + timedelta(seconds=seq)), now=OLD)
-    assert prune(service.engine)["compacted_count"] == 3
+    assert finish_compaction(service.engine, prune(service.engine))["compacted_count"] == 3
     with service.engine.connect() as db:
         assert db.execute(sa.text("SELECT count(*) FROM ingest_receipts")).scalar() == 0
         permanent = db.execute(sa.text("SELECT * FROM ingest_retention_ranges")).mappings().one()

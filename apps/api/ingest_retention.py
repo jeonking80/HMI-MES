@@ -5,15 +5,24 @@ from __future__ import annotations
 import logging
 import os
 import re
+import threading
+import time
 from datetime import UTC, datetime
+from weakref import WeakKeyDictionary
 
 import sqlalchemy as sa
 
+from apps.api.capture_clock import schema_revision
 from apps.api.database import SCHEMA_LOCK_ID
 
 RETENTION_REVISION = "0022_ingest_retention"
 COMPACTION_REVISION = "0023_ingest_compaction"
+SEGMENTS_REVISION = "0024_ingest_retired_segments"
+COMPACTION_REVISIONS = frozenset({COMPACTION_REVISION, SEGMENTS_REVISION})
+RETENTION_REVISIONS = COMPACTION_REVISIONS | {RETENTION_REVISION}
 _LOG = logging.getLogger(__name__)
+_MAINTENANCE_LOCK = threading.Lock()
+_MAINTENANCE_STATE = WeakKeyDictionary()
 
 
 class IngestRetentionExpired(ValueError):
@@ -42,15 +51,13 @@ def retention_hours_from_env() -> int:
 
 
 def retention_available(connection) -> bool:
-    revisions = connection.execute(sa.text("SELECT version_num FROM alembic_version"))
-    return revisions.scalars().all() in ([RETENTION_REVISION], [COMPACTION_REVISION])
+    return schema_revision(connection) in RETENTION_REVISIONS
 
 
 def latest_capture_table(connection) -> str:
     """Trusted SQL relation retaining the full metadata of each scope's frontier."""
-    revisions = connection.execute(sa.text("SELECT version_num FROM alembic_version"))
-    revision = revisions.scalars().all()
-    if revision == [COMPACTION_REVISION]:
+    revision = schema_revision(connection)
+    if revision in COMPACTION_REVISIONS:
         # PostgreSQL restores timestamptz/numeric types from the receipt JSON.
         # Only the latest compacted capture in each range is needed for this
         # context; analytical clock neighbors use their separate epoch endpoints.
@@ -60,29 +67,32 @@ def latest_capture_table(connection) -> str:
             CROSS JOIN LATERAL jsonb_populate_record(
                 NULL::public.ingest_receipts,r.latest_capture) AS receipt
             WHERE r.latest_capture IS NOT NULL) AS capture_frontier"""
-    if revision == [RETENTION_REVISION]:
+    if revision == RETENTION_REVISION:
         return "ingest_receipts"
     return "ingest_batches"
 
 
 def check_retention_expired(connection, body) -> None:
     """Check both immutable identities before ACK replay or collision recording."""
-    revisions = connection.execute(sa.text("SELECT version_num FROM alembic_version"))
-    revision = revisions.scalars().all()
-    if revision not in ([RETENTION_REVISION], [COMPACTION_REVISION]):
+    revision = schema_revision(connection)
+    if revision not in RETENTION_REVISIONS:
         return
     query = """SELECT 1 FROM public.ingest_receipts
         WHERE gateway_id=:gateway AND expired_at IS NOT NULL
           AND (batch_id=:batch OR
                (capture_generation=:generation AND capture_seq=:capture))"""
-    if revision == [COMPACTION_REVISION]:
+    if revision in COMPACTION_REVISIONS:
         # Capture identity is gateway-global across source/stream rebindings;
         # batch identity is gateway-global across capture generations as well.
         query += """ UNION ALL
             SELECT 1 FROM public.ingest_retention_ranges
             WHERE gateway_id=:gateway AND capture_generation=:generation
-                AND :capture BETWEEN from_capture_seq AND through_capture_seq
-            UNION ALL
+                AND :capture BETWEEN from_capture_seq AND through_capture_seq"""
+        if revision == SEGMENTS_REVISION:
+            query += """ UNION ALL
+                SELECT 1 WHERE public.retired_ingest_batch_exists(:gateway,:batch)"""
+        else:
+            query += """ UNION ALL
             SELECT 1 FROM public.ingest_retired_batch_chunks
             WHERE gateway_id=:gateway AND batch_ids @> ARRAY[:batch]::text[]"""
     expired = connection.execute(
@@ -96,6 +106,30 @@ def check_retention_expired(connection, body) -> None:
     ).first()
     if expired is not None:
         raise IngestRetentionExpired("Original capture retention has expired")
+
+
+def schedule_ingest_maintenance(engine, retention_hours=168) -> None:
+    """Admit one post-response maintenance attempt per engine per minute.
+
+    Run as an invocation-owned response background task: the ACK body is already
+    sent, but ASGI completion still waits for this function. Admit only when the
+    task actually starts so a failed response send cannot strand an in-flight
+    reservation. The process cooldown reduces traffic; SQL still owns the global
+    lock, durable interval, cutoff clock and transactional safety checks.
+    """
+    validate_retention_hours(retention_hours)
+    with _MAINTENANCE_LOCK:
+        now = time.monotonic()
+        state = _MAINTENANCE_STATE.get(engine)
+        if state is not None and (state[0] or now < state[1]):
+            return
+        _MAINTENANCE_STATE[engine] = (True, now + 60)
+
+    try:
+        maybe_prune_ingest(engine, retention_hours)
+    finally:
+        with _MAINTENANCE_LOCK:
+            _MAINTENANCE_STATE[engine] = (False, time.monotonic() + 60)
 
 
 def maybe_prune_ingest(engine, retention_hours=168, max_batches=200, max_candidates=400) -> dict:
@@ -120,9 +154,8 @@ def maybe_prune_ingest(engine, retention_hours=168, max_batches=200, max_candida
             ).scalar_one()
             if not locked:
                 return {"status": "unavailable"}
-            revisions = connection.execute(sa.text("SELECT version_num FROM alembic_version"))
-            # Revision22's SQL takes days. Only revision23 accepts the hours setting.
-            if revisions.scalars().all() != [COMPACTION_REVISION]:
+            # Revision22's SQL takes days; revision23 and later accept hours.
+            if schema_revision(connection) not in COMPACTION_REVISIONS:
                 return {"status": "unavailable"}
             return connection.execute(
                 sa.text("SELECT public.prune_ingest_batches_hours(:hours,:batches,:candidates)"),

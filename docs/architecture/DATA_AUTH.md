@@ -2,7 +2,7 @@
 
 ## 19차 현행 기준 (2026-10-26)
 
-19차 사용자 승인으로 수집 원본 보관은 `HMI_INGEST_RETENTION_HOURS` 기본 168시간·최소 3시간을 사용한다. 3 미만·비숫자는 시작을 거절하고, 구 설정 `HMI_INGEST_RETENTION_DAYS`는 단독·동시·빈 값 모두 거절한다. 현재 runtime 자동 정리는 schema 0023에서만 실행하며 schema 0022의 보관 종료 조회·재전송 거절은 호환 지원한다. 아래 18차/CX-40의 일 단위·영구 개별 영수증 설명은 당시 이력이며 이 현행 기준으로 대체된다. 변경 이유와 영향은 [INGEST_RETENTION.md](INGEST_RETENTION.md)를 따른다.
+19차 사용자 승인으로 수집 원본 보관은 `HMI_INGEST_RETENTION_HOURS` 기본 168시간·최소 3시간을 사용한다. 3 미만·비숫자는 시작을 거절하고, 구 설정 `HMI_INGEST_RETENTION_DAYS`는 단독·동시·빈 값 모두 거절한다. 현재 runtime 자동 정리는 schema 0023·0024에서 실행하며 schema 0022의 보관 종료 조회·재전송 거절은 호환 지원한다. 아래 18차/CX-40의 일 단위·영구 개별 영수증 설명은 당시 이력이며 이 현행 기준으로 대체된다. 변경 이유와 영향은 [INGEST_RETENTION.md](INGEST_RETENTION.md)를 따른다.
 
 만료된 비참조 영수증은 실제 FK 목록을 검사한 뒤 최대 256개 정확 batch ID 청크(`ingest_retired_batch_chunks`, GIN)와 연속 capture 범위로 압축한다. 임의 batch ID 재사용을 정확히 판별하는 저장 바이트는 여전히 O(captures)다. 실제 FK 참조 영수증은 개별 보존한다. 현재 알람 판단은 매 capture마다 FK를 남기므로 그 경로에서는 사건 수에 비례하는 영수증 수를 달성할 수 없다. 사용자의 **기존 참조 보존·한계 보고** 결정에 따라 알람 판단·FK를 유지한다.
 

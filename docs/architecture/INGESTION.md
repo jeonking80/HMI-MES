@@ -1,12 +1,16 @@
 # PostgreSQL 사건 수신과 적용
 
-## 19차 현행 기준 (2026-10-26)
+## 20차 현행 기준 (2026-10-26)
 
-19차 사용자 승인으로 수집 원본 보관은 `HMI_INGEST_RETENTION_HOURS` 기본 168시간·최소 3시간을 사용한다. 3 미만·비숫자는 시작을 거절하고, 구 설정 `HMI_INGEST_RETENTION_DAYS`는 단독·동시·빈 값 모두 거절한다. 현재 runtime 자동 정리는 schema 0023에서만 실행하며 schema 0022의 보관 종료 조회·재전송 거절은 호환 지원한다. 아래 18차/CX-40의 일 단위·영구 개별 영수증 설명은 당시 이력이며 이 현행 기준으로 대체된다. 변경 이유와 영향은 [INGEST_RETENTION.md](INGEST_RETENTION.md)를 따른다.
+19차 사용자 승인으로 수집 원본 보관은 `HMI_INGEST_RETENTION_HOURS` 기본 168시간·최소 3시간을 사용한다. 3 미만·비숫자는 시작을 거절하고, 구 설정 `HMI_INGEST_RETENTION_DAYS`는 단독·동시·빈 값 모두 거절한다. 현재 runtime 자동 정리는 schema 0023·0024에서 실행하며 schema 0022의 보관 종료 조회·재전송 거절은 호환 지원한다. 아래 18차/CX-40의 일 단위·영구 개별 영수증 설명은 당시 이력이며 이 현행 기준으로 대체된다. 변경 이유와 영향은 [INGEST_RETENTION.md](INGEST_RETENTION.md)를 따른다.
 
-gateway 전체 capture identity는 보관 종료 범위로, 임의 batch ID는 최대 256개 정확 문자열 청크와 GIN으로 검사한다. 이전 generation의 ID도 확인하며, 만료 ID는 압축 뒤에도 기존과 같은 HTTP 410 `RETENTION_EXPIRED`다. 새 ACK를 만들거나 충돌 hold로 바꾸지 않는다. 누적 내용 해시를 유지하지만 그 값만으로 정확 ID 판별을 대신하지 않는다. FK 없는 만료 영수증 압축은 원본 정리와 같은 트랜잭션·시간 제한을 따르고 오류 시 함께 롤백한다.
+gateway 전체 capture identity는 보관 종료 범위로 검사한다. schema 0024의 새 batch ID 기록은 최대 256개 세그먼트를 한 번만 삽입한다. 표준 소문자 UUID 문자열은 16바이트 UUID 값으로, 나머지는 정확한 원문 문자열로 저장하며 각각 GIN으로 조회한다. schema 0023의 기존 문자열 청크는 동결해 새 세그먼트와 함께 조회한다. 이전 generation의 ID도 확인하며, 만료 ID는 압축 뒤에도 기존과 같은 HTTP 410 `RETENTION_EXPIRED`다. 새 ACK를 만들거나 충돌 hold로 바꾸지 않는다. 누적 내용 해시를 유지하지만 그 값만으로 정확 ID 판별을 대신하지 않는다. FK 없는 만료 영수증 압축은 원본 정리와 같은 트랜잭션·시간 제한을 따르고 오류 시 함께 롤백한다.
 
 범위에는 epoch별 clock 양 끝과 최신 `latest_capture`를 남기고 내부 역행은 영속 registry로 보존한다. 실제 알람 FK가 있는 개별 영수증은 유지한다. 매 capture 알람 판단이 FK를 남기므로 영수증이 사건 수에만 비례한다는 목표는 이 경로에서 성립하지 않는다. 사용자의 **기존 참조 보존·한계 보고** 결정을 따른다. 정확 ID 청크도 O(captures) 바이트가 필요하므로 압축을 전체 DB 고정 용량으로 설명하지 않는다.
+
+수집 커밋 뒤 ACK 본문을 먼저 보내고 Starlette `BackgroundTask`로 정리를 시도한다. ASGI 호출은 후속 작업 완료까지 기다리므로 서버리스 호출 종료 뒤 daemon thread에 정리를 맡기지 않는다. engine별 실행 중 작업 하나와 완료 후 60초 cooldown으로 반복 DB 호출을 줄이며, 여러 worker 사이의 실행 간격·잠금·보관 시각·삭제 자격은 DB가 판정한다. 후속 작업 시작 시에만 실행 중 상태를 예약하고 `finally`에서 해제하므로 응답 전송 실패나 정리 실패가 영구적인 실행 중 상태를 남기지 않는다. 직접 서비스 호출은 자동 정리하지 않는다.
+
+schema revision은 트랜잭션 안에서 공유한다. 방금 원본 삽입에 성공한 수집 경로에서는 중복된 clock 근거 재조회를 생략하며, 보관 중 재전송의 원래 ACK와 clock 입력 근거 불변 검사는 유지한다. clock 최근접 이웃은 `UNION ALL`로 조회하고 최초 clock 상태 재구성과 보고서 이력은 중복 제거를 유지한다. 이 변경은 `2cea66c`의 요청별 정리 호출과 `a5e2dd0`의 압축 frontier 조회에서 늘어난 반복 비용을 줄이기 위한 것이다. 실제 회귀 원인별 시간과 개선 여부는 동일 기계 프로파일·FIFO 시험으로 확인하며 1,800건·300초 기준을 바꾸지 않는다.
 
 `apps/api/ingestion.py`는 gateway 배치의 내구성 있는 접수와 생산 사건 적용을 담당한다.
 실제 PostgreSQL과 Alembic `0002_ingestion`이 필요하다. 서비스 호출자는 HTTP 계층에서

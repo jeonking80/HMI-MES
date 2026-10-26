@@ -37,6 +37,7 @@ TREND_REVISIONS = frozenset(
         "0021_item_master",
         "0022_ingest_retention",
         "0023_ingest_compaction",
+        "0024_ingest_retired_segments",
     }
 )
 

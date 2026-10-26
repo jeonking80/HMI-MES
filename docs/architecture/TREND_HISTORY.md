@@ -2,11 +2,11 @@
 
 ## 19차 현행 기준 (2026-10-26)
 
-19차 사용자 승인으로 수집 원본 보관은 `HMI_INGEST_RETENTION_HOURS` 기본 168시간·최소 3시간을 사용한다. 3 미만·비숫자는 시작을 거절하고, 구 설정 `HMI_INGEST_RETENTION_DAYS`는 단독·동시·빈 값 모두 거절한다. 현재 runtime 자동 정리는 schema 0023에서만 실행하며 schema 0022의 보관 종료 조회·재전송 거절은 호환 지원한다. 아래 18차/CX-40의 일 단위·영구 개별 영수증 설명은 당시 이력이며 이 현행 기준으로 대체된다. 변경 이유와 영향은 [INGEST_RETENTION.md](INGEST_RETENTION.md)를 따른다.
+19차 사용자 승인으로 수집 원본 보관은 `HMI_INGEST_RETENTION_HOURS` 기본 168시간·최소 3시간을 사용한다. 3 미만·비숫자는 시작을 거절하고, 구 설정 `HMI_INGEST_RETENTION_DAYS`는 단독·동시·빈 값 모두 거절한다. 현재 runtime 자동 정리는 schema 0023·0024에서 실행하며 schema 0022의 보관 종료 조회·재전송 거절은 호환 지원한다. 아래 18차/CX-40의 일 단위·영구 개별 영수증 설명은 당시 이력이며 이 현행 기준으로 대체된다. 변경 이유와 영향은 [INGEST_RETENTION.md](INGEST_RETENTION.md)를 따른다.
 
 schema 0023에서는 개별 영수증과 압축 범위의 epoch별 `clock_frontiers` 양 끝 좌표를 함께 사용해 인접 순서를 확인한다. 압축 전 영속화한 `analog_history_clock_state.reversal_seq`를 병합하므로 양 끝만 정상인 내부 역행을 GOOD으로 되돌리지 않는다. 최신 clock-context는 범위의 `latest_capture`와 개별 영수증을 원래 capture 순서로 비교한다. 만료된 digital-only capture의 순서 근거도 유지한다.
 
-수집 원본 압축은 트렌드 원시/분 보관 설정과 별개다. 기존 유효 분 집계와 보수적 `RETENTION_EXPIRED`/TIME_UNKNOWN 규칙을 유지하며, endpoint만으로 지워진 표본을 재계산하지 않는다. 실제 FK 참조 영수증은 남고 매 capture 알람 FK 때문에 사건 비례 상한은 성립하지 않는다. 사용자의 **기존 참조 보존·한계 보고** 결정과 정확 ID 청크의 O(captures) 바이트 증가를 반영한다. 원본 6.5KB·1Hz·3시간 약 70MB는 추정이며 24시간 가속 적재·vacuum 전후 증분 실측은 대기 중이다. 무료 0.5GB 보장이 아니다.
+수집 원본 압축은 트렌드 원시/분 보관 설정과 별개다. 기존 유효 분 집계와 보수적 `RETENTION_EXPIRED`/TIME_UNKNOWN 규칙을 유지하며, endpoint만으로 지워진 표본을 재계산하지 않는다. 실제 FK 참조 영수증은 남고 매 capture 알람 FK 때문에 사건 비례 상한은 성립하지 않는다. 사용자의 **기존 참조 보존·한계 보고** 결정과 정확 ID 청크의 O(captures) 바이트 증가를 반영한다. 원본 6.5KB·1Hz·3시간 약 70MB는 추정이며 24시간 상당의 20차 교차 적재·정리와 알람 채널 0/1개 실측은 [CX-42](../work-orders/reports/CX-42.md)에 기록했다. 무료 0.5GB 보장이 아니다.
 
 CX-01은 9개 `analog_history` 태그를 배치 접수·중복 제거·커서와 같은 PostgreSQL 트랜잭션에 기록한다. `IngestionService`는 schema 14 이하에서 기존 수집을 유지하며, schema 15~23에서 새 저장 경로를 사용한다. 새 API는 `register_trend_routes(app, auth)`로 사용자 앱에 등록하며 read 권한과 `refresh_idle=False`를 사용한다.
 

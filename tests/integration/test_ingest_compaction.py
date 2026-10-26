@@ -8,7 +8,15 @@ from sqlalchemy.exc import DBAPIError
 
 from apps.api.bootstrap import LINE_ID
 from apps.api.ingest_retention import IngestRetentionExpired, maybe_prune_ingest
-from tests.integration.test_ingest_retention import OLD, SCOPE, batch, prune, rows, submit
+from tests.integration.test_ingest_retention import (
+    OLD,
+    SCOPE,
+    batch,
+    finish_compaction,
+    prune,
+    rows,
+    submit,
+)
 from tests.integration.test_ingest_retention import observation_service as observation_service
 
 
@@ -19,6 +27,7 @@ def test_three_hour_cutoff_replays_recent_ack_and_compacts_old_identity(observat
     submit(service, old, now - timedelta(hours=4))
     ack = submit(service, recent, now - timedelta(hours=2))
     result = maybe_prune_ingest(service.engine, retention_hours=3)
+    result = finish_compaction(service.engine, result)
     assert result["deleted_count"] == result["compacted_count"] == 1
     assert rows(service.engine, "SELECT batch_id FROM ingest_receipts") == [{"batch_id": "batch-2"}]
     assert submit(service, recent) == ack
@@ -52,7 +61,7 @@ def test_compacted_identity_is_gateway_global_across_source_rebinding(
 ):
     service = observation_service
     submit(service, batch())
-    assert prune(service.engine)["compacted_count"] == 1
+    assert finish_compaction(service.engine, prune(service.engine))["compacted_count"] == 1
     assert rows(service.engine, "SELECT * FROM ingest_receipts") == []
     service.configure_source(
         gateway_id="gateway-1",
@@ -98,6 +107,7 @@ def test_only_actual_foreign_key_rows_pin_receipts_and_released_rows_compact(obs
         )
         db.execute(sa.text("INSERT INTO retained_capture_audit VALUES(1,'gateway-1','batch-1')"))
     result = prune(service.engine)
+    result = finish_compaction(service.engine, result, expected_expired=1)
     assert result["deleted_count"] == 2
     assert result["compacted_count"] == 1
     retained = rows(service.engine, "SELECT batch_id,expired_at FROM ingest_receipts")
@@ -108,7 +118,7 @@ def test_only_actual_foreign_key_rows_pin_receipts_and_released_rows_compact(obs
     ]
     with service.engine.begin() as db:
         db.execute(sa.text("DELETE FROM retained_capture_audit"))
-    result = prune(service.engine)
+    result = finish_compaction(service.engine, prune(service.engine))
     assert result["deleted_count"] == 0
     assert result["compacted_count"] == 1
     assert rows(service.engine, "SELECT * FROM ingest_receipts") == []
@@ -139,19 +149,20 @@ def test_compaction_failure_rolls_back_raw_receipts_chunks_ranges_and_scheduler(
     assert rows(engine, "SELECT expired_at FROM ingest_receipts") == [{"expired_at": None}]
     assert rows(engine, "SELECT * FROM ingest_retention_ranges") == []
     assert rows(engine, "SELECT * FROM ingest_retired_batch_chunks") == []
+    assert rows(engine, "SELECT * FROM ingest_retired_batch_segments") == []
     with engine.begin() as db:
         db.execute(sa.text("DROP TRIGGER fail_receipt_compaction ON ingest_receipts"))
-    result = maybe_prune_ingest(engine)
+    result = finish_compaction(engine, maybe_prune_ingest(engine))
     assert result["deleted_count"] == result["compacted_count"] == 1
 
 
-def test_sparse_capture_ranges_and_batch_chunks_never_expire_unseen_identifiers(
+def test_sparse_capture_ranges_and_segments_never_expire_unseen_identifiers(
     observation_service,
 ):
     service = observation_service
     for seq in (1, 3, 257):
         submit(service, batch(capture_seq=seq))
-    assert prune(service.engine)["compacted_count"] == 3
+    assert finish_compaction(service.engine, prune(service.engine))["compacted_count"] == 3
     ranges = rows(
         service.engine,
         "SELECT from_capture_seq,through_capture_seq FROM ingest_retention_ranges "
@@ -162,14 +173,13 @@ def test_sparse_capture_ranges_and_batch_chunks_never_expire_unseen_identifiers(
         (3, 3),
         (257, 257),
     ]
-    chunks = rows(
-        service.engine,
-        "SELECT seq_bucket,batch_ids FROM ingest_retired_batch_chunks ORDER BY seq_bucket",
-    )
-    assert [(r["seq_bucket"], r["batch_ids"]) for r in chunks] == [
-        (0, ["batch-1", "batch-3"]),
-        (1, ["batch-257"]),
+    segments = rows(service.engine, "SELECT text_ids FROM ingest_retired_batch_segments")
+    assert sorted(identity for row in segments for identity in row["text_ids"]) == [
+        "batch-1",
+        "batch-257",
+        "batch-3",
     ]
+    assert rows(service.engine, "SELECT * FROM ingest_retired_batch_chunks") == []
     value = batch(capture_seq=2, batch_id="unseen-batch")
     ack = submit(service, value, datetime.now(UTC))
     assert submit(service, value) == ack
@@ -178,7 +188,7 @@ def test_sparse_capture_ranges_and_batch_chunks_never_expire_unseen_identifiers(
 def test_direct_sql_cannot_reinsert_compacted_identity(observation_service):
     service = observation_service
     submit(service, batch())
-    assert prune(service.engine)["compacted_count"] == 1
+    assert finish_compaction(service.engine, prune(service.engine))["compacted_count"] == 1
     with pytest.raises(DBAPIError, match="RETENTION_EXPIRED"), service.engine.begin() as db:
         db.execute(
             sa.text("""INSERT INTO ingest_batches

@@ -82,6 +82,27 @@ def prune(engine, batches=200, candidates=400):
     return maybe_prune_ingest(engine, max_batches=batches, max_candidates=candidates)
 
 
+def finish_compaction(engine, first, *, expected_expired=0, attempts=20):
+    """Finish eligible receipts deferred by the SQL work budget, with bounded retries."""
+    total = dict(first)
+    assert first["status"] not in {"failed", "unavailable", "BUSY"}, first
+    for attempt in range(attempts + 1):
+        with engine.connect() as db:
+            remaining = db.execute(
+                sa.text("SELECT count(*) FROM ingest_receipts WHERE expired_at IS NOT NULL")
+            ).scalar_one()
+        if remaining == expected_expired:
+            return total
+        assert remaining > expected_expired
+        if attempt == attempts:
+            break
+        result = prune(engine)
+        assert result["status"] not in {"failed", "unavailable", "BUSY"}, result
+        for key in ("deleted_count", "compacted_count", "scanned_count"):
+            total[key] += result[key]
+    raise AssertionError("Eligible receipts did not compact within bounded maintenance attempts")
+
+
 def rows(engine, sql):
     with engine.connect() as db:
         return db.execute(sa.text(sql)).mappings().all()
@@ -572,8 +593,10 @@ def test_accelerated_days_keep_seven_raw_sets_and_quantify_permanent_proofs(
             )
         with service.engine.begin() as db:
             db.execute(sa.insert(ingest_batches), captures)
-    while prune(service.engine, batches=200, candidates=400)["deleted_count"]:
-        pass
+    result = prune(service.engine, batches=200, candidates=400)
+    while result["deleted_count"]:
+        result = prune(service.engine, batches=200, candidates=400)
+    finish_compaction(service.engine, result)
     with service.engine.connect() as db:
         counts = (
             db.execute(
