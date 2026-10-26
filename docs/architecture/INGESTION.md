@@ -1,5 +1,13 @@
 # PostgreSQL 사건 수신과 적용
 
+## 19차 현행 기준 (2026-10-26)
+
+19차 사용자 승인으로 수집 원본 보관은 `HMI_INGEST_RETENTION_HOURS` 기본 168시간·최소 3시간을 사용한다. 3 미만·비숫자는 시작을 거절하고, 구 설정 `HMI_INGEST_RETENTION_DAYS`는 단독·동시·빈 값 모두 거절한다. 현재 runtime 자동 정리는 schema 0023에서만 실행하며 schema 0022의 보관 종료 조회·재전송 거절은 호환 지원한다. 아래 18차/CX-40의 일 단위·영구 개별 영수증 설명은 당시 이력이며 이 현행 기준으로 대체된다. 변경 이유와 영향은 [INGEST_RETENTION.md](INGEST_RETENTION.md)를 따른다.
+
+gateway 전체 capture identity는 보관 종료 범위로, 임의 batch ID는 최대 256개 정확 문자열 청크와 GIN으로 검사한다. 이전 generation의 ID도 확인하며, 만료 ID는 압축 뒤에도 기존과 같은 HTTP 410 `RETENTION_EXPIRED`다. 새 ACK를 만들거나 충돌 hold로 바꾸지 않는다. 누적 내용 해시를 유지하지만 그 값만으로 정확 ID 판별을 대신하지 않는다. FK 없는 만료 영수증 압축은 원본 정리와 같은 트랜잭션·시간 제한을 따르고 오류 시 함께 롤백한다.
+
+범위에는 epoch별 clock 양 끝과 최신 `latest_capture`를 남기고 내부 역행은 영속 registry로 보존한다. 실제 알람 FK가 있는 개별 영수증은 유지한다. 매 capture 알람 판단이 FK를 남기므로 영수증이 사건 수에만 비례한다는 목표는 이 경로에서 성립하지 않는다. 사용자의 **기존 참조 보존·한계 보고** 결정을 따른다. 정확 ID 청크도 O(captures) 바이트가 필요하므로 압축을 전체 DB 고정 용량으로 설명하지 않는다.
+
 `apps/api/ingestion.py`는 gateway 배치의 내구성 있는 접수와 생산 사건 적용을 담당한다.
 실제 PostgreSQL과 Alembic `0002_ingestion`이 필요하다. 서비스 호출자는 HTTP 계층에서
 검증한 gateway/source/stream 범위를 전달한다. 배치의 자기 선언만으로 권한을 부여하지 않는다.
@@ -70,7 +78,7 @@ UV_CACHE_DIR=/tmp/hmi-uv-cache uv run ruff check apps/api/ingestion.py tests/int
 PLC 누계 대사, 장시간 성능·복구·운영 수락 시험은 별도 작업이다.
 이 검증만으로 DEV 단계나 프로젝트 전체 완료를 뜻하지 않는다.
 
-## 18차 원본 정리와 재전송 계약
+## 18차 원본 정리와 재전송 계약 이력
 
 변경 이유: 원본 무기한 보관의 용량 증가를 제한하기 위한 사용자 승인이다. schema22의 기본7일(HMI_INGEST_RETENTION_DAYS, 최소1일)이 지난 저장 원본 중 정산/커서/누락·격리/미결 명령 보호를 모두 통과한 것만 정리한다. 정산된 설정 변경 이력도 정확한 APPLIED 사건/원래 baseline과 대조하며, 이후 다른 작업 진행이나 승인된 generation 전환만으로 옛 정산 원본을 영구 보관하지 않는다.
 

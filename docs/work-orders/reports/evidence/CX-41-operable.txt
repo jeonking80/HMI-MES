@@ -1,0 +1,21 @@
+Live local: provision disposable users, certificates and source identity
+Live local: simulator browser login and mandatory password change
+Live local: five explicit operator recovery checks; select REMOTE/AUTO
+Live local: recovery response received; select REMOTE/AUTO
+Live local: REMOTE/AUTO response received
+Live local: App A browser login and mandatory password change
+Live local: browser registers 150 C / 10 m/min recipe and target-20 work order
+Live local: recipe submitted; await confirmed registration
+Live local: work order form prepared
+Live local: work order submitted; await confirmed registration
+Live local: release registered work order
+Live local: acknowledge confirmed release tracker
+Live local: wait for actual source readiness before binding
+Live local: wait for real default-physics preheat to READY (bounded 45 seconds)
+Live local: START through browser; wait for actual good output >= 2
+Live local: PAUSE through browser and verify actual PLC PAUSED
+Live local: confirmed END_RUN; wait for original execution final settlement
+Live local: SETTLED: browser/API totals match real simulator final summary
+PASS: local live browser -> PostgreSQL/API -> gateway -> encrypted OPC UA -> default physics; final SETTLED totals matched.
+Screenshot: /tmp/hmi-v19-operable.png
+Evidence: /tmp/hmi-v19-operable.json

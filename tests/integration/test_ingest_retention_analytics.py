@@ -104,13 +104,24 @@ def test_unknown_clock_expiry_never_becomes_normal_missing_data(service):
     assert all(p["quality"] == "RETENTION_EXPIRED" for p in result["series"][0]["points"])
 
 
-def test_reversal_and_epoch_bootstrap_use_receipts_when_every_raw_is_gone(service):
+def test_reversal_and_epoch_bootstrap_use_compacted_frontiers_when_every_raw_is_gone(service):
     submit(service, batch(1, AT + timedelta(seconds=1)), now=AT + timedelta(minutes=2))
     submit(service, batch(3, AT + timedelta(seconds=61)), now=AT + timedelta(minutes=2))
     assert prune(service.engine)["deleted_count"] == 2
     with service.engine.connect() as db:
         assert db.execute(sa.text("SELECT count(*) FROM ingest_batches")).scalar() == 0
         assert db.execute(sa.text("SELECT count(*) FROM capture_clock_evidence")).scalar() == 0
+        assert db.execute(sa.text("SELECT count(*) FROM ingest_receipts")).scalar() == 0
+        frontiers = (
+            db.execute(
+                sa.text(
+                    "SELECT clock_frontiers FROM ingest_retention_ranges ORDER BY from_capture_seq"
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert [item["clock-1"]["first"]["capture_seq"] for item in frontiers] == ["1", "3"]
     submit(service, batch(2, AT + timedelta(seconds=62)), now=AT + timedelta(minutes=2))
     with service.engine.connect() as db:
         assert (
@@ -166,4 +177,38 @@ def test_alarm_decisions_remain_exact_when_parent_raw_is_retired(state):
                 AND confrelid='ingest_receipts'::regclass AND contype='f'""")
         ).scalar_one()
         assert target == "ingest_receipts"
+        assert db.execute(sa.text("SELECT count(*) FROM ingest_receipts")).scalar() == 1
         assert db.execute(sa.text("SELECT count(*) FROM ingest_batches")).scalar() == 0
+
+
+@pytest.mark.parametrize("coordinate", ["utc", "monotonic"])
+def test_merged_compacted_epoch_endpoints_preserve_chronology_and_reversal(service, coordinate):
+    for seq in (1, 2, 3):
+        submit(service, batch(seq, AT + timedelta(seconds=seq)), now=OLD)
+    assert prune(service.engine)["compacted_count"] == 3
+    with service.engine.connect() as db:
+        assert db.execute(sa.text("SELECT count(*) FROM ingest_receipts")).scalar() == 0
+        permanent = db.execute(sa.text("SELECT * FROM ingest_retention_ranges")).mappings().one()
+    frontier = permanent["clock_frontiers"]["clock-1"]
+    assert frontier["first"]["capture_seq"] == "1"
+    assert frontier["last"]["capture_seq"] == "3"
+    assert frontier["first"]["monotonic_seconds"] == 101.0
+    assert frontier["last"]["monotonic_seconds"] == 103.0
+    assert permanent["latest_capture"]["batch_id"] == "batch-3"
+    assert (
+        permanent["latest_capture"]["content_sha256"]
+        == batch(3, AT + timedelta(seconds=3)).content_sha256
+    )
+    value = batch(4, AT + timedelta(seconds=2 if coordinate == "utc" else 4))
+    if coordinate == "monotonic":
+        value = modified(value, lambda body: body["capture_time"].update(monotonic_seconds=102.0))
+    submit(service, value, now=OLD)
+    with service.engine.connect() as db:
+        decision = read_capture_clock(db, "gateway-1", "batch-4")
+        assert decision.status == "UNKNOWN"
+        assert decision.reason_code == "CLOCK_REVERSAL"
+        reversal = db.execute(
+            sa.text("""SELECT reversal_seq FROM analog_history_clock_state
+            WHERE clock_epoch='clock-1'""")
+        ).scalar_one()
+    assert reversal == 4

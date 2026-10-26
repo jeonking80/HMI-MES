@@ -1,0 +1,119 @@
+{
+  "measurement": "synthetic_raw_storage_not_plc_or_production_acceptance",
+  "captures": 86400,
+  "samples_per_capture": 27,
+  "sample_quality": "Bad, null reading; no fabricated Good values",
+  "retention_hours": 3,
+  "payload_average_bytes": 6858.871458333333,
+  "fixture_event_fk_references": 0,
+  "fk_scope": "event-free baseline; real alarm/business FK receipts remain retained",
+  "db_clock_unchanged": true,
+  "db_capture_end_at": "2026-10-26T04:03:33.507972+00:00",
+  "load_elapsed_seconds": 59.576696591000655,
+  "before_cleanup": {
+    "ingest_batches": {
+      "rows": 86400,
+      "table_bytes": 177029120,
+      "index_bytes": 39747584,
+      "total_bytes": 216776704
+    },
+    "ingest_receipts": {
+      "rows": 86400,
+      "table_bytes": 17686528,
+      "index_bytes": 45162496,
+      "total_bytes": 62849024
+    },
+    "ingest_retention_ranges": {
+      "rows": 0,
+      "table_bytes": 8192,
+      "index_bytes": 16384,
+      "total_bytes": 24576
+    },
+    "ingest_retired_batch_chunks": {
+      "rows": 0,
+      "table_bytes": 8192,
+      "index_bytes": 24576,
+      "total_bytes": 32768
+    },
+    "expired_receipts": 0,
+    "retired_batch_ids": 0,
+    "maximum_chunk_ids": 0,
+    "covered_captures": 0,
+    "database_bytes": 290972175,
+    "selected_relations_total_bytes": 279683072
+  },
+  "elapsed_seconds": 227.50491830100145,
+  "maintenance_attempts": 321,
+  "deleted_count": 75825,
+  "compacted_count": 75825,
+  "last_maintenance_tick": "2026-10-26T04:07:19.399767+00:00",
+  "old_rows_at_last_tick": 0,
+  "cleanup_elapsed_seconds": 166.55021412799942,
+  "after_cleanup_before_vacuum": {
+    "ingest_batches": {
+      "rows": 10575,
+      "table_bytes": 177029120,
+      "index_bytes": 39821312,
+      "total_bytes": 216850432
+    },
+    "ingest_receipts": {
+      "rows": 10575,
+      "table_bytes": 17686528,
+      "index_bytes": 66805760,
+      "total_bytes": 84492288
+    },
+    "ingest_retention_ranges": {
+      "rows": 1,
+      "table_bytes": 39985152,
+      "index_bytes": 3563520,
+      "total_bytes": 43548672
+    },
+    "ingest_retired_batch_chunks": {
+      "rows": 297,
+      "table_bytes": 196526080,
+      "index_bytes": 18915328,
+      "total_bytes": 215441408
+    },
+    "expired_receipts": 0,
+    "retired_batch_ids": 75825,
+    "maximum_chunk_ids": 256,
+    "covered_captures": 75825,
+    "database_bytes": 574404275,
+    "selected_relations_total_bytes": 560332800
+  },
+  "after_vacuum_analyze": {
+    "ingest_batches": {
+      "rows": 10575,
+      "table_bytes": 177029120,
+      "index_bytes": 39845888,
+      "total_bytes": 216875008
+    },
+    "ingest_receipts": {
+      "rows": 10575,
+      "table_bytes": 17686528,
+      "index_bytes": 66805760,
+      "total_bytes": 84492288
+    },
+    "ingest_retention_ranges": {
+      "rows": 1,
+      "table_bytes": 5554176,
+      "index_bytes": 3563520,
+      "total_bytes": 9117696
+    },
+    "ingest_retired_batch_chunks": {
+      "rows": 297,
+      "table_bytes": 196526080,
+      "index_bytes": 18915328,
+      "total_bytes": 215441408
+    },
+    "expired_receipts": 0,
+    "retired_batch_ids": 75825,
+    "maximum_chunk_ids": 256,
+    "covered_captures": 75825,
+    "database_bytes": 540038835,
+    "selected_relations_total_bytes": 525926400
+  },
+  "vacuum_mode": "ordinary VACUUM ANALYZE; not FULL",
+  "db_aging_seconds": 225.891795,
+  "expected_raw_after_elapsed_seconds": 10575
+}

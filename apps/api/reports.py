@@ -12,6 +12,7 @@ from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import text
 
+from apps.api.capture_clock import capture_frontier_table
 from apps.api.ingest_retention import retention_available
 from apps.api.minute_aggregation import seoul_day_bounds
 from apps.api.retention_provenance import expiry_windows, provenance
@@ -219,7 +220,8 @@ def _clock_reversal_cutoffs(db, line_id, scope):
         params.update(source=scope["source_id"], stream=scope["stream_id"])
         where += " AND b.source_id=:source AND b.stream_id=:stream"
     receipt_history = retention_available(db)
-    capture_table = "ingest_receipts" if receipt_history else "ingest_batches"
+    capture_table = capture_frontier_table(db, alias="b")
+    capture_from = capture_table if capture_table.startswith("(") else f"{capture_table} b"
     epoch = "b.clock_epoch" if receipt_history else "b.body->'capture_time'->>'clock_epoch'"
     captured = "b.captured_at" if receipt_history else "(b.body->>'captured_at')::timestamptz"
     monotonic = (
@@ -233,7 +235,7 @@ def _clock_reversal_cutoffs(db, line_id, scope):
         WITH captures AS (
           SELECT b.source_id,b.stream_id,b.gateway_id,b.capture_generation,b.capture_seq,
             {epoch} AS epoch, {captured} AS at, {monotonic} AS mono
-          FROM {capture_table} b JOIN source_streams s USING(source_id,stream_id)
+          FROM {capture_from} JOIN source_streams s USING(source_id,stream_id)
           WHERE """
             + where
             + f""" AND {epoch} IS NOT NULL
@@ -251,7 +253,7 @@ def _clock_reversal_cutoffs(db, line_id, scope):
         ),
         params,
     ).mappings()
-    return {
+    cutoffs = {
         (
             r["source_id"],
             r["stream_id"],
@@ -261,6 +263,33 @@ def _clock_reversal_cutoffs(db, line_id, scope):
         ): int(r["cutoff"])
         for r in rows
     }
+    # Compact endpoints cannot rediscover an internal reversal. The immutable
+    # registry is backfilled before compaction and remains authoritative after
+    # all individual receipts of an epoch have expired.
+    if receipt_history:
+        durable = db.execute(
+            text(
+                """SELECT b.source_id,b.stream_id,b.gateway_id,b.capture_generation,
+                b.clock_epoch AS epoch,b.reversal_seq AS cutoff
+                FROM analog_history_clock_state b
+                JOIN source_streams s USING(source_id,stream_id)
+                WHERE """
+                + where
+                + " AND b.reversal_seq IS NOT NULL"
+            ),
+            params,
+        ).mappings()
+        for row in durable:
+            key = (
+                row["source_id"],
+                row["stream_id"],
+                row["gateway_id"],
+                int(row["capture_generation"]),
+                row["epoch"],
+            )
+            cutoff = int(row["cutoff"])
+            cutoffs[key] = min(cutoffs.get(key, cutoff), cutoff)
+    return cutoffs
 
 
 def load_report_evidence(db, line_id, start, end, *, scope=None, execution_id=None, reversals=None):

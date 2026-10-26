@@ -40,10 +40,12 @@ from apps.api.database import (
 )
 from apps.api.ingest_retention import (
     IngestRetentionExpired,
+    latest_capture_table,
     maybe_prune_ingest,
+    reject_legacy_retention_setting,
     retention_available,
-    retention_days_from_env,
-    validate_retention_days,
+    retention_hours_from_env,
+    validate_retention_hours,
 )
 from apps.api.ingestion import (
     IngestConflict,
@@ -199,10 +201,11 @@ class InternalConfig:
     allow_insecure_loopback: bool = False
     max_body_bytes: int = 4 * 1024 * 1024
     clock: Callable[[], datetime] = lambda: datetime.now(UTC)
-    ingest_retention_days: int = field(default_factory=retention_days_from_env)
+    ingest_retention_hours: int = field(default_factory=retention_hours_from_env)
 
     def __post_init__(self) -> None:
-        validate_retention_days(self.ingest_retention_days)
+        reject_legacy_retention_setting()
+        validate_retention_hours(self.ingest_retention_hours)
         if type(self.max_body_bytes) is not int or not 1 <= self.max_body_bytes <= 4 * 1024 * 1024:
             raise ValueError("internal request bound must be within 1..4194304 bytes")
         if type(self.allow_insecure_loopback) is not bool:
@@ -513,7 +516,7 @@ def create_internal_app(
                 if source is None:
                     raise SourceBindingError("Configured source binding is unavailable")
                 retained = retention_available(connection)
-                table = "ingest_receipts" if retained else "ingest_batches"
+                table = latest_capture_table(connection)
                 fields = (
                     "captured_at,clock_epoch,monotonic_seconds,utc_read_span_seconds"
                     if retained
@@ -622,7 +625,7 @@ def create_internal_app(
             now=request.state.clock_received_at,
         )
         await run_in_threadpool(
-            maybe_prune_ingest, ingestion_service.engine, config.ingest_retention_days
+            maybe_prune_ingest, ingestion_service.engine, config.ingest_retention_hours
         )
         return JSONResponse(ack.model_dump(mode="json"))
 

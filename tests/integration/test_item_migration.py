@@ -7,6 +7,7 @@ from pathlib import Path
 import httpx
 import pytest
 from alembic import command
+from alembic.script import ScriptDirectory
 from psycopg import sql
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
@@ -38,7 +39,9 @@ from tests.integration.test_work_orders import AT, order, recipe
 from tests.integration.test_work_orders_http import ORDER, ORIGIN, RECIPE, account, protection
 
 ROOT = Path(__file__).resolve().parents[2]
+# Frozen item migration and renderer cases intentionally target schema21.
 HEAD = "0021_item_master"
+CURRENT_HEAD = ScriptDirectory.from_config(migration_config()).get_current_head()
 
 
 @pytest.fixture
@@ -221,13 +224,17 @@ def test_new_item_without_recipe_also_refuses_lossy_downgrade(migrated):
     with pytest.raises(DBAPIError, match="restore a backup"), migrated.connect() as db:
         command.downgrade(migration_config(db), "0020_line_queue")
     with migrated.connect() as db:
-        assert db.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == HEAD
+        assert (
+            db.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == CURRENT_HEAD
+        )
         assert db.execute(text("SELECT count(*) FROM item_master")).scalar_one() == 1
         assert db.execute(text("SELECT count(*) FROM item_audit")).scalar_one() == 1
 
 
 def test_queue_updates_continue_on_new_item_head(state):
     with state.engine.connect() as db:
-        assert db.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == HEAD
+        assert (
+            db.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == CURRENT_HEAD
+        )
     receipt = update(state, definition(enabled=False))
     assert update(state, definition(enabled=False)) == receipt

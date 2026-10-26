@@ -22,6 +22,7 @@ CLOCK_EVIDENCE_REVISIONS = frozenset(
         "0020_line_queue",
         "0021_item_master",
         "0022_ingest_retention",
+        "0023_ingest_compaction",
     }
 )
 NORMALIZATION_VERSION = "api-interval-midpoint-v1"
@@ -48,13 +49,31 @@ def clock_evidence_available(connection):
     return schema_revision(connection) in CLOCK_EVIDENCE_REVISIONS
 
 
-def capture_frontier_table(connection):
-    """Permanent identity history supplies frontiers after original batches expire."""
-    return (
-        "ingest_receipts"
-        if schema_revision(connection) == "0022_ingest_retention"
-        else "ingest_batches"
-    )
+def capture_frontier_table(connection, *, alias="capture_history"):
+    """Retained receipts and compact endpoints preserve sequence chronology.
+
+    Compacted ranges are contiguous accepted sequences. A newly admitted capture
+    can only fall outside them, so each epoch's two endpoints are sufficient for
+    both nearest-neighbor probes. Internal reversals remain in the durable clock
+    state. UNION removes endpoints also represented by an FK-retained receipt.
+    """
+    revision = schema_revision(connection)
+    if revision == "0023_ingest_compaction":
+        return f"""(SELECT gateway_id,source_id,stream_id,capture_generation,capture_seq,
+            captured_at,clock_epoch,monotonic_seconds FROM ingest_receipts
+        UNION SELECT r.gateway_id,r.source_id,r.stream_id,r.capture_generation,
+            (point->>'capture_seq')::numeric,(point->>'captured_at')::timestamptz,
+            epoch.key,(point->>'monotonic_seconds')::double precision
+            FROM ingest_retention_ranges r
+            CROSS JOIN LATERAL jsonb_each(r.clock_frontiers) epoch
+            CROSS JOIN LATERAL (VALUES(epoch.value->'first'),(epoch.value->'last')) p(point)
+        UNION SELECT r.gateway_id,r.source_id,r.stream_id,r.capture_generation,
+            (r.latest_capture->>'capture_seq')::numeric,
+            (r.latest_capture->>'captured_at')::timestamptz,
+            r.latest_capture->>'clock_epoch',
+            (r.latest_capture->>'monotonic_seconds')::double precision
+            FROM ingest_retention_ranges r WHERE r.latest_capture IS NOT NULL) AS {alias}"""
+    return "ingest_receipts" if revision == "0022_ingest_retention" else "ingest_batches"
 
 
 @dataclass(frozen=True)
@@ -417,7 +436,8 @@ def _fence_expired_reversal_minutes(connection, body, epoch, cutoff):
     rather than letting an incomplete history replace UNKNOWN with GOOD. Aggregate
     rows and the permanent reversal state are retained.
     """
-    if capture_frontier_table(connection) != "ingest_receipts":
+    revision = schema_revision(connection)
+    if revision not in {"0022_ingest_retention", "0023_ingest_compaction"}:
         return
     binding = dict(
         source=body.source_id,
@@ -427,11 +447,20 @@ def _fence_expired_reversal_minutes(connection, body, epoch, cutoff):
         epoch=epoch,
         cutoff=cutoff,
     )
+    compact = ""
+    if revision == "0023_ingest_compaction":
+        compact = """ OR EXISTS(SELECT 1 FROM ingest_retention_ranges
+        WHERE source_id=:source AND stream_id=:stream AND gateway_id=:gateway
+          AND capture_generation=:generation AND :epoch=ANY(clock_epochs)
+          AND through_capture_seq>=:cutoff)"""
     expired = connection.execute(
-        sa.text("""SELECT EXISTS(SELECT 1 FROM ingest_receipts
+        sa.text(
+            """SELECT EXISTS(SELECT 1 FROM ingest_receipts
         WHERE source_id=:source AND stream_id=:stream AND gateway_id=:gateway
           AND capture_generation=:generation AND clock_epoch=:epoch
-          AND capture_seq>=:cutoff AND expired_at IS NOT NULL)"""),
+          AND capture_seq>=:cutoff AND expired_at IS NOT NULL)"""
+            + compact
+        ),
         binding,
     ).scalar_one()
     if not expired:
@@ -561,7 +590,7 @@ def capture_clock_valid(connection, body, epoch):
     )
     reversal = int(state["reversal_seq"]) if state and state["reversal_seq"] is not None else None
     history = capture_frontier_table(connection)
-    if history == "ingest_receipts":
+    if history != "ingest_batches":
         captured_at = "captured_at"
         monotonic_seconds = "monotonic_seconds"
         clock_epoch = "clock_epoch"

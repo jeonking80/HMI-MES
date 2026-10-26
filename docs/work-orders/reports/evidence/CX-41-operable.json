@@ -1,0 +1,36 @@
+{
+  "completed_at": "2026-10-26T04:44:58.796866+00:00",
+  "execution_id": "9139cd36-c85f-4e1e-841c-7ba869f42c99",
+  "physics": "default 100ms ticker; no overrides",
+  "scope": "local live CLI acceptance; not public deployment",
+  "settlement": "SETTLED",
+  "simulator_final_summary": {
+    "schema_version": "1.0",
+    "source_id": "9c357c67-69ed-458f-bf9b-feebdb3f8889",
+    "stream_id": "4fa5bcf5-f8b7-474a-9efa-604e2903107d",
+    "execution_id": "9139cd36-c85f-4e1e-841c-7ba869f42c99",
+    "state": "ENDED",
+    "as_of": "2026-10-26T04:44:56.865879Z",
+    "counter_epoch": "ebb676ec-bfa4-4849-8b09-4eb6a68bcc11",
+    "recipe_version": "live-recipe-v1",
+    "parameters": {
+      "temperature_c": 150.0,
+      "speed_m_per_min": 10.0
+    },
+    "input_quantity": "7",
+    "good_quantity": "5",
+    "reject_quantity": "2",
+    "scrap_quantity": "0",
+    "wip_quantity": 0,
+    "last_event_seq": "14",
+    "final": true,
+    "ended_at": "2026-10-26T04:44:56.865879Z",
+    "end_reason": "OPERATOR"
+  },
+  "totals": {
+    "good_quantity": "5",
+    "reject_quantity": "2",
+    "scrap_quantity": "0"
+  },
+  "transport": "polling"
+}

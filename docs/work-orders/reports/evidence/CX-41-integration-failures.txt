@@ -1,0 +1,36 @@
+E       RuntimeError: Compacted ingest identities cannot be losslessly downgraded
+
+=========================== short test summary info ============================
+FAILED tests/integration/test_alarm_consumer.py::test_empty_0011_downgrade_and_used_state_refusal
+FAILED tests/integration/test_alarm_consumer.py::test_empty_0011_migration_replay
+FAILED tests/integration/test_alarm_coordinator.py::test_every_new_mutation_refuses_old_schema_before_writing[start]
+FAILED tests/integration/test_alarm_coordinator.py::test_every_new_mutation_refuses_old_schema_before_writing[consume]
+FAILED tests/integration/test_alarm_coordinator.py::test_every_new_mutation_refuses_old_schema_before_writing[invalidate]
+FAILED tests/integration/test_alarm_coordinator.py::test_actual_start_wins_shared_schema_lock_and_used_downgrade_then_refuses
+FAILED tests/integration/test_alarm_coordinator.py::test_empty_downgrade_wins_and_actual_new_start_refuses_after_waiting_schema
+FAILED tests/integration/test_alarm_line_scope.py::test_used_line_extension_refuses_downgrade_and_asset_override
+FAILED tests/integration/test_alarm_runtime.py::test_runtime_source_mismatch_and_old_head_fail_without_activation
+FAILED tests/integration/test_alarm_store.py::test_notes_revision_config_close_and_permissions
+FAILED tests/integration/test_alarm_store.py::test_empty_migration_downgrade_upgrade
+FAILED tests/integration/test_analytics_query_performance.py::test_legacy_projection_keeps_nonempty_nonreport_samples
+FAILED tests/integration/test_capture_clock.py::test_used_evidence_blocks_lossy_downgrade
+FAILED tests/integration/test_commands.py::test_migration_downgrade_removes_only_command_tables
+FAILED tests/integration/test_commands.py::test_dispatch_migration_downgrade_refuses_to_delete_new_evidence
+FAILED tests/integration/test_downtime.py::test_concurrent_replay_atomic_failure_immutability_and_migration
+FAILED tests/integration/test_item_migration.py::test_new_item_without_recipe_also_refuses_lossy_downgrade
+FAILED tests/integration/test_line_queue_migration.py::test_used_queue_refuses_downgrade_without_losing_intent_or_receipts
+FAILED tests/integration/test_line_queue_migration.py::test_old_dispatch_schema_has_no_queue_side_effects[0005_command_dispatch]
+FAILED tests/integration/test_line_queue_migration.py::test_old_dispatch_schema_has_no_queue_side_effects[0006_settlement]
+FAILED tests/integration/test_line_queue_migration.py::test_old_dispatch_schema_has_no_queue_side_effects[0007_execution_plan]
+FAILED tests/integration/test_settlement.py::test_migration_roundtrip_preserves_original_ingestion_and_commands
+FAILED tests/integration/test_trend_history.py::test_clock_registry_rebuild_preserves_immutable_reversal[utc-False]
+FAILED tests/integration/test_trend_history.py::test_clock_registry_rebuild_preserves_immutable_reversal[utc-True]
+FAILED tests/integration/test_trend_history.py::test_clock_registry_rebuild_preserves_immutable_reversal[monotonic-False]
+FAILED tests/integration/test_trend_history.py::test_clock_registry_rebuild_preserves_immutable_reversal[monotonic-True]
+ERROR tests/integration/test_registration_ids.py::test_head18_manual_registration_stays_compatible_and_auto_requires_head19[legacy20]
+ERROR tests/integration/test_work_order_cancel.py::test_used_downgrade_refuses_and_unused_roundtrip_preserves_original_definitions[legacy17]
+ERROR tests/integration/test_work_order_workflow.py::test_used_workflow_downgrade_refuses_and_preserves_receipt[legacy17]
+ERROR tests/integration/test_work_order_workflow.py::test_unused_workflow_downgrade_and_upgrade_preserve_original_draft_definitions[legacy17]
+ERROR tests/integration/test_work_orders.py::test_historical_0008_still_rejects_released_state[legacy20]
+ERROR tests/integration/test_work_orders.py::test_migration_roundtrip_preserves_legacy_execution_and_plan[legacy20]
+26 failed, 1844 passed, 2 warnings, 6 errors in 1950.63s (0:32:30)

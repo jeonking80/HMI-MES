@@ -1,4 +1,4 @@
-"""Retirement preserves business evidence and exact permanent capture identities."""
+"""Retirement preserves business evidence and exact compacted capture identities."""
 
 import hashlib
 import json
@@ -217,7 +217,7 @@ def test_explicit_one_day_retention_and_within_period_ack(observation_service):
     fresh = batch(capture_seq=2)
     submit(service, old, now - timedelta(days=2))
     original_ack = submit(service, fresh, now - timedelta(hours=12))
-    assert maybe_prune_ingest(service.engine, retention_days=1)["deleted_count"] == 1
+    assert maybe_prune_ingest(service.engine, retention_hours=24)["deleted_count"] == 1
     assert submit(service, fresh) == original_ack
     with pytest.raises(IngestRetentionExpired):
         submit(service, old)
@@ -582,7 +582,7 @@ def test_accelerated_days_keep_seven_raw_sets_and_quantify_permanent_proofs(
             (SELECT count(*) FROM ingest_receipts) AS receipts,
             (SELECT count(*) FROM ingest_receipts WHERE expired_at IS NOT NULL) AS expired,
             pg_total_relation_size('ingest_batches') AS raw_bytes,
-            pg_total_relation_size('ingest_receipts') AS permanent_receipt_bytes,
+            pg_total_relation_size('ingest_receipts') AS receipt_bytes,
             pg_total_relation_size('ingest_retention_ranges') AS range_bytes""")
             )
             .mappings()
@@ -590,8 +590,8 @@ def test_accelerated_days_keep_seven_raw_sets_and_quantify_permanent_proofs(
         )
         statistics.append(dict(counts))
     assert counts["raw"] == 7 * per_day
-    assert counts["receipts"] == day_count * per_day
-    assert counts["expired"] == (day_count - 7) * per_day
+    assert counts["receipts"] == 7 * per_day
+    assert counts["expired"] == 0
     assert (
         sum(
             r["deleted_count"]
@@ -602,5 +602,5 @@ def test_accelerated_days_keep_seven_raw_sets_and_quantify_permanent_proofs(
         )
         == (day_count - 7) * per_day
     )
-    assert counts["permanent_receipt_bytes"] > 0
+    assert counts["receipt_bytes"] > 0
     record_property("accelerated_1000_captures_per_day_storage", json.dumps(statistics))
