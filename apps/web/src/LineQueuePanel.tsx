@@ -31,6 +31,30 @@ async function putQueue(path: string, csrf: string, body: object): Promise<unkno
   return response.json()
 }
 
+const waits: Record<string, string> = {
+  ORIGINAL_LOAD_PENDING: '앞 작업의 작업 불러오기 결과를 기다리는 중입니다.',
+  PRIOR_EXECUTION_REQUIRED: '첫 작업은 직접 실행 연결해 주세요. 그 작업이 정산되면 다음 작업부터 자동으로 연결합니다.',
+  PRIOR_EXECUTION_SETTLEMENT_PENDING: '앞 작업의 실적 정산을 기다리는 중입니다.',
+  FRESH_SOURCE_REQUIRED: '설비의 최신 값을 기다리는 중입니다.',
+}
+const blocks: Record<string, string> = {
+  ORIGINAL_LOAD_REQUIRES_HUMAN: '앞 작업의 작업 불러오기가 실패했거나 결과가 불명입니다',
+  PRIOR_EXECUTION_NOT_SETTLED: '앞 작업의 정산이 일치하지 않았습니다',
+  PHYSICAL_EXECUTION_MISMATCH: '설비에 올라간 작업이 서버 기록과 다릅니다',
+  QUEUE_HEAD_CHANGED: '맨 앞 작업지시가 그사이 바뀌었습니다',
+  SOURCE_CONFIGURATION_CHANGED: '수집원 설정이 바뀌었습니다',
+  PRIOR_EXECUTION_SCOPE_CHANGED: '앞 작업의 라인·수집원이 바뀌었습니다',
+  ENABLER_PERMISSION_REVOKED: '자동 연결을 켠 계정의 권한이 없어졌습니다',
+  BINDING_REQUIRES_HUMAN: '자동 실행 연결이 거절되었습니다',
+}
+
+/** A wait clears by itself; a block keeps the queue stopped until a person re-enables it. */
+function queueNotice(reason: string): { wait: boolean; text: string } {
+  if (reason in waits) return { wait: true, text: waits[reason] }
+  if (reason.startsWith('LOAD_CONDITION_NOT_MET:')) return { wait: true, text: `라인이 다음 작업을 불러올 조건(${reason.slice('LOAD_CONDITION_NOT_MET:'.length)})을 기다리는 중입니다.` }
+  return { wait: false, text: blocks[reason] ?? reason }
+}
+
 /** CX-36 line queue: released orders wait in order and the server binds the next one after settlement. */
 export default function LineQueuePanel({ session, orders, onSessionInvalid }: { session: Session; orders: readonly WorkOrder[]; onSessionInvalid: () => void }) {
   const canWrite = session.roles.includes('production_manager') && !session.must_change_password
@@ -92,7 +116,7 @@ export default function LineQueuePanel({ session, orders, onSessionInvalid }: { 
     <div className="mes-card-heading"><div><h3 id="line-queue-heading">작업 대기열</h3><p>배포된 작업지시를 순서대로 세워 두면, 앞 작업이 끝나 정산되는 대로 서버가 다음 작업을 라인에 연결합니다.</p></div><button className="button secondary" type="button" onClick={reload}>새로 조회</button></div>
     {!queue ? <p role="status">{message || '대기열을 조회하고 있습니다.'}</p> : <>
       <label className="check"><input id="line-queue-auto" type="checkbox" checked={auto} disabled={!canWrite} onChange={event => setAutoAdvance(event.target.checked)} /> 앞 작업이 정산되면 다음 작업을 자동으로 연결</label>
-      {queue.blocked_reason && <p className="message caution">자동 연결이 멈춰 있습니다: {queue.blocked_reason}. 원인을 확인한 뒤 다시 켜 주세요.</p>}
+      {queue.blocked_reason && (() => { const notice = queueNotice(queue.blocked_reason); return notice.wait ? <p id="line-queue-wait" className="form-help" role="status">{notice.text}</p> : <p id="line-queue-blocked" className="message caution">자동 연결이 멈춰 있습니다: {notice.text}. 원인을 확인한 뒤 다시 켜 주세요.</p> })()}
       {list.length === 0 ? <p className="mes-empty">대기 중인 작업이 없습니다.</p> : <ol id="line-queue-list" className="queue-list">{list.map((id, index) => <li key={id}><span>{index + 1}. {id}</span>{canWrite && <span className="queue-actions"><button type="button" className="button secondary" disabled={index === 0} onClick={() => move(index, -1)} aria-label={`${id} 위로`}>▲</button><button type="button" className="button secondary" disabled={index === list.length - 1} onClick={() => move(index, 1)} aria-label={`${id} 아래로`}>▼</button><button type="button" className="button secondary" onClick={() => setDraft(list.filter(item => item !== id))}>빼기</button></span>}</li>)}</ol>}
       {canWrite && candidates.length > 0 && <div className="queue-add"><span>배포된 작업지시 추가:</span>{candidates.map(order => <button key={order.id} type="button" className="button secondary" onClick={() => setDraft([...list, order.id])}>+ {order.id}</button>)}</div>}
       {canWrite && <div className="tracker-actions"><button id="line-queue-save" type="button" className="button primary" disabled={!changed || saving} onClick={() => void save()}>{saving ? '저장 중…' : '대기열 저장'}</button>{changed && <button type="button" className="button secondary" onClick={() => { setDraft(null); setAutoAdvance(null) }}>변경 취소</button>}</div>}

@@ -1028,7 +1028,6 @@ async def exercise_extended(
             "PLC did not load the queued order",
         )
         e3 = snap["state"]["execution_id"]
-        await page.reload()
         await monitoring()
         await wait_json(
             sim_snapshot, lambda s: s["state"]["state"] == "READY", 60, "No READY for queue-1"
