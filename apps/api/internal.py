@@ -21,6 +21,7 @@ from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter, ValidationError
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
+from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 
 from apps.api.alarm_lifecycle import AlarmConflict
@@ -41,10 +42,10 @@ from apps.api.database import (
 from apps.api.ingest_retention import (
     IngestRetentionExpired,
     latest_capture_table,
-    maybe_prune_ingest,
     reject_legacy_retention_setting,
     retention_available,
     retention_hours_from_env,
+    schedule_ingest_maintenance,
     validate_retention_hours,
 )
 from apps.api.ingestion import (
@@ -624,10 +625,14 @@ def create_internal_app(
             authenticated_key_id=binding.key_id,
             now=request.state.clock_received_at,
         )
-        await run_in_threadpool(
-            maybe_prune_ingest, ingestion_service.engine, config.ingest_retention_hours
+        return JSONResponse(
+            ack.model_dump(mode="json"),
+            background=BackgroundTask(
+                schedule_ingest_maintenance,
+                ingestion_service.engine,
+                config.ingest_retention_hours,
+            ),
         )
-        return JSONResponse(ack.model_dump(mode="json"))
 
     mount_settlement_routes(app, ingestion_service.engine, authenticate, now)
     return app

@@ -17,7 +17,7 @@ import sqlalchemy as sa
 from pydantic import TypeAdapter
 from sqlalchemy.dialects.postgresql import JSONB
 
-from apps.api.capture_clock import CLOCK_EVIDENCE_REVISIONS
+from apps.api.capture_clock import CLOCK_EVIDENCE_REVISIONS, schema_revision
 from apps.api.database import SCHEMA_LOCK_ID, SUPPORTED_INGESTION_REVISIONS
 from apps.api.ingest_retention import check_retention_expired
 from apps.api.models import Asset, Line
@@ -352,18 +352,12 @@ class IngestionService:
                 sa.text("SELECT pg_advisory_xact_lock_shared(:key)"), {"key": SCHEMA_LOCK_ID}
             )
             try:
-                revisions = (
-                    connection.execute(
-                        sa.text(
-                            "SELECT version_num FROM alembic_version",
-                        )
-                    )
-                    .scalars()
-                    .all()
-                )
+                revision = schema_revision(connection)
+            except (sa.exc.NoResultFound, sa.exc.MultipleResultsFound) as error:
+                raise IngestionUnavailable("Unsupported ingestion schema revision") from error
             except sa.exc.SQLAlchemyError as error:
                 raise IngestionUnavailable("Ingestion migration must be applied") from error
-            if len(revisions) != 1 or revisions[0] not in SUPPORTED_INGESTION_REVISIONS:
+            if revision not in SUPPORTED_INGESTION_REVISIONS:
                 raise IngestionUnavailable("Unsupported ingestion schema revision")
             yield connection
 
@@ -993,9 +987,7 @@ class IngestionService:
             if isinstance(collision, DurableAck):
                 # The original body hash remains wire-compatible. The separate
                 # envelope binding also prevents changing measurement proof on retry.
-                revision = connection.execute(
-                    sa.text("SELECT version_num FROM alembic_version")
-                ).scalar_one()
+                revision = schema_revision(connection)
                 original_input = None
                 if revision in CLOCK_EVIDENCE_REVISIONS:
                     original_clock = (
@@ -1141,6 +1133,7 @@ class IngestionService:
                     batch_digest=batch.content_sha256,
                     measured=measured,
                     input_evidence_sha256=gateway_batch_digest(batch),
+                    newly_inserted=True,
                 )
                 if self.alarm_consumer is not None:
                     self.alarm_consumer.consume(connection, body, source=source, now=now)

@@ -1,0 +1,9 @@
+{
+  "product_commit": "f9926d0aa0e09f85d90e2a06ff6337f7d5de9251",
+  "outcome": "fixture_failed_before_preload",
+  "failure_class": "ValidationError",
+  "reason": "UTC read bracket must start at a nonnegative monotonic coordinate",
+  "ingest_calls": 0,
+  "pytest_seconds": 8.85,
+  "counts_as_performance_measurement": false
+}

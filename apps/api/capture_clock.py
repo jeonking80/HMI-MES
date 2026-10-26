@@ -23,6 +23,7 @@ CLOCK_EVIDENCE_REVISIONS = frozenset(
         "0021_item_master",
         "0022_ingest_retention",
         "0023_ingest_compaction",
+        "0024_ingest_retired_segments",
     }
 )
 NORMALIZATION_VERSION = "api-interval-midpoint-v1"
@@ -49,25 +50,27 @@ def clock_evidence_available(connection):
     return schema_revision(connection) in CLOCK_EVIDENCE_REVISIONS
 
 
-def capture_frontier_table(connection, *, alias="capture_history"):
+def capture_frontier_table(connection, *, alias="capture_history", deduplicate=True):
     """Retained receipts and compact endpoints preserve sequence chronology.
 
     Compacted ranges are contiguous accepted sequences. A newly admitted capture
     can only fall outside them, so each epoch's two endpoints are sufficient for
     both nearest-neighbor probes. Internal reversals remain in the durable clock
-    state. UNION removes endpoints also represented by an FK-retained receipt.
+    state. Nearest-neighbor probes may retain identical repeated endpoints to
+    avoid sorting/deduplicating the full retained history on every capture.
     """
     revision = schema_revision(connection)
-    if revision == "0023_ingest_compaction":
+    if revision in {"0023_ingest_compaction", "0024_ingest_retired_segments"}:
+        union = "UNION" if deduplicate else "UNION ALL"
         return f"""(SELECT gateway_id,source_id,stream_id,capture_generation,capture_seq,
             captured_at,clock_epoch,monotonic_seconds FROM ingest_receipts
-        UNION SELECT r.gateway_id,r.source_id,r.stream_id,r.capture_generation,
+        {union} SELECT r.gateway_id,r.source_id,r.stream_id,r.capture_generation,
             (point->>'capture_seq')::numeric,(point->>'captured_at')::timestamptz,
             epoch.key,(point->>'monotonic_seconds')::double precision
             FROM ingest_retention_ranges r
             CROSS JOIN LATERAL jsonb_each(r.clock_frontiers) epoch
             CROSS JOIN LATERAL (VALUES(epoch.value->'first'),(epoch.value->'last')) p(point)
-        UNION SELECT r.gateway_id,r.source_id,r.stream_id,r.capture_generation,
+        {union} SELECT r.gateway_id,r.source_id,r.stream_id,r.capture_generation,
             (r.latest_capture->>'capture_seq')::numeric,
             (r.latest_capture->>'captured_at')::timestamptz,
             r.latest_capture->>'clock_epoch',
@@ -288,6 +291,7 @@ def record_capture_clock(
     source=None,
     measured=None,
     input_evidence_sha256=None,
+    newly_inserted=False,
 ):
     """Persist one capture-specific decision in the intake transaction, on schema18.
 
@@ -320,7 +324,12 @@ def record_capture_clock(
         int(source["capture_generation"]),
     ) != (body.source_id, body.stream_id, body.gateway_id, body.capture_generation):
         raise ValueError("capture clock source binding does not match registration")
-    existing = read_capture_clock(connection, body.gateway_id, body.batch_id)
+    # The intake caller has just inserted the immutable parent under its identity
+    # locks. An evidence row cannot predate that parent (FK), and the insert PK
+    # rejects a replay. Other callers retain the full immutable evidence check.
+    existing = (
+        None if newly_inserted else read_capture_clock(connection, body.gateway_id, body.batch_id)
+    )
     if existing is not None:
         if (
             existing.batch_sha256 != digest
@@ -437,7 +446,11 @@ def _fence_expired_reversal_minutes(connection, body, epoch, cutoff):
     rows and the permanent reversal state are retained.
     """
     revision = schema_revision(connection)
-    if revision not in {"0022_ingest_retention", "0023_ingest_compaction"}:
+    if revision not in {
+        "0022_ingest_retention",
+        "0023_ingest_compaction",
+        "0024_ingest_retired_segments",
+    }:
         return
     binding = dict(
         source=body.source_id,
@@ -448,7 +461,7 @@ def _fence_expired_reversal_minutes(connection, body, epoch, cutoff):
         cutoff=cutoff,
     )
     compact = ""
-    if revision == "0023_ingest_compaction":
+    if revision in {"0023_ingest_compaction", "0024_ingest_retired_segments"}:
         compact = """ OR EXISTS(SELECT 1 FROM ingest_retention_ranges
         WHERE source_id=:source AND stream_id=:stream AND gateway_id=:gateway
           AND capture_generation=:generation AND :epoch=ANY(clock_epochs)
@@ -620,6 +633,7 @@ def capture_clock_valid(connection, body, epoch):
     # The immutable intake includes digital-only and expired analog captures.
     # Those captures still constrain the clock, even without retained trend rows.
     # The gateway/generation/sequence unique index supports both neighbor probes.
+    history = capture_frontier_table(connection, deduplicate=False)
     neighbors = connection.execute(
         sa.text(f"""(SELECT capture_seq,{captured_at},{monotonic_seconds}
         FROM {history} WHERE source_id=:source_id AND stream_id=:stream_id
