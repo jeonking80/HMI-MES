@@ -1,0 +1,97 @@
+{
+  "measured_at": "2026-10-26T10:24:34.646678+00:00",
+  "method": "GET only, sequential 3 samples per path; no session or workload generated",
+  "db_measurement": {
+    "status": "BLOCKED",
+    "reason": "HMI_DATABASE_DSN and HMI_MIGRATION_DSN absent in process; configured credential state unknown; no DB connection attempted"
+  },
+  "samples": [
+    {
+      "path": "/",
+      "sample": 1,
+      "seconds": 0.518,
+      "status": 200,
+      "response": {
+        "bytes": 517
+      }
+    },
+    {
+      "path": "/",
+      "sample": 2,
+      "seconds": 0.55,
+      "status": 200,
+      "response": {
+        "bytes": 517
+      }
+    },
+    {
+      "path": "/",
+      "sample": 3,
+      "seconds": 0.548,
+      "status": 200,
+      "response": {
+        "bytes": 517
+      }
+    },
+    {
+      "path": "/api/ready",
+      "sample": 1,
+      "seconds": 0.667,
+      "status": 200,
+      "response": {
+        "ready": true
+      }
+    },
+    {
+      "path": "/api/ready",
+      "sample": 2,
+      "seconds": 0.691,
+      "status": 200,
+      "response": {
+        "ready": true
+      }
+    },
+    {
+      "path": "/api/ready",
+      "sample": 3,
+      "seconds": 0.888,
+      "status": 200,
+      "response": {
+        "ready": true
+      }
+    },
+    {
+      "path": "/auth/config",
+      "sample": 1,
+      "seconds": 0.421,
+      "status": 200,
+      "response": {
+        "guest_viewer": true,
+        "assistant": true,
+        "analytics": true
+      }
+    },
+    {
+      "path": "/auth/config",
+      "sample": 2,
+      "seconds": 0.376,
+      "status": 200,
+      "response": {
+        "guest_viewer": true,
+        "assistant": true,
+        "analytics": true
+      }
+    },
+    {
+      "path": "/auth/config",
+      "sample": 3,
+      "seconds": 0.42,
+      "status": 200,
+      "response": {
+        "guest_viewer": true,
+        "assistant": true,
+        "analytics": true
+      }
+    }
+  ]
+}
