@@ -1,5 +1,13 @@
 # DB·설정·인증 설계 (DEV-04a)
 
+## 19차 현행 기준 (2026-10-26)
+
+19차 사용자 승인으로 수집 원본 보관은 `HMI_INGEST_RETENTION_HOURS` 기본 168시간·최소 3시간을 사용한다. 3 미만·비숫자는 시작을 거절하고, 구 설정 `HMI_INGEST_RETENTION_DAYS`는 단독·동시·빈 값 모두 거절한다. 현재 runtime 자동 정리는 schema 0023·0024에서 실행하며 schema 0022의 보관 종료 조회·재전송 거절은 호환 지원한다. 아래 18차/CX-40의 일 단위·영구 개별 영수증 설명은 당시 이력이며 이 현행 기준으로 대체된다. 변경 이유와 영향은 [INGEST_RETENTION.md](INGEST_RETENTION.md)를 따른다.
+
+만료된 비참조 영수증은 실제 FK 목록을 검사한 뒤 최대 256개 정확 batch ID 청크(`ingest_retired_batch_chunks`, GIN)와 연속 capture 범위로 압축한다. 임의 batch ID 재사용을 정확히 판별하는 저장 바이트는 여전히 O(captures)다. 실제 FK 참조 영수증은 개별 보존한다. 현재 알람 판단은 매 capture마다 FK를 남기므로 그 경로에서는 사건 수에 비례하는 영수증 수를 달성할 수 없다. 사용자의 **기존 참조 보존·한계 보고** 결정에 따라 알람 판단·FK를 유지한다.
+
+범위의 epoch별 clock endpoint와 `latest_capture`, 영속 최초 역행 registry를 함께 백업·복원한다. runtime에 임의 삭제 권한을 추가하지 않고 제한된 정리 함수가 원본 삭제·압축·누적 해시 보존을 같은 트랜잭션으로 처리한다. 0023 추가 이관 자체는 기존 자료를 삭제하지 않는다. 공개 이관·환경변수 변경·배포는 Claude 담당이며 이 작업은 공개 DB를 읽기 전용 범위로만 다룬다.
+
 상태: **설계 산출물**. 이 문서는 마이그레이션, 인증 코드, 실행 구성 또는 DB 시험의 구현·통과를 뜻하지 않는다. 기준 정보 migration·bootstrap과 25개 실제 PostgreSQL 시험은 [DEV-04b 결과](DATABASE_BOOTSTRAP.md)에 기록한다. 나머지 업무 DB·인증·경합 검증은 후속 작업이다. 기준은 [기획서 §03~14](../HMI_MES_시스템_기획서_v1_0.md), [개발계획서 §4~6·10](../HMI_MES_개발계획서_v1_0.md), [태그 계약](../../contracts/tags/README.md), [프로토콜 계약](../../contracts/PROTOCOL.md)이다. 아래 테이블·설정 이름은 구현 설계이며 OPC 메서드·사건의 필드와 상태 이름은 DEV-02 계약에 매핑한다. 내부 배치 ACK는 [v1 전송 계약](../../contracts/TRANSPORT.md)과 검증 모델을 따른다. 계약 검증 통과는 실제 수집·커밋·전송 구현을 의미하지 않는다.
 
 ## 1. 저장소 소유권과 자료형
@@ -147,10 +155,11 @@ simulator_operator는 앱 B의 별도 사용자·세션으로 콘솔 현장/원�
 | 9개 아날로그 1초 원시 표본 | 7일. 품질·원본 시각 포함, 집계 생성/검증 여부 확인 |
 | 1분 집계 | 90일. min/max/avg/last·valid/expected 수·누락·버전 포함 |
 | 운영 생산·알람·명령·감사 | 180일. 미완료 작업·미해결 명령/알람/누락·미확정 정산과 참조 근거는 보호 |
+| 서버 수집 원본·해당 clock proof/consumed probe | 현행 schema23은 기본168시간·최소3시간. 검증된 정산 완료 사건 배치 또는 안전한 관측 전용 배치만 제한 함수로 정리; 현행19차 정책과 INGEST_RETENTION 참조 |
 | simulator 원본 사건 | 7일. 현재 보관 시작/끝과 삭제된 순번 명시. 수집 ACK를 기다리는 무기한 보관으로 정책을 바꾸지 않음 |
 | 현재 상태·설정/적용 이력 | 활성 동안 유지. 사용 중 버전 삭제 금지 |
 
-보관 정리는 작은 배치로 수행하고 line/실행 상태를 잠금 아래 다시 검사한다. unresolved FK·커서·불명 구간 근거를 cascade 삭제하지 않는다. batch ACK, event ID/hash·source/stream/seq 중복 방지 tombstone, command ID/hash는 payload 정리와 분리한다. 최소한 가능한 재전송·복원 보관창 전체를 덮고, 명령 tombstone은 명시적 안전한 초기화 전까지 유지해 오래된 ID가 새 명령으로 재실행되지 않게 한다. 삭제한 payload의 재전송은 tombstone으로 중복 확인하며 다른 내용은 충돌이다.
+보관 정리는 작은 배치로 수행하고 line/실행 상태를 잠금 아래 다시 검사한다. unresolved FK·커서·불명 구간 근거를 cascade 삭제하지 않는다. batch ACK, event ID/hash·source/stream/seq 중복 방지 tombstone, command ID/hash는 payload 정리와 분리한다. 최소한 가능한 재전송·복원 보관창 전체를 덮고, 명령 tombstone은 명시적 안전한 초기화 전까지 유지해 오래된 ID가 새 명령으로 재실행되지 않게 한다. 생산 사건·명령의 중복 증거는 계속 보호한다. 서버 수집 원본이18차 정책으로 종료된 경우에는 작은 원래 식별 기록으로 재사용을 판별하되 ACK를 재생성하지 않고 RETENTION_EXPIRED로 거절한다.
 
 매일 PostgreSQL과 설정, 앱 B 영속 상태, gateway buffer를 **같은 backup_set_id**로 백업한다. 초기 구현은 세 저장소의 분산 live snapshot을 가정하지 않고 다음 정지 지점 절차를 사용한다.
 
@@ -170,3 +179,15 @@ simulator_operator는 앱 B의 별도 사용자·세션으로 콘솔 현장/원�
 - 30분/100MB 경계·원본 7일 경계·미해결 보호 삭제·별도 경로 전체 backup set 복원과 수량/시간 식을 검산한다. 7일 규모 태그 4개·24시간 조회 p95 3초, 30분 버퍼 5분 복구, 10명·8시간 성능은 M5의 실제 측정으로 남긴다. 설계 검토와 모의 fixture 성공으로 대체하지 않는다.
 
 이 문서가 정한 추가 선택은 UInt64 DB 표현, 세션/서비스 인증 분리, 보호용 tombstone, 정지 지점 backup set 방식이다. 기획서의 안전·정합성·보관·수락 목표를 완화하지 않으며 구현 시 계약 변경이 필요하면 원인·영향을 별도 기록한다.
+
+## 18차 승인 변경 이력 — 서버 원본 보관 종료
+
+변경 이유: 무료 DB에서 수집 원본·시간 proof를 무기한 저장할 수 없어 사용자가7일 보관 후 정리를 승인했다. HMI_INGEST_RETENTION_DAYS는 기본7, 최소1인 정수 일수다. 최소값도 gateway 원장2시간보다 길다. 공개 트렌드 원시1시간/분14일 프로필과 별도 정책이다.
+
+해당 사건의 실행이 저장된 SETTLED이고 사건 원문/APPLIED·최종 수량/경계/설정 이력·verified 커서·관련 gap/격리/미결 명령을 재검증한 배치만 지운다. 사건 없는 관측 배치는 보수적으로 source 전체 보호 조건을 확인한다. null execution 상태 사건을 관측 전용으로 속이지 않는다. PENDING/MISMATCH/CONFLICT·원인 미해결 자료는 기간만으로 지우지 않는다.
+
+삭제는 수집 커밋 후 별도 짧은 트랜잭션의 제한된 소유자 함수로만 수행한다. runtime에 raw/clock/compact 증거의 임의 DELETE/UPDATE 권한을 주지 않는다. 공개 스키마 이관은 자료를 지우지 않으며, 자동 정리는 병합·이관·grants·배포 이후에만 동작한다.
+
+원본 body/ACK·전체 시간 proof가 사라진 오래된 실행은 원본으로 다시 검증할 수 없다. event_inbox/production_events·실적·요약/정산·업무/알람/감사·분 집계는 이 정리로 삭제하지 않는다. 알람 FK는 원본 대신 영구한 작은 ingest_receipts의 동일 식별/hash에 연결한다. capture sequence와 임의 UUID의 정확한 재사용 판별을 위해 그 작은 식별 기록은 남으며 선형 증가한다. 연속 보관 종료 범위는 합치지만 전체 metadata가 고정 크기라는 뜻은 아니다.
+
+백업/복원에는 ingest_receipts·ingest_retention_ranges·scheduler와 clock 순서 registry도 포함해야 한다. 전체 pg_dump는 이 새 테이블을 포함한다. 원본이 이미 정리된 경우 이 증거를 빼고 복원하거나 보관 종료 기록을 정상 ACK로 복원하지 않는다. 상세 규칙·롤백·API 의미는 [INGEST_RETENTION.md](INGEST_RETENTION.md)를 따른다.

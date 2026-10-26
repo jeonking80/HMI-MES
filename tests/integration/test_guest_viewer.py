@@ -176,6 +176,7 @@ async def test_guest_actual_business_writes_are_forbidden(guest):
         expected_control_version=1,
     ).model_dump(mode="json")
     writes = [
+        ("/api/v1/items", {"id": "item", "name": "Item", "unit": "EA"}),
         ("/api/v1/commands", {**scope, "request": command}),
         (
             "/api/v1/work-orders",

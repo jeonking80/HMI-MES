@@ -198,3 +198,17 @@ input:disabled { background:#f1f4f7; }
 .command-progress { height:8px; margin-top:.6rem; border-radius:999px; background:#dfe7ef; overflow:hidden; }
 .command-progress span { display:block; height:100%; border-radius:999px; background:#2f7d5b; }
 .button.recommended { box-shadow:0 0 0 3px #f2b63c; }
+
+.binding-options { margin:.75rem 0; padding:.6rem .8rem; border:1px solid #d5dee8; border-radius:7px; background:#f7fafc; }
+.binding-options legend { font-size:.74rem; font-weight:700; color:#5b6d80; padding:0 .3rem; }
+.binding-options .check, #line-queue .check { display:flex; gap:.5rem; align-items:center; font-size:.82rem; margin:.3rem 0; }
+.check input[type=checkbox] { display:inline-block; width:1.05rem; height:1.05rem; min-height:0; margin:0; padding:0; flex:none; }
+.speed-adjust { margin-top:1rem; padding:.85rem 1rem; border:1px solid #d5dee8; border-radius:8px; }
+.speed-adjust h3 { margin:0; font-size:.9rem; }
+.speed-adjust-row { display:flex; gap:.5rem; align-items:center; }
+.speed-adjust-row input { max-width:9rem; }
+.queue-list { margin:.75rem 0; padding:0; list-style:none; display:grid; gap:.35rem; }
+.queue-list li { display:flex; justify-content:space-between; align-items:center; padding:.45rem .7rem; border:1px solid #d5dee8; border-radius:7px; font-size:.84rem; }
+.queue-actions { display:flex; gap:.25rem; }
+.queue-actions .button, .queue-add .button { min-height:32px; padding:.2rem .6rem; font-size:.74rem; }
+.queue-add { display:flex; flex-wrap:wrap; gap:.35rem; align-items:center; font-size:.8rem; margin:.5rem 0; }

@@ -17,7 +17,9 @@ import sqlalchemy as sa
 from pydantic import TypeAdapter
 from sqlalchemy.dialects.postgresql import JSONB
 
+from apps.api.capture_clock import CLOCK_EVIDENCE_REVISIONS, schema_revision
 from apps.api.database import SCHEMA_LOCK_ID, SUPPORTED_INGESTION_REVISIONS
+from apps.api.ingest_retention import check_retention_expired
 from apps.api.models import Asset, Line
 from contracts.models import (
     EVENT_ADAPTER,
@@ -25,6 +27,7 @@ from contracts.models import (
     Event,
     Identifier,
     Parameters,
+    ParametersChangedEvent,
     ProductionEvent,
     ScrapEvent,
     UInt64,
@@ -349,18 +352,12 @@ class IngestionService:
                 sa.text("SELECT pg_advisory_xact_lock_shared(:key)"), {"key": SCHEMA_LOCK_ID}
             )
             try:
-                revisions = (
-                    connection.execute(
-                        sa.text(
-                            "SELECT version_num FROM alembic_version",
-                        )
-                    )
-                    .scalars()
-                    .all()
-                )
+                revision = schema_revision(connection)
+            except (sa.exc.NoResultFound, sa.exc.MultipleResultsFound) as error:
+                raise IngestionUnavailable("Unsupported ingestion schema revision") from error
             except sa.exc.SQLAlchemyError as error:
                 raise IngestionUnavailable("Ingestion migration must be applied") from error
-            if len(revisions) != 1 or revisions[0] not in SUPPORTED_INGESTION_REVISIONS:
+            if revision not in SUPPORTED_INGESTION_REVISIONS:
                 raise IngestionUnavailable("Unsupported ingestion schema revision")
             yield connection
 
@@ -707,6 +704,21 @@ class IngestionService:
                 event.stream_id,
             ):
                 return "EXECUTION_STREAM_MISMATCH", "Original execution belongs to another stream"
+        if isinstance(event, ParametersChangedEvent):
+            from apps.api.parameter_history import validate_parameter_change
+
+            try:
+                validate_parameter_change(
+                    event, execution["parameters"], execution["recipe_version"]
+                )
+            except ValueError:
+                return (
+                    "EXECUTION_CONFIGURATION_MISMATCH",
+                    "Parameter change differs from original execution",
+                )
+            # Parameter evidence is durable in event_inbox only: the legacy equipment
+            # projection accepts state/fault kinds and production totals stay unchanged.
+            return None
         if isinstance(event, (ProductionEvent, ScrapEvent)):
             if event.payload.counter_epoch != execution["counter_epoch"]:
                 return (
@@ -964,22 +976,20 @@ class IngestionService:
         with self._transaction() as connection:
             self._advisory(connection, "gateway", body.gateway_id)
             source = self._lock_stream(connection, body.source_id, body.stream_id)
-            if (source["gateway_id"], _exact(source["capture_generation"])) != (
-                body.gateway_id,
-                body.capture_generation,
-            ):
-                raise SourceBindingError("Gateway/capture generation is not explicitly registered")
+            if source["gateway_id"] != body.gateway_id:
+                raise SourceBindingError("Gateway is not explicitly registered")
+            check_retention_expired(connection, body)
+            if _exact(source["capture_generation"]) != body.capture_generation:
+                raise SourceBindingError("Capture generation is not explicitly registered")
             for event_id in sorted(event.event_id for event in body.events):
                 self._advisory(connection, "event", event_id)
             collision = self._collision(connection, batch)
             if isinstance(collision, DurableAck):
                 # The original body hash remains wire-compatible. The separate
                 # envelope binding also prevents changing measurement proof on retry.
-                revision = connection.execute(
-                    sa.text("SELECT version_num FROM alembic_version")
-                ).scalar_one()
+                revision = schema_revision(connection)
                 original_input = None
-                if revision == "0018_clock_evidence":
+                if revision in CLOCK_EVIDENCE_REVISIONS:
                     original_clock = (
                         connection.execute(
                             sa.text("""SELECT input_evidence_sha256 FROM capture_clock_evidence
@@ -1123,6 +1133,7 @@ class IngestionService:
                     batch_digest=batch.content_sha256,
                     measured=measured,
                     input_evidence_sha256=gateway_batch_digest(batch),
+                    newly_inserted=True,
                 )
                 if self.alarm_consumer is not None:
                     self.alarm_consumer.consume(connection, body, source=source, now=now)

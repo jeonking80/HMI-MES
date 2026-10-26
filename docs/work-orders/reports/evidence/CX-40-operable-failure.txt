@@ -1,0 +1,9 @@
+Live local: provision disposable users, certificates and source identity
+Live local: simulator browser login and mandatory password change
+Live local: five explicit operator recovery checks; select REMOTE/AUTO
+Live local: recovery response received; select REMOTE/AUTO
+Live local: REMOTE/AUTO response received
+Live local: App A browser login and mandatory password change
+Live local: browser registers 150 C / 10 m/min recipe and target-20 work order
+Live local: recipe submitted; await confirmed registration
+FAIL: AssertionError (recipe submitted; await confirmed registration)

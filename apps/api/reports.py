@@ -12,7 +12,10 @@ from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import text
 
+from apps.api.capture_clock import capture_frontier_table
+from apps.api.ingest_retention import retention_available
 from apps.api.minute_aggregation import seoul_day_bounds
+from apps.api.retention_provenance import expiry_windows, provenance
 from contracts.tags.validate import load_contract
 
 STATES = load_contract()["enums"]["EquipmentState"]
@@ -61,10 +64,13 @@ def build_timeline(start, end, evidence):
     heaps = {}
     gap_rows = []
     receipt_fences = []
+    expired_rows = []
     for left, right in zip(points, points[1:], strict=False):
         while pointer < len(additions) and additions[pointer][1]["from"] <= left:
             index, entry = additions[pointer]
-            if entry.get("sequence_gap"):
+            if entry.get("retention_expired"):
+                expired_rows.append(entry)
+            elif entry.get("sequence_gap"):
                 gap_rows.append(entry)
             elif entry.get("receipt_fence"):
                 receipt_fences.append(entry)
@@ -97,7 +103,8 @@ def build_timeline(start, end, evidence):
                 for entry in covering
             )
         ]
-        covering += gap_rows + receipt_fences
+        expired_rows = [entry for entry in expired_rows if entry["to"] > left]
+        covering += gap_rows + receipt_fences + expired_rows
         known = [e for e in covering if e["class"] != "UNKNOWN"]
         unknown = [e for e in covering if e["class"] == "UNKNOWN"]
         identities = {
@@ -113,7 +120,11 @@ def build_timeline(start, end, evidence):
         chosen = None
         if unknown:
             chosen = next(
-                (e for e in unknown if e.get("unknown_reason") == "COMMUNICATION_LOST"), unknown[0]
+                (e for e in unknown if e.get("unknown_reason") == "RETENTION_EXPIRED"),
+                next(
+                    (e for e in unknown if e.get("unknown_reason") == "COMMUNICATION_LOST"),
+                    unknown[0],
+                ),
             )
         elif len(identities) == 1:
             chosen = known[-1]
@@ -146,6 +157,10 @@ def build_timeline(start, end, evidence):
                         "receipt_fence",
                     }
                 }
+            )
+        if expired_rows:
+            segment.update(
+                provenance([entry for row in expired_rows for entry in row["retention_expired"]])
             )
         if segment["class"] != "UNKNOWN":
             segment.pop("unknown_reason", None)
@@ -196,7 +211,7 @@ def _clock_known(row):
 
 
 def _clock_reversal_cutoffs(db, line_id, scope):
-    # Original ingest_batches are retained independently of analog raw retention.
+    # Compact receipts retain chronology after original ingest evidence expires.
     # Scan sequence history before clipping a report day: a later timestamp or
     # receipt cannot repair a clock epoch once its chronology has reversed.
     params = {"line": line_id}
@@ -204,18 +219,26 @@ def _clock_reversal_cutoffs(db, line_id, scope):
     if scope:
         params.update(source=scope["source_id"], stream=scope["stream_id"])
         where += " AND b.source_id=:source AND b.stream_id=:stream"
+    receipt_history = retention_available(db)
+    capture_table = capture_frontier_table(db, alias="b")
+    capture_from = capture_table if capture_table.startswith("(") else f"{capture_table} b"
+    epoch = "b.clock_epoch" if receipt_history else "b.body->'capture_time'->>'clock_epoch'"
+    captured = "b.captured_at" if receipt_history else "(b.body->>'captured_at')::timestamptz"
+    monotonic = (
+        "b.monotonic_seconds"
+        if receipt_history
+        else "(b.body->'capture_time'->>'monotonic_seconds')::double precision"
+    )
     rows = db.execute(
         text(
-            """
+            f"""
         WITH captures AS (
           SELECT b.source_id,b.stream_id,b.gateway_id,b.capture_generation,b.capture_seq,
-            b.body->'capture_time'->>'clock_epoch' AS epoch,
-            (b.body->>'captured_at')::timestamptz AS at,
-            (b.body->'capture_time'->>'monotonic_seconds')::double precision AS mono
-          FROM ingest_batches b JOIN source_streams s USING(source_id,stream_id)
+            {epoch} AS epoch, {captured} AS at, {monotonic} AS mono
+          FROM {capture_from} JOIN source_streams s USING(source_id,stream_id)
           WHERE """
             + where
-            + """ AND b.body->'capture_time'->>'clock_epoch' IS NOT NULL
+            + f""" AND {epoch} IS NOT NULL
         ), ordered AS (
           SELECT *,max(at) OVER history AS previous_at,
                    max(mono) OVER history AS previous_mono
@@ -230,7 +253,7 @@ def _clock_reversal_cutoffs(db, line_id, scope):
         ),
         params,
     ).mappings()
-    return {
+    cutoffs = {
         (
             r["source_id"],
             r["stream_id"],
@@ -240,6 +263,33 @@ def _clock_reversal_cutoffs(db, line_id, scope):
         ): int(r["cutoff"])
         for r in rows
     }
+    # Compact endpoints cannot rediscover an internal reversal. The immutable
+    # registry is backfilled before compaction and remains authoritative after
+    # all individual receipts of an epoch have expired.
+    if receipt_history:
+        durable = db.execute(
+            text(
+                """SELECT b.source_id,b.stream_id,b.gateway_id,b.capture_generation,
+                b.clock_epoch AS epoch,b.reversal_seq AS cutoff
+                FROM analog_history_clock_state b
+                JOIN source_streams s USING(source_id,stream_id)
+                WHERE """
+                + where
+                + " AND b.reversal_seq IS NOT NULL"
+            ),
+            params,
+        ).mappings()
+        for row in durable:
+            key = (
+                row["source_id"],
+                row["stream_id"],
+                row["gateway_id"],
+                int(row["capture_generation"]),
+                row["epoch"],
+            )
+            cutoff = int(row["cutoff"])
+            cutoffs[key] = min(cutoffs.get(key, cutoff), cutoff)
+    return cutoffs
 
 
 def load_report_evidence(db, line_id, start, end, *, scope=None, execution_id=None, reversals=None):
@@ -607,6 +657,27 @@ def load_report_evidence(db, line_id, start, end, *, scope=None, execution_id=No
                 "stream_id": gap["stream_id"],
             }
         )
+    for left, right, entry in expiry_windows(
+        db,
+        scope={"line_id": line_id, **(scope or {})},
+        start=start,
+        end=end,
+        tail=timedelta(seconds=FRESHNESS_SECONDS),
+    ):
+        evidence.append(
+            {
+                "from": left,
+                "to": right,
+                "class": "UNKNOWN",
+                "state": None,
+                "fault_code": None,
+                "stop_reason": None,
+                "unknown_reason": "RETENTION_EXPIRED",
+                "source_id": entry["source_id"],
+                "stream_id": entry["stream_id"],
+                **provenance([entry]),
+            }
+        )
     return evidence
 
 
@@ -665,6 +736,15 @@ def execution_state_bounds(db, execution_id):
     return started, ended
 
 
+def segment_provenance(segments):
+    ranges = []
+    for segment in segments:
+        for entry in segment.get("retention_expired", []):
+            if entry not in ranges:
+                ranges.append(entry)
+    return provenance(ranges)
+
+
 def read_execution_timeline(
     db, execution_id, line_id, source_id, stream_id, *, now, annotate=None, reversals=None
 ):
@@ -687,6 +767,7 @@ def read_execution_timeline(
         "from": iso(start),
         "to": iso(max(start, end)),
         "segments": segments,
+        **segment_provenance(segments),
         "durations_seconds": durations,
         "check_ok": abs(durations["total"] - (max(start, end) - start).total_seconds()) < 1e-6,
     }
@@ -753,6 +834,8 @@ def read_execution_reports(db, line_id, start, end, *, now, limit=50, cursor=Non
         reasons = [] if status == "SETTLED" else ["EXECUTION_NOT_SETTLED"]
         if timeline["durations_seconds"]["unknown"]:
             reasons.append("UNKNOWN_TIME")
+        if timeline.get("retention_expired"):
+            reasons.append("RETENTION_EXPIRED")
         good, reject = int(totals["good"]), int(totals["reject"])
         items.append(
             {
@@ -771,6 +854,7 @@ def read_execution_reports(db, line_id, start, end, *, now, limit=50, cursor=Non
                 "settlement_status": status,
                 "provisional": bool(reasons),
                 "provisional_reasons": reasons,
+                **segment_provenance(timeline["segments"]),
                 "durations_seconds": timeline["durations_seconds"],
                 "stopped_by_state": evaluate_segments(timeline["segments"])[1],
             }
@@ -849,6 +933,8 @@ def read_daily_report(db, line_id, day: date, *, now, scope=None, annotate=None)
         reasons.append("DAY_NOT_FINISHED")
     if durations["unknown"]:
         reasons.append("UNKNOWN_TIME")
+    if any(segment.get("retention_expired") for segment in segments):
+        reasons.append("RETENTION_EXPIRED")
     if executions:
         statuses = db.execute(
             text(
@@ -876,6 +962,7 @@ def read_daily_report(db, line_id, day: date, *, now, scope=None, annotate=None)
     return {
         "date": day.isoformat(),
         "timezone": "Asia/Seoul",
+        **segment_provenance(segments),
         "from": iso(start),
         "to": iso(end),
         "durations_seconds": durations,

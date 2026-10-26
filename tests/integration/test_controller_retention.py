@@ -88,6 +88,7 @@ def load(runtime, execution="run-A"):
         work_order_id=f"work-{execution}",
         recipe_version=f"recipe-{execution}",
         target_quantity=1,
+        auto_end_at_target=False,
         parameters={"temperature_c": 150.0, "speed_m_per_min": 6.0},
     )
 

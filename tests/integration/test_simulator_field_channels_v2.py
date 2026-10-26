@@ -85,8 +85,8 @@ def test_real_v1_bytes_and_mixed_payload_history(store):
         1,
         2,
     )
-    assert store.connection.execute("PRAGMA user_version").fetchone()[0] == 3
-    assert store.connection.execute("SELECT version FROM runtime_schema_version").fetchone()[0] == 2
+    assert store.connection.execute("PRAGMA user_version").fetchone()[0] == 4
+    assert store.connection.execute("SELECT version FROM runtime_schema_version").fetchone()[0] == 3
     old = store.connection.execute(
         "SELECT state_json FROM field_channel_faults WHERE group_id='Sealer'"
     ).fetchone()[0]

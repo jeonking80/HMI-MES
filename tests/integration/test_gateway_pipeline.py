@@ -23,6 +23,7 @@ from apps.simulator.plc import PLCInputs, RecoveryChecks
 from apps.simulator.process import ProcessConfig
 from apps.simulator.storage import SimulatorStorage
 from contracts.models import CommandRequest, Parameters, RunSummaryRequest
+from tests.integration.item_seed import seed_item
 
 
 def free_port():
@@ -192,6 +193,7 @@ async def make_finished_run(runtime, server, client):
                 "work_order_id": "order-A",
                 "recipe_version": "recipe-A",
                 "target_quantity": 4,
+                "auto_end_at_target": False,
                 "parameters": {"temperature_c": 150.0, "speed_m_per_min": 6.0},
             }
             if kind == "LOAD_JOB"
@@ -332,6 +334,7 @@ def journal_network_command(service, runtime, command_id, kind):
             "work_order_id": "order-A",
             "recipe_version": "recipe-A",
             "target_quantity": 4,
+            "auto_end_at_target": False,
             "parameters": {"temperature_c": 150.0, "speed_m_per_min": 6.0},
         }
         if kind == "LOAD_JOB"
@@ -636,6 +639,7 @@ async def test_browser_next_load_waits_for_network_settlement_then_submits_once(
                             "work_order_id": "order-B",
                             "recipe_version": "recipe-B",
                             "target_quantity": 4,
+                            "auto_end_at_target": False,
                             "parameters": {"temperature_c": 150.0, "speed_m_per_min": 6.0},
                         },
                     },
@@ -788,6 +792,7 @@ async def test_managed_two_job_binding_replaces_only_the_exact_settled_reservati
     auth = UserAuth(service.engine, allowed_origins={origin})
     password = secrets.token_urlsafe(32)
     auth.bootstrap_user("planner", password, roles={"production_manager", "operator"})
+    seed_item(service.engine, "item", actor="planner")
     challenge = auth.begin_login()
     session = auth.login(
         "planner",
@@ -831,6 +836,7 @@ async def test_managed_two_job_binding_replaces_only_the_exact_settled_reservati
             "stream_id": pump.stream_id,
             "expected_work_order_version": "2",
             "expected_control_version": str(runtime.state.control_version),
+            "auto_end_at_target": False,
         }
 
     async def dispatch(request):

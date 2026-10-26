@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import UTC, timedelta
+from datetime import UTC, datetime, timedelta
 
 import sqlalchemy as sa
 
@@ -24,9 +24,21 @@ from apps.api.minute_aggregation import (
     RawObservation,
     aggregate_minutes,
 )
+from apps.api.retention_provenance import RAW_EXPIRED, expiry_windows, provenance
 
 TREND_REVISIONS = frozenset(
-    {"0015_analog_history", "0016_downtime_reasons", "0017_guest_viewer", "0018_clock_evidence"}
+    {
+        "0015_analog_history",
+        "0016_downtime_reasons",
+        "0017_guest_viewer",
+        "0018_clock_evidence",
+        "0019_registration_ids",
+        "0020_line_queue",
+        "0021_item_master",
+        "0022_ingest_retention",
+        "0023_ingest_compaction",
+        "0024_ingest_retired_segments",
+    }
 )
 
 
@@ -348,6 +360,7 @@ def read_trends(connection, *, scope, tags, start, end, resolution, now):
     modern = clock_evidence_available(connection)
     at = "COALESCE(canonical_utc,acquired_at)" if modern else "acquired_at"
     result = []
+    windows = expiry_windows(connection, scope=scope, start=start, end=end)
     for tag in tags:
         step = timedelta(seconds=1) if resolution == "second" else MINUTE
         cursor = start.replace(microsecond=0) if resolution == "second" else floor_minute(start)
@@ -444,6 +457,19 @@ def read_trends(connection, *, scope, tags, start, end, resolution, now):
                 )
             points.append(point)
             cursor += step
+        for index, point in enumerate(points):
+            point_at = datetime.fromisoformat(point["t"].replace("Z", "+00:00"))
+            affected = any(
+                left < point_at + step
+                and right > point_at
+                and (entry.get("tag_ids") is None or tag in entry["tag_ids"])
+                for left, right, entry in windows
+            )
+            if affected:
+                point = dict(point, raw_evidence=dict(RAW_EXPIRED))
+                if point["value"] is None:
+                    point["quality"] = "RETENTION_EXPIRED"
+                points[index] = point
         result.append(dict(tag_id=tag, unit=ANALOG_UNITS[tag], points=points))
     return dict(
         scope=scope,
@@ -452,4 +478,5 @@ def read_trends(connection, *, scope, tags, start, end, resolution, now):
         policy_version=POLICY_VERSION,
         series=result,
         generated_at=z(now),
+        **provenance([entry for _, _, entry in windows]),
     )

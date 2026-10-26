@@ -13,6 +13,7 @@ from apps.api.auth import PERMISSIONS, AuthorizationError, Principal
 from apps.api.database import SUPPORTED_WORKFLOW_REVISIONS
 from apps.api.ingestion import production_executions, source_streams
 from apps.api.models import Line
+from contracts.conflict_codes import ConflictError, ConflictReason
 from contracts.models import (
     CommandNotFound,
     CommandRequest,
@@ -23,6 +24,8 @@ from contracts.models import (
     Identifier,
     UTCTimestamp,
     canonical_command_payload,
+    canonical_command_retry_payload,
+    materialize_load_job_policy,
 )
 
 _PERMISSION = {
@@ -37,11 +40,13 @@ _ID = TypeAdapter(Identifier)
 _TIME = TypeAdapter(UTCTimestamp)
 
 
-class CommandConflict(ValueError):
+class CommandConflict(ConflictError):
     """ID content/scope collision or unresolved command blocks new unsafe work."""
 
+    default_reason_code = ConflictReason.ID_CONTENT_CONFLICT
 
-class CommandScopeError(ValueError):
+
+class CommandScopeError(ConflictError):
     """Command source, target or execution is outside the registered line."""
 
 
@@ -79,6 +84,11 @@ def enqueue_command(
         request.requested_by != principal.login
         or principal.must_change_password
         or not principal.roles & PERMISSIONS[command_permission(request)]
+        or (
+            request.command.kind == "LOAD_JOB"
+            and request.command.args.start_when_ready
+            and not principal.roles & PERMISSIONS["operate"]
+        )
     ):
         raise AuthorizationError("Command actor or permission does not match authenticated user")
     canonical = canonical_command_payload(request)
@@ -100,6 +110,7 @@ def enqueue_command(
         .first()
     )
     if existing is not None:
+        canonical = canonical_command_retry_payload(request, existing["canonical_payload"])
         if (
             existing["line_id"],
             existing["source_id"],
@@ -108,6 +119,8 @@ def enqueue_command(
         ) != (line_id, source_id, stream_id, canonical):
             raise CommandConflict("Command ID already belongs to different content or scope")
         return CommandResult.model_validate(existing["result"])
+    request = materialize_load_job_policy(request)
+    canonical = canonical_command_payload(request)
     # Ingestion/configuration also lock line before source. Taking source first
     # would invert that order when INSERT's line FK later takes a key-share lock.
     connection.execute(sa.select(Line.id).where(Line.id == line_id).with_for_update())
@@ -148,7 +161,10 @@ def enqueue_command(
             {"line": line_id},
         ).first()
         if unresolved is not None:
-            raise CommandConflict("Unresolved line command prevents new start/job/settings")
+            raise CommandConflict(
+                "Unresolved line command prevents new start/job/settings",
+                reason_code=ConflictReason.STATE_NOT_ALLOWED,
+            )
     result = CommandResult(
         command_id=request.command_id,
         status="EXPIRED" if expired else "REQUESTED",
@@ -206,20 +222,29 @@ def guard_managed_command(connection, request, line_id, *, managed_binding=False
         {"line": line_id},
     ).scalar_one_or_none()
     if reserved is not None and reserved != request.execution_id:
-        raise CommandConflict("Another execution owns the line reservation")
+        raise CommandConflict(
+            "Another execution owns the line reservation",
+            reason_code=ConflictReason.PHYSICAL_EXECUTION_MISMATCH,
+        )
     linked = connection.execute(
         sa.text("SELECT line_id FROM work_order_execution_links WHERE execution_id=:id"),
         {"id": request.execution_id},
     ).scalar_one_or_none()
     if request.command.kind == "START" and linked is not None and reserved != request.execution_id:
-        raise CommandConflict("Managed execution no longer owns the line reservation")
+        raise CommandConflict(
+            "Managed execution no longer owns the line reservation",
+            reason_code=ConflictReason.PHYSICAL_EXECUTION_MISMATCH,
+        )
     if request.command.kind == "LOAD_JOB" and not managed_binding:
         catalog = connection.execute(
             sa.text("SELECT 1 FROM work_orders WHERE id=:id"),
             {"id": request.command.args.work_order_id},
         ).first()
         if linked is not None or catalog is not None:
-            raise CommandConflict("Managed work orders require the binding workflow")
+            raise CommandConflict(
+                "Managed work orders require the binding workflow",
+                reason_code=ConflictReason.STATE_NOT_ALLOWED,
+            )
 
 
 class SubmitWork(ContractModel):

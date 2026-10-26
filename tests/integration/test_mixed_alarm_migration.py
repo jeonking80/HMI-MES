@@ -425,12 +425,21 @@ def test_empty_downgrade_wins_then_schema_reader_observes_old_head(old):
 
 def test_explicit_mixed_feature_set_rejects_old_heads_without_claiming_coordinator_coverage():
     supported = getattr(database, "SUPPORTED_MIXED_ALARM_REVISIONS", frozenset())
+    # Registration, queue and item additions preserve the mixed runtime. Retention
+    # moves its immutable decision FK to receipts; compaction keeps referenced
+    # receipts; append-only segments also preserve those FK-referenced rows.
     assert supported == {
         NEW,
         "0015_analog_history",
         "0016_downtime_reasons",
         "0017_guest_viewer",
         "0018_clock_evidence",
+        "0019_registration_ids",
+        "0020_line_queue",
+        "0021_item_master",
+        "0022_ingest_retention",
+        "0023_ingest_compaction",
+        "0024_ingest_retired_segments",
     }
     assert OLD not in supported
     # No fake writer/helper mirrors the proposed admission algorithm. The actual

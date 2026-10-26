@@ -10,6 +10,7 @@ export interface RunSummary extends Configuration, Totals {
   schema_version: '1.0'; source_id: string; stream_id: string; execution_id: string
   state: 'LOADED' | 'RUNNING' | 'PAUSED' | 'ENDING' | 'ENDED'; as_of: string
   input_quantity: string; wip_quantity: number; last_event_seq: string; final: boolean; ended_at: string | null
+  end_reason?: 'TARGET_REACHED' | 'OPERATOR'; baseline_parameters?: Configuration['parameters']; parameter_changes?: unknown[]
 }
 export interface ExecutionView {
   execution: Configuration & { execution_id: string; work_order_id: string; registered_at: string; target_quantity: number | null }
@@ -28,10 +29,10 @@ export function freezeArchivedWorkflow(entry: ArchivedWorkflow): ArchivedWorkflo
 }
 const fail = (): never => { throw new Error('Unconfirmed execution record') }
 function need(value: unknown): asserts value { if (!value) fail() }
-function object(value: unknown, keys: readonly string[]): Record<string, unknown> {
+function object(value: unknown, keys: readonly string[], optional: readonly string[] = []): Record<string, unknown> {
   need(value && typeof value === 'object' && !Array.isArray(value))
   const result = value as Record<string, unknown>
-  need(Object.keys(result).length === keys.length && keys.every(key => Object.hasOwn(result, key)))
+  need(keys.every(key => Object.hasOwn(result, key)) && Object.keys(result).every(key => keys.includes(key) || optional.includes(key)))
   return result
 }
 const time = (value: unknown): value is string => typeof value === 'string'
@@ -84,7 +85,8 @@ export function parseExecution(value: unknown, expected: BindReceipt): Execution
   else {
     need(raw.load !== null)
     const binding = object(raw.binding, ['intent', 'receipt'])
-    const original = object(binding.intent, ['work_order_id', 'actor', 'command_id', 'line_id', 'source_id', 'stream_id', 'expected_work_order_version', 'expected_control_version'])
+    // CX-33/34 policy flags are optional on the original intent; parseWorkflow checks their types.
+    const original = object(binding.intent, ['work_order_id', 'actor', 'command_id', 'line_id', 'source_id', 'stream_id', 'expected_work_order_version', 'expected_control_version'], ['auto_end_at_target', 'start_when_ready'])
     need(workflowId(original.command_id))
     const parsed = parseWorkflow('bind', raw.binding, execution.work_order_id as string, original.command_id)
     const receipt = parsed.receipt as BindReceipt
@@ -109,7 +111,11 @@ export function parseExecution(value: unknown, expected: BindReceipt): Execution
   if (settlement.summary === null) need(settlement.status === 'PENDING' && settlement.checked_at === null && settlement.received_at === null)
   else {
     need(time(settlement.checked_at) && time(settlement.received_at))
-    const summary = object(settlement.summary, ['schema_version', 'source_id', 'stream_id', 'execution_id', 'state', 'as_of', 'counter_epoch', 'recipe_version', 'parameters', 'input_quantity', 'good_quantity', 'reject_quantity', 'scrap_quantity', 'wip_quantity', 'last_event_seq', 'final', 'ended_at'])
+    const summary = object(settlement.summary, ['schema_version', 'source_id', 'stream_id', 'execution_id', 'state', 'as_of', 'counter_epoch', 'recipe_version', 'parameters', 'input_quantity', 'good_quantity', 'reject_quantity', 'scrap_quantity', 'wip_quantity', 'last_event_seq', 'final', 'ended_at'], ['end_reason', 'baseline_parameters', 'parameter_changes'])
+    // CX-33/35: why the run ended, and the LOAD baseline when speed was adjusted during the run.
+    need(!Object.hasOwn(summary, 'end_reason') || ['TARGET_REACHED', 'OPERATOR'].includes(summary.end_reason as string))
+    need(!Object.hasOwn(summary, 'parameter_changes') || (Array.isArray(summary.parameter_changes) && Object.hasOwn(summary, 'baseline_parameters')))
+    if (Object.hasOwn(summary, 'baseline_parameters')) parameters(summary.baseline_parameters)
     need(summary.schema_version === '1.0' && summary.execution_id === execution.execution_id && summary.source_id === scope.source_id && summary.stream_id === scope.stream_id)
     need(workflowId(summary.counter_epoch) && workflowId(summary.recipe_version) && time(summary.as_of) && nullableTime(summary.ended_at))
     parameters(summary.parameters)
@@ -120,7 +126,8 @@ export function parseExecution(value: unknown, expected: BindReceipt): Execution
     need(completed === 0n || summary.last_event_seq !== '0')
     need(summary.final === (summary.state === 'ENDED'))
     need(summary.final ? summary.wip_quantity === 0 && time(summary.ended_at) && Date.parse(summary.ended_at) <= Date.parse(summary.as_of) : summary.ended_at === null)
-    if (settlement.status === 'SETTLED') need(summary.final && summary.counter_epoch === execution.counter_epoch && summary.recipe_version === execution.recipe_version && sameWorkflowValue(summary.parameters, execution.parameters))
+    // The server already verified any speed-change evidence; the LOAD baseline must still be the original parameters.
+    if (settlement.status === 'SETTLED') need(summary.final && summary.counter_epoch === execution.counter_epoch && summary.recipe_version === execution.recipe_version && sameWorkflowValue(Object.hasOwn(summary, 'baseline_parameters') ? summary.baseline_parameters : summary.parameters, execution.parameters))
   }
   function freeze(v: unknown) { if (v && typeof v === 'object') { Object.values(v).forEach(freeze); Object.freeze(v) } }
   freeze(raw)
@@ -135,7 +142,8 @@ export function archiveBlocked(view: ExecutionView, original: WorkflowAttempt, l
   if (!view.load || view.load.result.status !== 'SUCCEEDED' || view.load.collision_latched || !sameWorkflowValue(view.load.request, original.record.receipt.load_request)) return '원래 작업 불러오기의 확정 성공과 충돌 없음이 필요합니다.'
   const summary = view.settlement.summary
   if (view.settlement.status !== 'SETTLED' || !summary?.final || !view.settlement.checked_at || !view.settlement.received_at) return '정확한 최종 저장 정산 일치 기록이 필요합니다.'
-  if (summary.counter_epoch !== view.execution.counter_epoch || summary.recipe_version !== view.execution.recipe_version || !sameWorkflowValue(summary.parameters, view.execution.parameters)) return '원래 카운터 구간과 공정 설정이 일치하지 않습니다.'
+  // A run whose speed changed while running settles with the LOAD baseline kept separately.
+  if (summary.counter_epoch !== view.execution.counter_epoch || summary.recipe_version !== view.execution.recipe_version || !sameWorkflowValue(summary.baseline_parameters ?? summary.parameters, view.execution.parameters)) return '원래 카운터 구간과 공정 설정이 일치하지 않습니다.'
   if (['good_quantity', 'reject_quantity', 'scrap_quantity'].some(key => summary[key as keyof Totals] !== view.totals[key as keyof Totals])) return '저장 정산 이후 현재 집계 수량이 달라졌습니다. 다시 대조해야 합니다.'
   if (view.source.conflicted || view.source.reconciliation_required || view.source.control_restricted || view.source.verified_through_seq !== view.source.latest_ingested_seq || BigInt(summary.last_event_seq) > BigInt(view.source.verified_through_seq)) return '현재 수집원 제한과 사건 대조 구간을 확인해야 합니다.'
   return ''

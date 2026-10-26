@@ -1,0 +1,62 @@
+{
+  "runs": [
+    {
+      "run": "hmi-v18-retention",
+      "tests": 57,
+      "failures": 35,
+      "errors": 0,
+      "time_seconds": 31.018
+    },
+    {
+      "run": "hmi-v18-retention-recheck",
+      "tests": 35,
+      "failures": 2,
+      "errors": 0,
+      "time_seconds": 38.589
+    },
+    {
+      "run": "hmi-v18-retention-final-two",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "time_seconds": 3.684
+    },
+    {
+      "run": "hmi-v18-regression-resumed",
+      "tests": 1234,
+      "failures": 2,
+      "errors": 0,
+      "time_seconds": 1103.754
+    },
+    {
+      "run": "hmi-v18-compat-recheck",
+      "tests": 85,
+      "failures": 1,
+      "errors": 0,
+      "time_seconds": 66.996
+    },
+    {
+      "run": "hmi-v18-compat-final-one",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "time_seconds": 5.695
+    }
+  ],
+  "interrupted_first_run": {
+    "passed_stdout_indicators": 158,
+    "junit_written": false,
+    "resume_excluded_first_collection_items": 158,
+    "excluded_nodeids_sha256": "652ca8e67a9c8d06bd40106d5cfaa5d3d086865722643cb5384a081b8dac3a3b",
+    "reason": "restricted local sockets; resumed with authorized local test permissions"
+  },
+  "selected_distinct_tests": 1449,
+  "single_final_full_run": false,
+  "browser": {
+    "preflight": "PermissionError (setup)",
+    "actual_attempts": 1,
+    "result": "FAIL: AssertionError (recipe submitted; await confirmed registration)"
+  },
+  "public_operations": false,
+  "operational_runtime_changes": false
+}

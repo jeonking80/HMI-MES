@@ -1,0 +1,3259 @@
+{
+  "measurement": "interleaved_synthetic_raw_clock_and_real_alarm_storage",
+  "captures": 86400,
+  "alarm_channels": 0,
+  "samples_per_capture": 27,
+  "retention_hours": 3,
+  "captures_per_simulated_minute": 60,
+  "sample_quality": "actual contract tags; Bad/null; real UNKNOWN pressure decisions",
+  "scope_limit": "bulk raw inserts plus real capture clock and alarm consumers; no trends/PLC",
+  "db_clock_unchanged": true,
+  "final_anchor_database_now": "2026-10-26T06:40:22.845461+00:00",
+  "maintenance_clock_graph": {
+    "replacements": {
+      "public.compact_ingest_receipts(": "public.capacity_compact_ingest_receipts(",
+      "public.prune_ingest_batches_hours(": "public.capacity_prune_ingest_batches_hours(",
+      "clock_timestamp()": "public.capacity_clock_timestamp()"
+    },
+    "functions": [
+      {
+        "installed_signature": "compact_ingest_receipts(text,text[],timestamptz)",
+        "installed_sha256": "9c4e8077d472d3fb984751867f32b00c71ddb8f603b0824b85182eac8682f94a",
+        "clone_sha256": "27648ef80de8031b00b56f2f8d861c99f7d590028631c7e3154b5f9494ad8dde",
+        "installed_sql": "CREATE OR REPLACE FUNCTION public.compact_ingest_receipts(gateway text, batches text[], deadline timestamp with time zone DEFAULT NULL::timestamp with time zone)\n RETURNS integer\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'pg_temp'\nAS $function$\n        DECLARE p public.ingest_receipts%ROWTYPE; selected text[]:='{}';\n            compact_uuids uuid[]:='{}'; compact_text text[]:='{}'; key bigint;\n        BEGIN\n            IF gateway IS NULL OR batches IS NULL OR cardinality(batches)>256\n                OR array_position(batches,NULL) IS NOT NULL THEN\n                RAISE EXCEPTION 'Invalid bounded compaction parameters';\n            END IF;\n            IF cardinality(batches)=0 THEN RETURN 0; END IF;\n            key:=('x'||substr(encode(sha256(convert_to('gateway:'||gateway,\n                'UTF8')),'hex'),1,16))::bit(64)::bigint;\n            IF NOT pg_try_advisory_xact_lock(key) THEN RETURN 0; END IF;\n            FOR p IN SELECT * FROM public.ingest_receipts\n                WHERE gateway_id=gateway AND batch_id=ANY(batches) AND expired_at IS NOT NULL\n                ORDER BY batch_id FOR UPDATE SKIP LOCKED\n            LOOP\n                IF deadline IS NOT NULL AND clock_timestamp()>=deadline THEN EXIT; END IF;\n                IF EXISTS(SELECT 1 FROM public.ingest_batches\n                    WHERE gateway_id=gateway AND batch_id=p.batch_id)\n                    OR public.ingest_receipt_referenced(gateway,p.batch_id) THEN CONTINUE; END IF;\n                IF NOT EXISTS(SELECT 1 FROM public.ingest_retention_ranges r\n                    WHERE r.gateway_id=p.gateway_id AND r.source_id=p.source_id\n                    AND r.stream_id=p.stream_id AND r.capture_generation=p.capture_generation\n                    AND p.capture_seq BETWEEN r.from_capture_seq AND r.through_capture_seq\n                    AND r.latest_capture IS NOT NULL\n                    AND (p.clock_epoch IS NULL OR r.clock_frontiers ? p.clock_epoch)) THEN\n                    RAISE EXCEPTION 'Compaction requires complete permanent clock metadata'; END IF;\n                selected:=array_append(selected,p.batch_id);\n                IF length(p.batch_id)=36 AND p.batch_id COLLATE \"C\" ~\n                    '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN\n                    compact_uuids:=array_append(compact_uuids,p.batch_id::uuid);\n                ELSE\n                    compact_text:=array_append(compact_text,p.batch_id);\n                END IF;\n            END LOOP;\n            IF cardinality(selected)=0 THEN RETURN 0; END IF;\n            INSERT INTO public.ingest_retired_batch_segments(gateway_id,uuid_ids,text_ids)\n                VALUES(gateway,\n                    ARRAY(SELECT u FROM unnest(compact_uuids) u ORDER BY u),\n                    ARRAY(SELECT t FROM unnest(compact_text) t ORDER BY t COLLATE \"C\"));\n            DELETE FROM public.ingest_receipts WHERE gateway_id=gateway AND batch_id=ANY(selected);\n            RETURN cardinality(selected);\n        END $function$\n",
+        "cloned_sql": "CREATE OR REPLACE FUNCTION public.capacity_compact_ingest_receipts(gateway text, batches text[], deadline timestamp with time zone DEFAULT NULL::timestamp with time zone)\n RETURNS integer\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'pg_temp'\nAS $function$\n        DECLARE p public.ingest_receipts%ROWTYPE; selected text[]:='{}';\n            compact_uuids uuid[]:='{}'; compact_text text[]:='{}'; key bigint;\n        BEGIN\n            IF gateway IS NULL OR batches IS NULL OR cardinality(batches)>256\n                OR array_position(batches,NULL) IS NOT NULL THEN\n                RAISE EXCEPTION 'Invalid bounded compaction parameters';\n            END IF;\n            IF cardinality(batches)=0 THEN RETURN 0; END IF;\n            key:=('x'||substr(encode(sha256(convert_to('gateway:'||gateway,\n                'UTF8')),'hex'),1,16))::bit(64)::bigint;\n            IF NOT pg_try_advisory_xact_lock(key) THEN RETURN 0; END IF;\n            FOR p IN SELECT * FROM public.ingest_receipts\n                WHERE gateway_id=gateway AND batch_id=ANY(batches) AND expired_at IS NOT NULL\n                ORDER BY batch_id FOR UPDATE SKIP LOCKED\n            LOOP\n                IF deadline IS NOT NULL AND public.capacity_clock_timestamp()>=deadline THEN EXIT; END IF;\n                IF EXISTS(SELECT 1 FROM public.ingest_batches\n                    WHERE gateway_id=gateway AND batch_id=p.batch_id)\n                    OR public.ingest_receipt_referenced(gateway,p.batch_id) THEN CONTINUE; END IF;\n                IF NOT EXISTS(SELECT 1 FROM public.ingest_retention_ranges r\n                    WHERE r.gateway_id=p.gateway_id AND r.source_id=p.source_id\n                    AND r.stream_id=p.stream_id AND r.capture_generation=p.capture_generation\n                    AND p.capture_seq BETWEEN r.from_capture_seq AND r.through_capture_seq\n                    AND r.latest_capture IS NOT NULL\n                    AND (p.clock_epoch IS NULL OR r.clock_frontiers ? p.clock_epoch)) THEN\n                    RAISE EXCEPTION 'Compaction requires complete permanent clock metadata'; END IF;\n                selected:=array_append(selected,p.batch_id);\n                IF length(p.batch_id)=36 AND p.batch_id COLLATE \"C\" ~\n                    '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN\n                    compact_uuids:=array_append(compact_uuids,p.batch_id::uuid);\n                ELSE\n                    compact_text:=array_append(compact_text,p.batch_id);\n                END IF;\n            END LOOP;\n            IF cardinality(selected)=0 THEN RETURN 0; END IF;\n            INSERT INTO public.ingest_retired_batch_segments(gateway_id,uuid_ids,text_ids)\n                VALUES(gateway,\n                    ARRAY(SELECT u FROM unnest(compact_uuids) u ORDER BY u),\n                    ARRAY(SELECT t FROM unnest(compact_text) t ORDER BY t COLLATE \"C\"));\n            DELETE FROM public.ingest_receipts WHERE gateway_id=gateway AND batch_id=ANY(selected);\n            RETURN cardinality(selected);\n        END $function$\n"
+      },
+      {
+        "installed_signature": "prune_ingest_batches_hours(integer,integer,integer)",
+        "installed_sha256": "9fd316eccf18a1662fbd4ba0361bc32236eee62b6729bbb2d7f8453714bc380d",
+        "clone_sha256": "ee400aa669ce0c9c891fc8ccdea0aab1aa72fdb61ff4f70ab4cc36afaeff1e91",
+        "installed_sql": "CREATE OR REPLACE FUNCTION public.prune_ingest_batches_hours(retention_hours integer DEFAULT 168, max_batches integer DEFAULT 200, max_candidates integer DEFAULT 400)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'pg_temp'\nAS $function$\n    DECLARE\n        tick timestamptz:=clock_timestamp(); st public.ingest_retention_state%ROWTYPE;\n        b record; s public.source_streams%ROWTYPE; ev jsonb; valid boolean;\n        chosen boolean:=false; budget_exhausted boolean:=false;\n        scanned integer:=0; removed integer:=0; compacted integer:=0; key bigint;\n        expired_candidate record; pending_gateways text[]:='{}'; pending_batches text[]:='{}';\n        pending_count integer:=0; pending_group record; group_offset integer;\n        leaf text; lo timestamptz; hi timestamptz; alo timestamptz; ahi timestamptz;\n        tags text[]; epochs text[]; unknown_time boolean; adjacent record;\n        range_start numeric; range_end numeric; amount numeric; accumulator text;\n        first_at timestamptz; slo timestamptz; shi timestamptz;\n        frontiers jsonb; latest_capture jsonb; receipt_record public.ingest_receipts%ROWTYPE;\n    BEGIN\n        IF retention_hours IS NULL OR retention_hours<3 OR max_batches IS NULL\n            OR max_batches<1 OR max_batches>1000 OR max_candidates IS NULL\n            OR max_candidates<1 OR max_candidates>2000 THEN\n            RAISE EXCEPTION 'Invalid bounded retention parameters'; END IF;\n        IF NOT pg_try_advisory_xact_lock_shared(843001) THEN\n            RETURN jsonb_build_object('status','BUSY','deleted_count',0,\n                'scanned_count',0,'compacted_count',0,'budget_exhausted',false);\n        END IF;\n        SELECT * INTO st FROM public.ingest_retention_state WHERE singleton\n            FOR UPDATE SKIP LOCKED;\n        IF NOT FOUND THEN\n            RETURN jsonb_build_object('status','BUSY','deleted_count',0,\n                'scanned_count',0,'compacted_count',0,'budget_exhausted',false);\n        END IF;\n        IF st.last_attempt_at>tick-interval '1 minute' THEN\n            RETURN jsonb_build_object('status','THROTTLED','deleted_count',0,\n                'scanned_count',0,'compacted_count',0,'budget_exhausted',false);\n        END IF;\n        UPDATE public.ingest_retention_state SET last_attempt_at=tick WHERE singleton;\n        FOR b IN SELECT ib.* FROM public.ingest_batches ib\n            WHERE ib.stored_at<tick-make_interval(hours=>retention_hours)\n            AND (st.cursor_stored_at IS NULL OR\n                ROW(ib.stored_at,ib.gateway_id,ib.batch_id)>\n                ROW(st.cursor_stored_at,st.cursor_gateway_id,st.cursor_batch_id))\n            ORDER BY ib.stored_at,ib.gateway_id,ib.batch_id LIMIT max_candidates\n        LOOP\n            IF clock_timestamp()-tick>=interval '500 milliseconds' THEN\n                budget_exhausted:=true;\n                EXIT;\n            END IF;\n            scanned:=scanned+1;\n            UPDATE public.ingest_retention_state SET cursor_stored_at=b.stored_at,\n                cursor_gateway_id=b.gateway_id,cursor_batch_id=b.batch_id WHERE singleton;\n            BEGIN\n            IF NOT chosen THEN\n                key:=('x'||substr(encode(sha256(convert_to('gateway:'||b.gateway_id,\n                    'UTF8')),'hex'),1,16))::bit(64)::bigint;\n                IF NOT pg_try_advisory_xact_lock(key) THEN RAISE SQLSTATE 'P1001'; END IF;\n                BEGIN\n                    SELECT * INTO s FROM public.source_streams\n                        WHERE source_id=b.source_id AND stream_id=b.stream_id;\n                    IF NOT FOUND THEN RAISE SQLSTATE 'P1001'; END IF;\n                    PERFORM 1 FROM public.lines WHERE id=s.line_id FOR UPDATE NOWAIT;\n                    SELECT * INTO s FROM public.source_streams\n                        WHERE source_id=b.source_id AND stream_id=b.stream_id FOR UPDATE NOWAIT;\n                EXCEPTION WHEN lock_not_available THEN RAISE SQLSTATE 'P1001';\n                END;\n            END IF;\n            IF b.gateway_id<>s.gateway_id OR b.source_id<>s.source_id\n                OR b.stream_id<>s.stream_id OR b.capture_generation>s.capture_generation\n                OR s.conflicted OR s.reconciliation_required THEN RAISE SQLSTATE 'P1001'; END IF;\n            IF (jsonb_array_length(b.body->'events')=0 AND (\n                EXISTS(SELECT 1 FROM public.stream_gaps\n                WHERE source_id=s.source_id AND stream_id=s.stream_id)\n                OR EXISTS(SELECT 1 FROM public.event_inbox WHERE source_id=s.source_id\n                    AND stream_id=s.stream_id AND applied_at IS NULL)\n                OR EXISTS(SELECT 1 FROM public.command_requests WHERE source_id=s.source_id\n                    AND stream_id=s.stream_id AND (collision_latched OR status IN\n                    ('REQUESTED','DELIVERED','ACCEPTED','OUTCOME_UNKNOWN')))\n                )) OR jsonb_array_length(COALESCE(b.body->'gaps','[]'::jsonb))>0\n            THEN RAISE SQLSTATE 'P1001'; END IF;\n            valid:=true;\n            FOR ev IN SELECT value FROM jsonb_array_elements(b.body->'events') LOOP\n                IF NOT EXISTS(SELECT 1 FROM public.event_inbox i\n                    JOIN public.production_executions x ON x.execution_id=i.execution_id\n                    JOIN public.run_reconciliations r ON r.execution_id=x.execution_id\n                    JOIN public.execution_totals t ON t.execution_id=x.execution_id\n                    JOIN public.stream_progress p ON p.source_id=i.source_id\n                        AND p.stream_id=i.stream_id\n                    WHERE i.event_id=ev->>'event_id' AND i.body=ev\n                    AND i.source_id=s.source_id AND i.stream_id=s.stream_id\n                    AND i.seq=(ev->>'seq')::numeric AND i.kind=ev->>'kind'\n                    AND i.execution_id=ev->>'execution_id' AND i.applied_at IS NOT NULL\n                    AND i.reason_code IS NULL AND i.reason IS NULL\n                    AND x.source_id=s.source_id AND x.stream_id=s.stream_id\n                    AND r.status='SETTLED' AND r.final_summary->>'final'='true'\n                    AND r.final_summary->>'state'='ENDED'\n                    AND r.final_summary->>'execution_id'=x.execution_id\n                    AND r.final_summary->>'source_id'=s.source_id\n                    AND r.final_summary->>'stream_id'=s.stream_id\n                    AND r.final_summary->>'recipe_version'=x.recipe_version\n                    AND r.final_summary->>'counter_epoch'=x.counter_epoch\n                    AND public.retention_parameters_match(r.final_summary,x.parameters,\n                        x.recipe_version)\n                    AND (r.final_summary->>'wip_quantity')::numeric=0\n                    AND r.final_summary->>'ended_at' IS NOT NULL\n                    AND (r.final_summary->>'good_quantity')::numeric=t.good_quantity\n                    AND (r.final_summary->>'reject_quantity')::numeric=t.reject_quantity\n                    AND (r.final_summary->>'scrap_quantity')::numeric=t.scrap_quantity\n                    AND (r.final_summary->>'input_quantity')::numeric=\n                        t.good_quantity+t.reject_quantity+t.scrap_quantity\n                    AND p.verified_through_seq>=(r.final_summary->>'last_event_seq')::numeric\n                    AND i.seq<=p.verified_through_seq\n                    AND NOT EXISTS(SELECT 1 FROM public.stream_gaps g\n                        WHERE g.source_id=s.source_id AND g.stream_id=s.stream_id\n                        AND g.from_seq<=(r.final_summary->>'last_event_seq')::numeric)\n                    AND NOT EXISTS(SELECT 1 FROM public.event_inbox q\n                        WHERE q.source_id=s.source_id AND q.stream_id=s.stream_id\n                        AND q.seq<=(r.final_summary->>'last_event_seq')::numeric\n                        AND q.applied_at IS NULL)\n                    AND NOT EXISTS(SELECT 1 FROM public.command_requests c\n                        WHERE (c.execution_id=x.execution_id OR (c.execution_id IS NULL\n                            AND c.source_id=s.source_id AND c.stream_id=s.stream_id))\n                        AND (c.collision_latched OR\n                        c.status IN ('REQUESTED','DELIVERED','ACCEPTED','OUTCOME_UNKNOWN')))\n                    AND NOT EXISTS(SELECT 1 FROM public.event_inbox later\n                        WHERE later.source_id=s.source_id AND later.stream_id=s.stream_id\n                        AND later.execution_id=x.execution_id\n                        AND later.seq>(r.final_summary->>'last_event_seq')::numeric\n                        AND (later.applied_at IS NULL OR later.seq>p.verified_through_seq\n                            OR later.kind<>'STATE_CHANGED'\n                            OR COALESCE(later.body#>>'{payload,previous_state}','')\n                                NOT IN ('STOPPED','RECOVERY_REQUIRED')\n                            OR COALESCE(later.body#>>'{payload,state}','')\n                                NOT IN ('STOPPED','RECOVERY_REQUIRED')))\n                    AND COALESCE((SELECT last_event.body#>>'{payload,state}'\n                        FROM public.event_inbox last_event\n                        WHERE last_event.source_id=s.source_id\n                        AND last_event.stream_id=s.stream_id\n                        AND last_event.execution_id=x.execution_id\n                        AND last_event.seq>(r.final_summary->>'last_event_seq')::numeric\n                        ORDER BY last_event.seq DESC LIMIT 1),'STOPPED')='STOPPED'\n                    AND NOT EXISTS(SELECT 1 FROM public.run_summary_conflicts c\n                        WHERE c.execution_id=x.execution_id)) THEN valid:=false; EXIT; END IF;\n            END LOOP;\n            IF NOT valid THEN RAISE SQLSTATE 'P1001'; END IF;\n            PERFORM 1 FROM public.ingest_batches WHERE gateway_id=b.gateway_id\n                AND batch_id=b.batch_id FOR UPDATE SKIP LOCKED;\n            IF NOT FOUND THEN RAISE SQLSTATE 'P1001'; END IF;\n            chosen:=true;\n            leaf:=encode(sha256(convert_to(jsonb_build_array('HMI_RETENTION_LEAF_V1',\n                b.gateway_id,b.source_id,b.stream_id,b.capture_generation::text,\n                b.capture_seq::text,b.batch_id,b.content_sha256)::text,'UTF8')),'hex');\n            SELECT min(v),max(v) INTO lo,hi FROM (\n                SELECT (b.body->>'captured_at')::timestamptz AS v\n                UNION ALL SELECT (value->>'acquired_at')::timestamptz\n                    FROM jsonb_array_elements(b.body->'samples')) times;\n            SELECT c.status<>'GOOD',c.canonical_api_utc+(lo-c.original_capture_utc),\n                c.canonical_api_utc+(hi-c.original_capture_utc)\n                INTO unknown_time,alo,ahi FROM public.capture_clock_evidence c\n                WHERE c.gateway_id=b.gateway_id AND c.batch_id=b.batch_id;\n            unknown_time:=COALESCE(unknown_time,true) OR EXISTS(\n                SELECT 1 FROM public.analog_history_clock_state cs\n                JOIN public.ingest_receipts receipt ON receipt.gateway_id=b.gateway_id\n                    AND receipt.batch_id=b.batch_id\n                WHERE cs.gateway_id=b.gateway_id AND cs.source_id=b.source_id\n                    AND cs.stream_id=b.stream_id\n                    AND cs.capture_generation=b.capture_generation\n                    AND cs.clock_epoch=receipt.clock_epoch\n                    AND cs.reversal_seq IS NOT NULL AND b.capture_seq>=cs.reversal_seq);\n            IF unknown_time THEN alo:=NULL; ahi:=NULL; END IF;\n            SELECT COALESCE(array_agg(DISTINCT value->>'tag_id'),'{}'::text[]) INTO tags\n                FROM jsonb_array_elements(b.body->'samples');\n            epochs:=ARRAY(SELECT clock_epoch FROM public.ingest_receipts\n                WHERE gateway_id=b.gateway_id AND batch_id=b.batch_id\n                    AND clock_epoch IS NOT NULL);\n            SELECT * INTO STRICT receipt_record FROM public.ingest_receipts\n                WHERE gateway_id=b.gateway_id AND batch_id=b.batch_id;\n            latest_capture:=to_jsonb(receipt_record)-'expired_at' || jsonb_build_object(\n                'capture_generation',receipt_record.capture_generation::text,\n                'capture_seq',receipt_record.capture_seq::text);\n            frontiers:=CASE WHEN receipt_record.clock_epoch IS NULL THEN '{}'::jsonb ELSE\n                jsonb_build_object(receipt_record.clock_epoch,jsonb_build_object('first',\n                    jsonb_build_object('capture_seq',receipt_record.capture_seq::text,\n                    'captured_at',receipt_record.captured_at,'monotonic_seconds',receipt_record.monotonic_seconds),\n                    'last',jsonb_build_object('capture_seq',receipt_record.capture_seq::text,\n                    'captured_at',receipt_record.captured_at,\n                    'monotonic_seconds',receipt_record.monotonic_seconds))) END;\n            range_start:=b.capture_seq; range_end:=b.capture_seq; amount:=1;\n            accumulator:=leaf; first_at:=tick; slo:=b.stored_at; shi:=b.stored_at;\n            FOR adjacent IN SELECT * FROM public.ingest_retention_ranges r\n                WHERE r.gateway_id=b.gateway_id AND r.source_id=b.source_id\n                AND r.stream_id=b.stream_id AND r.capture_generation=b.capture_generation\n                AND (r.through_capture_seq=b.capture_seq-1\n                    OR r.from_capture_seq=b.capture_seq+1) FOR UPDATE\n            LOOP\n                frontiers:=public.retention_clock_frontiers_merge(frontiers,adjacent.clock_frontiers);\n                IF (adjacent.latest_capture->>'capture_seq')::numeric>\n                    (latest_capture->>'capture_seq')::numeric THEN\n                    latest_capture:=adjacent.latest_capture;\n                END IF;\n                range_start:=least(range_start,adjacent.from_capture_seq);\n                range_end:=greatest(range_end,adjacent.through_capture_seq);\n                amount:=amount+adjacent.deleted_count;\n                accumulator:=public.retention_hash_add(accumulator,adjacent.hash_accumulator);\n                first_at:=least(first_at,adjacent.first_deleted_at);\n                slo:=least(slo,adjacent.stored_from); shi:=greatest(shi,adjacent.stored_until);\n                lo:=least(lo,adjacent.original_from); hi:=greatest(hi,adjacent.original_until);\n                alo:=least(alo,adjacent.analytical_from);\n                ahi:=greatest(ahi,adjacent.analytical_until);\n                unknown_time:=unknown_time OR adjacent.time_unknown;\n                tags:=ARRAY(SELECT DISTINCT unnest(tags||adjacent.tag_ids) ORDER BY 1);\n                epochs:=ARRAY(SELECT DISTINCT unnest(epochs||adjacent.clock_epochs) ORDER BY 1);\n                DELETE FROM public.ingest_retention_ranges\n                    WHERE gateway_id=adjacent.gateway_id AND source_id=adjacent.source_id\n                    AND stream_id=adjacent.stream_id\n                    AND capture_generation=adjacent.capture_generation\n                    AND from_capture_seq=adjacent.from_capture_seq;\n            END LOOP;\n            INSERT INTO public.ingest_retention_ranges VALUES(s.line_id,b.gateway_id,\n                b.source_id,b.stream_id,b.capture_generation,range_start,range_end,amount,\n                'SHA256_SUM_MOD_2_256_V1',accumulator,slo,shi,lo,hi,alo,ahi,tags,epochs,\n                unknown_time,first_at,tick,'RETENTION_EXPIRED',frontiers,latest_capture);\n            UPDATE public.ingest_receipts SET expired_at=tick\n                WHERE gateway_id=b.gateway_id AND batch_id=b.batch_id;\n            DELETE FROM public.capture_clock_probes p WHERE p.gateway_id=b.gateway_id\n                AND p.source_id=b.source_id AND p.stream_id=b.stream_id\n                AND p.capture_generation=b.capture_generation AND p.consumed_batch_id=b.batch_id\n                AND EXISTS(SELECT 1 FROM public.capture_clock_evidence c\n                    WHERE c.gateway_id=b.gateway_id AND c.batch_id=b.batch_id\n                    AND c.input_evidence_sha256=p.consumed_input_sha256);\n            DELETE FROM public.capture_clock_evidence\n                WHERE gateway_id=b.gateway_id AND batch_id=b.batch_id;\n            DELETE FROM public.ingest_batches WHERE gateway_id=b.gateway_id AND batch_id=b.batch_id;\n            removed:=removed+1;\n            pending_gateways:=array_append(pending_gateways,b.gateway_id);\n            pending_batches:=array_append(pending_batches,b.batch_id);\n            pending_count:=pending_count+1;\n            IF removed>=max_batches THEN EXIT; END IF;\n            EXCEPTION WHEN SQLSTATE 'P1001' THEN NULL;\n            END;\n        END LOOP;\n        IF NOT budget_exhausted AND scanned<max_candidates AND removed<max_batches THEN\n            UPDATE public.ingest_retention_state SET cursor_stored_at=NULL,\n                cursor_gateway_id=NULL,cursor_batch_id=NULL WHERE singleton;\n        END IF;\n        FOR expired_candidate IN SELECT gateway_id,batch_id,expired_at FROM public.ingest_receipts\n            WHERE expired_at IS NOT NULL AND (st.compact_expired_at IS NULL OR\n                ROW(expired_at,gateway_id,batch_id)>\n                ROW(st.compact_expired_at,st.compact_gateway_id,st.compact_batch_id))\n            ORDER BY expired_at,gateway_id,batch_id LIMIT max_candidates\n        LOOP\n            IF scanned>=max_candidates OR pending_count>=max_batches THEN EXIT; END IF;\n            IF clock_timestamp()-tick>=interval '500 milliseconds' THEN\n                budget_exhausted:=true; EXIT;\n            END IF;\n            scanned:=scanned+1;\n            UPDATE public.ingest_retention_state\n                SET compact_expired_at=expired_candidate.expired_at,\n                compact_gateway_id=expired_candidate.gateway_id,\n                compact_batch_id=expired_candidate.batch_id WHERE singleton;\n            BEGIN\n                key:=('x'||substr(encode(sha256(convert_to('gateway:'||expired_candidate.gateway_id,\n                    'UTF8')),'hex'),1,16))::bit(64)::bigint;\n                IF pg_try_advisory_xact_lock(key) AND NOT EXISTS(\n                    SELECT 1 FROM unnest(pending_gateways,pending_batches) q(gateway,batch)\n                    WHERE q.gateway=expired_candidate.gateway_id\n                        AND q.batch=expired_candidate.batch_id) THEN\n                    pending_gateways:=array_append(pending_gateways,expired_candidate.gateway_id);\n                    pending_batches:=array_append(pending_batches,expired_candidate.batch_id);\n                    pending_count:=pending_count+1;\n                END IF;\n            END;\n        END LOOP;\n        IF NOT budget_exhausted AND scanned<max_candidates AND pending_count<max_batches THEN\n            UPDATE public.ingest_retention_state SET compact_expired_at=NULL,\n                compact_gateway_id=NULL,compact_batch_id=NULL WHERE singleton;\n        END IF;\n        FOR pending_group IN SELECT gateway,array_agg(batch ORDER BY batch) AS batches\n            FROM unnest(pending_gateways,pending_batches) q(gateway,batch)\n            GROUP BY gateway ORDER BY gateway\n        LOOP\n            FOR group_offset IN 0..((cardinality(pending_group.batches)-1)/256) LOOP\n                compacted:=compacted+public.compact_ingest_receipts(pending_group.gateway,\n                    pending_group.batches[group_offset*256+1:(group_offset+1)*256],\n                    tick+interval '500 milliseconds');\n            END LOOP;\n        END LOOP;\n        IF clock_timestamp()-tick>=interval '500 milliseconds' THEN\n            budget_exhausted:=true;\n        END IF;\n        RETURN jsonb_build_object('status',CASE WHEN removed>0 THEN 'PRUNED' ELSE 'EMPTY' END,\n            'deleted_count',removed,'compacted_count',compacted,'scanned_count',scanned,\n            'budget_exhausted',budget_exhausted);\n    END $function$\n",
+        "cloned_sql": "CREATE OR REPLACE FUNCTION public.capacity_prune_ingest_batches_hours(retention_hours integer DEFAULT 168, max_batches integer DEFAULT 200, max_candidates integer DEFAULT 400)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'pg_temp'\nAS $function$\n    DECLARE\n        tick timestamptz:=public.capacity_clock_timestamp(); st public.ingest_retention_state%ROWTYPE;\n        b record; s public.source_streams%ROWTYPE; ev jsonb; valid boolean;\n        chosen boolean:=false; budget_exhausted boolean:=false;\n        scanned integer:=0; removed integer:=0; compacted integer:=0; key bigint;\n        expired_candidate record; pending_gateways text[]:='{}'; pending_batches text[]:='{}';\n        pending_count integer:=0; pending_group record; group_offset integer;\n        leaf text; lo timestamptz; hi timestamptz; alo timestamptz; ahi timestamptz;\n        tags text[]; epochs text[]; unknown_time boolean; adjacent record;\n        range_start numeric; range_end numeric; amount numeric; accumulator text;\n        first_at timestamptz; slo timestamptz; shi timestamptz;\n        frontiers jsonb; latest_capture jsonb; receipt_record public.ingest_receipts%ROWTYPE;\n    BEGIN\n        IF retention_hours IS NULL OR retention_hours<3 OR max_batches IS NULL\n            OR max_batches<1 OR max_batches>1000 OR max_candidates IS NULL\n            OR max_candidates<1 OR max_candidates>2000 THEN\n            RAISE EXCEPTION 'Invalid bounded retention parameters'; END IF;\n        IF NOT pg_try_advisory_xact_lock_shared(843001) THEN\n            RETURN jsonb_build_object('status','BUSY','deleted_count',0,\n                'scanned_count',0,'compacted_count',0,'budget_exhausted',false);\n        END IF;\n        SELECT * INTO st FROM public.ingest_retention_state WHERE singleton\n            FOR UPDATE SKIP LOCKED;\n        IF NOT FOUND THEN\n            RETURN jsonb_build_object('status','BUSY','deleted_count',0,\n                'scanned_count',0,'compacted_count',0,'budget_exhausted',false);\n        END IF;\n        IF st.last_attempt_at>tick-interval '1 minute' THEN\n            RETURN jsonb_build_object('status','THROTTLED','deleted_count',0,\n                'scanned_count',0,'compacted_count',0,'budget_exhausted',false);\n        END IF;\n        UPDATE public.ingest_retention_state SET last_attempt_at=tick WHERE singleton;\n        FOR b IN SELECT ib.* FROM public.ingest_batches ib\n            WHERE ib.stored_at<tick-make_interval(hours=>retention_hours)\n            AND (st.cursor_stored_at IS NULL OR\n                ROW(ib.stored_at,ib.gateway_id,ib.batch_id)>\n                ROW(st.cursor_stored_at,st.cursor_gateway_id,st.cursor_batch_id))\n            ORDER BY ib.stored_at,ib.gateway_id,ib.batch_id LIMIT max_candidates\n        LOOP\n            IF public.capacity_clock_timestamp()-tick>=interval '500 milliseconds' THEN\n                budget_exhausted:=true;\n                EXIT;\n            END IF;\n            scanned:=scanned+1;\n            UPDATE public.ingest_retention_state SET cursor_stored_at=b.stored_at,\n                cursor_gateway_id=b.gateway_id,cursor_batch_id=b.batch_id WHERE singleton;\n            BEGIN\n            IF NOT chosen THEN\n                key:=('x'||substr(encode(sha256(convert_to('gateway:'||b.gateway_id,\n                    'UTF8')),'hex'),1,16))::bit(64)::bigint;\n                IF NOT pg_try_advisory_xact_lock(key) THEN RAISE SQLSTATE 'P1001'; END IF;\n                BEGIN\n                    SELECT * INTO s FROM public.source_streams\n                        WHERE source_id=b.source_id AND stream_id=b.stream_id;\n                    IF NOT FOUND THEN RAISE SQLSTATE 'P1001'; END IF;\n                    PERFORM 1 FROM public.lines WHERE id=s.line_id FOR UPDATE NOWAIT;\n                    SELECT * INTO s FROM public.source_streams\n                        WHERE source_id=b.source_id AND stream_id=b.stream_id FOR UPDATE NOWAIT;\n                EXCEPTION WHEN lock_not_available THEN RAISE SQLSTATE 'P1001';\n                END;\n            END IF;\n            IF b.gateway_id<>s.gateway_id OR b.source_id<>s.source_id\n                OR b.stream_id<>s.stream_id OR b.capture_generation>s.capture_generation\n                OR s.conflicted OR s.reconciliation_required THEN RAISE SQLSTATE 'P1001'; END IF;\n            IF (jsonb_array_length(b.body->'events')=0 AND (\n                EXISTS(SELECT 1 FROM public.stream_gaps\n                WHERE source_id=s.source_id AND stream_id=s.stream_id)\n                OR EXISTS(SELECT 1 FROM public.event_inbox WHERE source_id=s.source_id\n                    AND stream_id=s.stream_id AND applied_at IS NULL)\n                OR EXISTS(SELECT 1 FROM public.command_requests WHERE source_id=s.source_id\n                    AND stream_id=s.stream_id AND (collision_latched OR status IN\n                    ('REQUESTED','DELIVERED','ACCEPTED','OUTCOME_UNKNOWN')))\n                )) OR jsonb_array_length(COALESCE(b.body->'gaps','[]'::jsonb))>0\n            THEN RAISE SQLSTATE 'P1001'; END IF;\n            valid:=true;\n            FOR ev IN SELECT value FROM jsonb_array_elements(b.body->'events') LOOP\n                IF NOT EXISTS(SELECT 1 FROM public.event_inbox i\n                    JOIN public.production_executions x ON x.execution_id=i.execution_id\n                    JOIN public.run_reconciliations r ON r.execution_id=x.execution_id\n                    JOIN public.execution_totals t ON t.execution_id=x.execution_id\n                    JOIN public.stream_progress p ON p.source_id=i.source_id\n                        AND p.stream_id=i.stream_id\n                    WHERE i.event_id=ev->>'event_id' AND i.body=ev\n                    AND i.source_id=s.source_id AND i.stream_id=s.stream_id\n                    AND i.seq=(ev->>'seq')::numeric AND i.kind=ev->>'kind'\n                    AND i.execution_id=ev->>'execution_id' AND i.applied_at IS NOT NULL\n                    AND i.reason_code IS NULL AND i.reason IS NULL\n                    AND x.source_id=s.source_id AND x.stream_id=s.stream_id\n                    AND r.status='SETTLED' AND r.final_summary->>'final'='true'\n                    AND r.final_summary->>'state'='ENDED'\n                    AND r.final_summary->>'execution_id'=x.execution_id\n                    AND r.final_summary->>'source_id'=s.source_id\n                    AND r.final_summary->>'stream_id'=s.stream_id\n                    AND r.final_summary->>'recipe_version'=x.recipe_version\n                    AND r.final_summary->>'counter_epoch'=x.counter_epoch\n                    AND public.retention_parameters_match(r.final_summary,x.parameters,\n                        x.recipe_version)\n                    AND (r.final_summary->>'wip_quantity')::numeric=0\n                    AND r.final_summary->>'ended_at' IS NOT NULL\n                    AND (r.final_summary->>'good_quantity')::numeric=t.good_quantity\n                    AND (r.final_summary->>'reject_quantity')::numeric=t.reject_quantity\n                    AND (r.final_summary->>'scrap_quantity')::numeric=t.scrap_quantity\n                    AND (r.final_summary->>'input_quantity')::numeric=\n                        t.good_quantity+t.reject_quantity+t.scrap_quantity\n                    AND p.verified_through_seq>=(r.final_summary->>'last_event_seq')::numeric\n                    AND i.seq<=p.verified_through_seq\n                    AND NOT EXISTS(SELECT 1 FROM public.stream_gaps g\n                        WHERE g.source_id=s.source_id AND g.stream_id=s.stream_id\n                        AND g.from_seq<=(r.final_summary->>'last_event_seq')::numeric)\n                    AND NOT EXISTS(SELECT 1 FROM public.event_inbox q\n                        WHERE q.source_id=s.source_id AND q.stream_id=s.stream_id\n                        AND q.seq<=(r.final_summary->>'last_event_seq')::numeric\n                        AND q.applied_at IS NULL)\n                    AND NOT EXISTS(SELECT 1 FROM public.command_requests c\n                        WHERE (c.execution_id=x.execution_id OR (c.execution_id IS NULL\n                            AND c.source_id=s.source_id AND c.stream_id=s.stream_id))\n                        AND (c.collision_latched OR\n                        c.status IN ('REQUESTED','DELIVERED','ACCEPTED','OUTCOME_UNKNOWN')))\n                    AND NOT EXISTS(SELECT 1 FROM public.event_inbox later\n                        WHERE later.source_id=s.source_id AND later.stream_id=s.stream_id\n                        AND later.execution_id=x.execution_id\n                        AND later.seq>(r.final_summary->>'last_event_seq')::numeric\n                        AND (later.applied_at IS NULL OR later.seq>p.verified_through_seq\n                            OR later.kind<>'STATE_CHANGED'\n                            OR COALESCE(later.body#>>'{payload,previous_state}','')\n                                NOT IN ('STOPPED','RECOVERY_REQUIRED')\n                            OR COALESCE(later.body#>>'{payload,state}','')\n                                NOT IN ('STOPPED','RECOVERY_REQUIRED')))\n                    AND COALESCE((SELECT last_event.body#>>'{payload,state}'\n                        FROM public.event_inbox last_event\n                        WHERE last_event.source_id=s.source_id\n                        AND last_event.stream_id=s.stream_id\n                        AND last_event.execution_id=x.execution_id\n                        AND last_event.seq>(r.final_summary->>'last_event_seq')::numeric\n                        ORDER BY last_event.seq DESC LIMIT 1),'STOPPED')='STOPPED'\n                    AND NOT EXISTS(SELECT 1 FROM public.run_summary_conflicts c\n                        WHERE c.execution_id=x.execution_id)) THEN valid:=false; EXIT; END IF;\n            END LOOP;\n            IF NOT valid THEN RAISE SQLSTATE 'P1001'; END IF;\n            PERFORM 1 FROM public.ingest_batches WHERE gateway_id=b.gateway_id\n                AND batch_id=b.batch_id FOR UPDATE SKIP LOCKED;\n            IF NOT FOUND THEN RAISE SQLSTATE 'P1001'; END IF;\n            chosen:=true;\n            leaf:=encode(sha256(convert_to(jsonb_build_array('HMI_RETENTION_LEAF_V1',\n                b.gateway_id,b.source_id,b.stream_id,b.capture_generation::text,\n                b.capture_seq::text,b.batch_id,b.content_sha256)::text,'UTF8')),'hex');\n            SELECT min(v),max(v) INTO lo,hi FROM (\n                SELECT (b.body->>'captured_at')::timestamptz AS v\n                UNION ALL SELECT (value->>'acquired_at')::timestamptz\n                    FROM jsonb_array_elements(b.body->'samples')) times;\n            SELECT c.status<>'GOOD',c.canonical_api_utc+(lo-c.original_capture_utc),\n                c.canonical_api_utc+(hi-c.original_capture_utc)\n                INTO unknown_time,alo,ahi FROM public.capture_clock_evidence c\n                WHERE c.gateway_id=b.gateway_id AND c.batch_id=b.batch_id;\n            unknown_time:=COALESCE(unknown_time,true) OR EXISTS(\n                SELECT 1 FROM public.analog_history_clock_state cs\n                JOIN public.ingest_receipts receipt ON receipt.gateway_id=b.gateway_id\n                    AND receipt.batch_id=b.batch_id\n                WHERE cs.gateway_id=b.gateway_id AND cs.source_id=b.source_id\n                    AND cs.stream_id=b.stream_id\n                    AND cs.capture_generation=b.capture_generation\n                    AND cs.clock_epoch=receipt.clock_epoch\n                    AND cs.reversal_seq IS NOT NULL AND b.capture_seq>=cs.reversal_seq);\n            IF unknown_time THEN alo:=NULL; ahi:=NULL; END IF;\n            SELECT COALESCE(array_agg(DISTINCT value->>'tag_id'),'{}'::text[]) INTO tags\n                FROM jsonb_array_elements(b.body->'samples');\n            epochs:=ARRAY(SELECT clock_epoch FROM public.ingest_receipts\n                WHERE gateway_id=b.gateway_id AND batch_id=b.batch_id\n                    AND clock_epoch IS NOT NULL);\n            SELECT * INTO STRICT receipt_record FROM public.ingest_receipts\n                WHERE gateway_id=b.gateway_id AND batch_id=b.batch_id;\n            latest_capture:=to_jsonb(receipt_record)-'expired_at' || jsonb_build_object(\n                'capture_generation',receipt_record.capture_generation::text,\n                'capture_seq',receipt_record.capture_seq::text);\n            frontiers:=CASE WHEN receipt_record.clock_epoch IS NULL THEN '{}'::jsonb ELSE\n                jsonb_build_object(receipt_record.clock_epoch,jsonb_build_object('first',\n                    jsonb_build_object('capture_seq',receipt_record.capture_seq::text,\n                    'captured_at',receipt_record.captured_at,'monotonic_seconds',receipt_record.monotonic_seconds),\n                    'last',jsonb_build_object('capture_seq',receipt_record.capture_seq::text,\n                    'captured_at',receipt_record.captured_at,\n                    'monotonic_seconds',receipt_record.monotonic_seconds))) END;\n            range_start:=b.capture_seq; range_end:=b.capture_seq; amount:=1;\n            accumulator:=leaf; first_at:=tick; slo:=b.stored_at; shi:=b.stored_at;\n            FOR adjacent IN SELECT * FROM public.ingest_retention_ranges r\n                WHERE r.gateway_id=b.gateway_id AND r.source_id=b.source_id\n                AND r.stream_id=b.stream_id AND r.capture_generation=b.capture_generation\n                AND (r.through_capture_seq=b.capture_seq-1\n                    OR r.from_capture_seq=b.capture_seq+1) FOR UPDATE\n            LOOP\n                frontiers:=public.retention_clock_frontiers_merge(frontiers,adjacent.clock_frontiers);\n                IF (adjacent.latest_capture->>'capture_seq')::numeric>\n                    (latest_capture->>'capture_seq')::numeric THEN\n                    latest_capture:=adjacent.latest_capture;\n                END IF;\n                range_start:=least(range_start,adjacent.from_capture_seq);\n                range_end:=greatest(range_end,adjacent.through_capture_seq);\n                amount:=amount+adjacent.deleted_count;\n                accumulator:=public.retention_hash_add(accumulator,adjacent.hash_accumulator);\n                first_at:=least(first_at,adjacent.first_deleted_at);\n                slo:=least(slo,adjacent.stored_from); shi:=greatest(shi,adjacent.stored_until);\n                lo:=least(lo,adjacent.original_from); hi:=greatest(hi,adjacent.original_until);\n                alo:=least(alo,adjacent.analytical_from);\n                ahi:=greatest(ahi,adjacent.analytical_until);\n                unknown_time:=unknown_time OR adjacent.time_unknown;\n                tags:=ARRAY(SELECT DISTINCT unnest(tags||adjacent.tag_ids) ORDER BY 1);\n                epochs:=ARRAY(SELECT DISTINCT unnest(epochs||adjacent.clock_epochs) ORDER BY 1);\n                DELETE FROM public.ingest_retention_ranges\n                    WHERE gateway_id=adjacent.gateway_id AND source_id=adjacent.source_id\n                    AND stream_id=adjacent.stream_id\n                    AND capture_generation=adjacent.capture_generation\n                    AND from_capture_seq=adjacent.from_capture_seq;\n            END LOOP;\n            INSERT INTO public.ingest_retention_ranges VALUES(s.line_id,b.gateway_id,\n                b.source_id,b.stream_id,b.capture_generation,range_start,range_end,amount,\n                'SHA256_SUM_MOD_2_256_V1',accumulator,slo,shi,lo,hi,alo,ahi,tags,epochs,\n                unknown_time,first_at,tick,'RETENTION_EXPIRED',frontiers,latest_capture);\n            UPDATE public.ingest_receipts SET expired_at=tick\n                WHERE gateway_id=b.gateway_id AND batch_id=b.batch_id;\n            DELETE FROM public.capture_clock_probes p WHERE p.gateway_id=b.gateway_id\n                AND p.source_id=b.source_id AND p.stream_id=b.stream_id\n                AND p.capture_generation=b.capture_generation AND p.consumed_batch_id=b.batch_id\n                AND EXISTS(SELECT 1 FROM public.capture_clock_evidence c\n                    WHERE c.gateway_id=b.gateway_id AND c.batch_id=b.batch_id\n                    AND c.input_evidence_sha256=p.consumed_input_sha256);\n            DELETE FROM public.capture_clock_evidence\n                WHERE gateway_id=b.gateway_id AND batch_id=b.batch_id;\n            DELETE FROM public.ingest_batches WHERE gateway_id=b.gateway_id AND batch_id=b.batch_id;\n            removed:=removed+1;\n            pending_gateways:=array_append(pending_gateways,b.gateway_id);\n            pending_batches:=array_append(pending_batches,b.batch_id);\n            pending_count:=pending_count+1;\n            IF removed>=max_batches THEN EXIT; END IF;\n            EXCEPTION WHEN SQLSTATE 'P1001' THEN NULL;\n            END;\n        END LOOP;\n        IF NOT budget_exhausted AND scanned<max_candidates AND removed<max_batches THEN\n            UPDATE public.ingest_retention_state SET cursor_stored_at=NULL,\n                cursor_gateway_id=NULL,cursor_batch_id=NULL WHERE singleton;\n        END IF;\n        FOR expired_candidate IN SELECT gateway_id,batch_id,expired_at FROM public.ingest_receipts\n            WHERE expired_at IS NOT NULL AND (st.compact_expired_at IS NULL OR\n                ROW(expired_at,gateway_id,batch_id)>\n                ROW(st.compact_expired_at,st.compact_gateway_id,st.compact_batch_id))\n            ORDER BY expired_at,gateway_id,batch_id LIMIT max_candidates\n        LOOP\n            IF scanned>=max_candidates OR pending_count>=max_batches THEN EXIT; END IF;\n            IF public.capacity_clock_timestamp()-tick>=interval '500 milliseconds' THEN\n                budget_exhausted:=true; EXIT;\n            END IF;\n            scanned:=scanned+1;\n            UPDATE public.ingest_retention_state\n                SET compact_expired_at=expired_candidate.expired_at,\n                compact_gateway_id=expired_candidate.gateway_id,\n                compact_batch_id=expired_candidate.batch_id WHERE singleton;\n            BEGIN\n                key:=('x'||substr(encode(sha256(convert_to('gateway:'||expired_candidate.gateway_id,\n                    'UTF8')),'hex'),1,16))::bit(64)::bigint;\n                IF pg_try_advisory_xact_lock(key) AND NOT EXISTS(\n                    SELECT 1 FROM unnest(pending_gateways,pending_batches) q(gateway,batch)\n                    WHERE q.gateway=expired_candidate.gateway_id\n                        AND q.batch=expired_candidate.batch_id) THEN\n                    pending_gateways:=array_append(pending_gateways,expired_candidate.gateway_id);\n                    pending_batches:=array_append(pending_batches,expired_candidate.batch_id);\n                    pending_count:=pending_count+1;\n                END IF;\n            END;\n        END LOOP;\n        IF NOT budget_exhausted AND scanned<max_candidates AND pending_count<max_batches THEN\n            UPDATE public.ingest_retention_state SET compact_expired_at=NULL,\n                compact_gateway_id=NULL,compact_batch_id=NULL WHERE singleton;\n        END IF;\n        FOR pending_group IN SELECT gateway,array_agg(batch ORDER BY batch) AS batches\n            FROM unnest(pending_gateways,pending_batches) q(gateway,batch)\n            GROUP BY gateway ORDER BY gateway\n        LOOP\n            FOR group_offset IN 0..((cardinality(pending_group.batches)-1)/256) LOOP\n                compacted:=compacted+public.capacity_compact_ingest_receipts(pending_group.gateway,\n                    pending_group.batches[group_offset*256+1:(group_offset+1)*256],\n                    tick+interval '500 milliseconds');\n            END LOOP;\n        END LOOP;\n        IF public.capacity_clock_timestamp()-tick>=interval '500 milliseconds' THEN\n            budget_exhausted:=true;\n        END IF;\n        RETURN jsonb_build_object('status',CASE WHEN removed>0 THEN 'PRUNED' ELSE 'EMPTY' END,\n            'deleted_count',removed,'compacted_count',compacted,'scanned_count',scanned,\n            'budget_exhausted',budget_exhausted);\n    END $function$\n"
+      }
+    ]
+  },
+  "vacuum_every_simulated_minutes": 60,
+  "vacuum_mode": "ordinary VACUUM ANALYZE; no FULL",
+  "live_bytes_definition": "sum pg_column_size(each column); excludes tuple/index overhead",
+  "checkpoints": [
+    {
+      "simulated_minute": 180,
+      "tables": {
+        "alarm_actions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 49152,
+          "total_bytes": 57344
+        },
+        "alarm_capture_decisions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "alarm_capture_frontiers": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "alarm_channels": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "alarm_instances": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 32768,
+          "total_bytes": 40960
+        },
+        "alarm_outbox": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "alarm_receipts": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "alarm_rule_versions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "alembic_version": {
+          "rows": 1,
+          "live_column_bytes": 29,
+          "table_bytes": 40960,
+          "index_bytes": 16384,
+          "total_bytes": 57344
+        },
+        "analog_history_clock_state": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "analog_history_minutes": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "analog_history_raw": {
+          "rows": 3,
+          "live_column_bytes": 2032,
+          "table_bytes": 49152,
+          "index_bytes": 131072,
+          "total_bytes": 180224
+        },
+        "assets": {
+          "rows": 3,
+          "live_column_bytes": 147,
+          "table_bytes": 49152,
+          "index_bytes": 65536,
+          "total_bytes": 114688
+        },
+        "auth_audit": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "auth_login_challenges": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "auth_sessions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "capture_clock_evidence": {
+          "rows": 10799,
+          "live_column_bytes": 3586868,
+          "table_bytes": 4259840,
+          "index_bytes": 1794048,
+          "total_bytes": 6053888
+        },
+        "capture_clock_probes": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "command_request_audit": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "command_requests": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 32768,
+          "total_bytes": 40960
+        },
+        "downtime_reason_history": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "equipment_state_events": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "event_apply_errors": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "event_inbox": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 40960,
+          "total_bytes": 49152
+        },
+        "execution_plans": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "execution_totals": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "guest_rate_windows": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "guest_viewer_accounts": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "ingest_batches": {
+          "rows": 10799,
+          "live_column_bytes": 20107307,
+          "table_bytes": 22159360,
+          "index_bytes": 4825088,
+          "total_bytes": 26984448
+        },
+        "ingest_conflicts": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "ingest_receipts": {
+          "rows": 10799,
+          "live_column_bytes": 1718641,
+          "table_bytes": 2203648,
+          "index_bytes": 5505024,
+          "total_bytes": 7708672
+        },
+        "ingest_retention_ranges": {
+          "rows": 1,
+          "live_column_bytes": 1296,
+          "table_bytes": 49152,
+          "index_bytes": 32768,
+          "total_bytes": 81920
+        },
+        "ingest_retention_state": {
+          "rows": 1,
+          "live_column_bytes": 9,
+          "table_bytes": 49152,
+          "index_bytes": 16384,
+          "total_bytes": 65536
+        },
+        "ingest_retired_batch_chunks": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "ingest_retired_batch_segments": {
+          "rows": 1,
+          "live_column_bytes": 68,
+          "table_bytes": 49152,
+          "index_bytes": 131072,
+          "total_bytes": 180224
+        },
+        "item_audit": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "item_master": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "line_execution_reservations": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "line_queue_audit": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "line_queue_entries": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 32768,
+          "total_bytes": 40960
+        },
+        "line_queue_policies": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "line_queue_updates": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "lines": {
+          "rows": 1,
+          "live_column_bytes": 57,
+          "table_bytes": 49152,
+          "index_bytes": 49152,
+          "total_bytes": 98304
+        },
+        "mes_management_audit": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "production_events": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "production_executions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "recipe_versions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "registration_id_counters": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "registration_receipts": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "roles": {
+          "rows": 4,
+          "live_column_bytes": 51,
+          "table_bytes": 49152,
+          "index_bytes": 16384,
+          "total_bytes": 65536
+        },
+        "run_reconciliations": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "run_summary_conflicts": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "sites": {
+          "rows": 1,
+          "live_column_bytes": 28,
+          "table_bytes": 49152,
+          "index_bytes": 32768,
+          "total_bytes": 81920
+        },
+        "source_streams": {
+          "rows": 1,
+          "live_column_bytes": 63,
+          "table_bytes": 49152,
+          "index_bytes": 81920,
+          "total_bytes": 131072
+        },
+        "stream_gaps": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "stream_progress": {
+          "rows": 1,
+          "live_column_bytes": 35,
+          "table_bytes": 49152,
+          "index_bytes": 16384,
+          "total_bytes": 65536
+        },
+        "tag_definitions": {
+          "rows": 48,
+          "live_column_bytes": 64114,
+          "table_bytes": 122880,
+          "index_bytes": 81920,
+          "total_bytes": 204800
+        },
+        "user_roles": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "users": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "work_order_cancellations": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "work_order_execution_links": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 32768,
+          "total_bytes": 40960
+        },
+        "work_order_releases": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "work_orders": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        }
+      },
+      "expired_receipts": 0,
+      "covered_captures": 1,
+      "retired_uuid_ids": 1,
+      "retired_text_ids": 0,
+      "maximum_segment_ids": 1,
+      "exact_alarm_receipt_fk_rows": 0,
+      "database_bytes": 53081779,
+      "all_public_relation_bytes": 43368448,
+      "all_public_live_column_bytes": 25480745
+    },
+    {
+      "simulated_minute": 360,
+      "tables": {
+        "alarm_actions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 49152,
+          "total_bytes": 57344
+        },
+        "alarm_capture_decisions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "alarm_capture_frontiers": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "alarm_channels": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "alarm_instances": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 32768,
+          "total_bytes": 40960
+        },
+        "alarm_outbox": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "alarm_receipts": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "alarm_rule_versions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "alembic_version": {
+          "rows": 1,
+          "live_column_bytes": 29,
+          "table_bytes": 40960,
+          "index_bytes": 16384,
+          "total_bytes": 57344
+        },
+        "analog_history_clock_state": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "analog_history_minutes": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "analog_history_raw": {
+          "rows": 3,
+          "live_column_bytes": 2032,
+          "table_bytes": 49152,
+          "index_bytes": 131072,
+          "total_bytes": 180224
+        },
+        "assets": {
+          "rows": 3,
+          "live_column_bytes": 147,
+          "table_bytes": 49152,
+          "index_bytes": 65536,
+          "total_bytes": 114688
+        },
+        "auth_audit": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "auth_login_challenges": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "auth_sessions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "capture_clock_evidence": {
+          "rows": 10799,
+          "live_column_bytes": 3606864,
+          "table_bytes": 5660672,
+          "index_bytes": 2826240,
+          "total_bytes": 8486912
+        },
+        "capture_clock_probes": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "command_request_audit": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "command_requests": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 32768,
+          "total_bytes": 40960
+        },
+        "downtime_reason_history": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "equipment_state_events": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "event_apply_errors": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "event_inbox": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 40960,
+          "total_bytes": 49152
+        },
+        "execution_plans": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "execution_totals": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "guest_rate_windows": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "guest_viewer_accounts": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "ingest_batches": {
+          "rows": 10799,
+          "live_column_bytes": 20115766,
+          "table_bytes": 29532160,
+          "index_bytes": 7446528,
+          "total_bytes": 36978688
+        },
+        "ingest_conflicts": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "ingest_receipts": {
+          "rows": 10799,
+          "live_column_bytes": 1738637,
+          "table_bytes": 3604480,
+          "index_bytes": 11804672,
+          "total_bytes": 15409152
+        },
+        "ingest_retention_ranges": {
+          "rows": 1,
+          "live_column_bytes": 1304,
+          "table_bytes": 4030464,
+          "index_bytes": 81920,
+          "total_bytes": 4112384
+        },
+        "ingest_retention_state": {
+          "rows": 1,
+          "live_column_bytes": 9,
+          "table_bytes": 401408,
+          "index_bytes": 16384,
+          "total_bytes": 417792
+        },
+        "ingest_retired_batch_chunks": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "ingest_retired_batch_segments": {
+          "rows": 181,
+          "live_column_bytes": 182768,
+          "table_bytes": 253952,
+          "index_bytes": 761856,
+          "total_bytes": 1015808
+        },
+        "item_audit": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "item_master": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "line_execution_reservations": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "line_queue_audit": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "line_queue_entries": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 32768,
+          "total_bytes": 40960
+        },
+        "line_queue_policies": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "line_queue_updates": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "lines": {
+          "rows": 1,
+          "live_column_bytes": 57,
+          "table_bytes": 49152,
+          "index_bytes": 49152,
+          "total_bytes": 98304
+        },
+        "mes_management_audit": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "production_events": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "production_executions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "recipe_versions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "registration_id_counters": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "registration_receipts": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "roles": {
+          "rows": 4,
+          "live_column_bytes": 51,
+          "table_bytes": 49152,
+          "index_bytes": 16384,
+          "total_bytes": 65536
+        },
+        "run_reconciliations": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "run_summary_conflicts": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "sites": {
+          "rows": 1,
+          "live_column_bytes": 28,
+          "table_bytes": 49152,
+          "index_bytes": 32768,
+          "total_bytes": 81920
+        },
+        "source_streams": {
+          "rows": 1,
+          "live_column_bytes": 63,
+          "table_bytes": 49152,
+          "index_bytes": 81920,
+          "total_bytes": 131072
+        },
+        "stream_gaps": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "stream_progress": {
+          "rows": 1,
+          "live_column_bytes": 35,
+          "table_bytes": 49152,
+          "index_bytes": 16384,
+          "total_bytes": 65536
+        },
+        "tag_definitions": {
+          "rows": 48,
+          "live_column_bytes": 64114,
+          "table_bytes": 122880,
+          "index_bytes": 81920,
+          "total_bytes": 204800
+        },
+        "user_roles": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "users": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "work_order_cancellations": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "work_order_execution_links": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 32768,
+          "total_bytes": 40960
+        },
+        "work_order_releases": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "work_orders": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        }
+      },
+      "expired_receipts": 0,
+      "covered_captures": 10801,
+      "retired_uuid_ids": 10801,
+      "retired_text_ids": 0,
+      "maximum_segment_ids": 60,
+      "exact_alarm_receipt_fk_rows": 0,
+      "database_bytes": 78689971,
+      "all_public_relation_bytes": 68714496,
+      "all_public_live_column_bytes": 25711904
+    },
+    {
+      "simulated_minute": 720,
+      "tables": {
+        "alarm_actions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 49152,
+          "total_bytes": 57344
+        },
+        "alarm_capture_decisions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "alarm_capture_frontiers": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "alarm_channels": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "alarm_instances": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 32768,
+          "total_bytes": 40960
+        },
+        "alarm_outbox": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "alarm_receipts": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "alarm_rule_versions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "alembic_version": {
+          "rows": 1,
+          "live_column_bytes": 29,
+          "table_bytes": 40960,
+          "index_bytes": 16384,
+          "total_bytes": 57344
+        },
+        "analog_history_clock_state": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "analog_history_minutes": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "analog_history_raw": {
+          "rows": 3,
+          "live_column_bytes": 2032,
+          "table_bytes": 49152,
+          "index_bytes": 131072,
+          "total_bytes": 180224
+        },
+        "assets": {
+          "rows": 3,
+          "live_column_bytes": 147,
+          "table_bytes": 49152,
+          "index_bytes": 65536,
+          "total_bytes": 114688
+        },
+        "auth_audit": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "auth_login_challenges": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "auth_sessions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "capture_clock_evidence": {
+          "rows": 10799,
+          "live_column_bytes": 3606864,
+          "table_bytes": 5660672,
+          "index_bytes": 2924544,
+          "total_bytes": 8585216
+        },
+        "capture_clock_probes": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "command_request_audit": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "command_requests": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 32768,
+          "total_bytes": 40960
+        },
+        "downtime_reason_history": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "equipment_state_events": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "event_apply_errors": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "event_inbox": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 40960,
+          "total_bytes": 49152
+        },
+        "execution_plans": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "execution_totals": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "guest_rate_windows": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "guest_viewer_accounts": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "ingest_batches": {
+          "rows": 10799,
+          "live_column_bytes": 20117147,
+          "table_bytes": 29532160,
+          "index_bytes": 7938048,
+          "total_bytes": 37470208
+        },
+        "ingest_conflicts": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "ingest_receipts": {
+          "rows": 10799,
+          "live_column_bytes": 1738637,
+          "table_bytes": 3686400,
+          "index_bytes": 12836864,
+          "total_bytes": 16523264
+        },
+        "ingest_retention_ranges": {
+          "rows": 1,
+          "live_column_bytes": 1304,
+          "table_bytes": 5947392,
+          "index_bytes": 81920,
+          "total_bytes": 6029312
+        },
+        "ingest_retention_state": {
+          "rows": 1,
+          "live_column_bytes": 9,
+          "table_bytes": 532480,
+          "index_bytes": 16384,
+          "total_bytes": 548864
+        },
+        "ingest_retired_batch_chunks": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "ingest_retired_batch_segments": {
+          "rows": 541,
+          "live_column_bytes": 548168,
+          "table_bytes": 679936,
+          "index_bytes": 2162688,
+          "total_bytes": 2842624
+        },
+        "item_audit": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "item_master": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "line_execution_reservations": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "line_queue_audit": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "line_queue_entries": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 32768,
+          "total_bytes": 40960
+        },
+        "line_queue_policies": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "line_queue_updates": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "lines": {
+          "rows": 1,
+          "live_column_bytes": 57,
+          "table_bytes": 49152,
+          "index_bytes": 49152,
+          "total_bytes": 98304
+        },
+        "mes_management_audit": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "production_events": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "production_executions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "recipe_versions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "registration_id_counters": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "registration_receipts": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "roles": {
+          "rows": 4,
+          "live_column_bytes": 51,
+          "table_bytes": 49152,
+          "index_bytes": 16384,
+          "total_bytes": 65536
+        },
+        "run_reconciliations": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "run_summary_conflicts": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "sites": {
+          "rows": 1,
+          "live_column_bytes": 28,
+          "table_bytes": 49152,
+          "index_bytes": 32768,
+          "total_bytes": 81920
+        },
+        "source_streams": {
+          "rows": 1,
+          "live_column_bytes": 63,
+          "table_bytes": 49152,
+          "index_bytes": 81920,
+          "total_bytes": 131072
+        },
+        "stream_gaps": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "stream_progress": {
+          "rows": 1,
+          "live_column_bytes": 35,
+          "table_bytes": 49152,
+          "index_bytes": 16384,
+          "total_bytes": 65536
+        },
+        "tag_definitions": {
+          "rows": 48,
+          "live_column_bytes": 64114,
+          "table_bytes": 122880,
+          "index_bytes": 81920,
+          "total_bytes": 204800
+        },
+        "user_roles": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "users": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "work_order_cancellations": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "work_order_execution_links": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 32768,
+          "total_bytes": 40960
+        },
+        "work_order_releases": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "work_orders": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        }
+      },
+      "expired_receipts": 0,
+      "covered_captures": 32401,
+      "retired_uuid_ids": 32401,
+      "retired_text_ids": 0,
+      "maximum_segment_ids": 60,
+      "exact_alarm_receipt_fk_rows": 0,
+      "database_bytes": 84211379,
+      "all_public_relation_bytes": 74293248,
+      "all_public_live_column_bytes": 26078685
+    },
+    {
+      "simulated_minute": 1080,
+      "tables": {
+        "alarm_actions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 49152,
+          "total_bytes": 57344
+        },
+        "alarm_capture_decisions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "alarm_capture_frontiers": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "alarm_channels": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "alarm_instances": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 32768,
+          "total_bytes": 40960
+        },
+        "alarm_outbox": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "alarm_receipts": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "alarm_rule_versions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "alembic_version": {
+          "rows": 1,
+          "live_column_bytes": 29,
+          "table_bytes": 40960,
+          "index_bytes": 16384,
+          "total_bytes": 57344
+        },
+        "analog_history_clock_state": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "analog_history_minutes": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "analog_history_raw": {
+          "rows": 3,
+          "live_column_bytes": 2032,
+          "table_bytes": 49152,
+          "index_bytes": 131072,
+          "total_bytes": 180224
+        },
+        "assets": {
+          "rows": 3,
+          "live_column_bytes": 147,
+          "table_bytes": 49152,
+          "index_bytes": 65536,
+          "total_bytes": 114688
+        },
+        "auth_audit": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "auth_login_challenges": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "auth_sessions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "capture_clock_evidence": {
+          "rows": 10798,
+          "live_column_bytes": 3606530,
+          "table_bytes": 5660672,
+          "index_bytes": 2973696,
+          "total_bytes": 8634368
+        },
+        "capture_clock_probes": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "command_request_audit": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "command_requests": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 32768,
+          "total_bytes": 40960
+        },
+        "downtime_reason_history": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "equipment_state_events": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "event_apply_errors": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "event_inbox": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 40960,
+          "total_bytes": 49152
+        },
+        "execution_plans": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "execution_totals": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "guest_rate_windows": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "guest_viewer_accounts": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "ingest_batches": {
+          "rows": 10798,
+          "live_column_bytes": 20114466,
+          "table_bytes": 29532160,
+          "index_bytes": 8192000,
+          "total_bytes": 37724160
+        },
+        "ingest_conflicts": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "ingest_receipts": {
+          "rows": 10798,
+          "live_column_bytes": 1738476,
+          "table_bytes": 3637248,
+          "index_bytes": 13180928,
+          "total_bytes": 16818176
+        },
+        "ingest_retention_ranges": {
+          "rows": 1,
+          "live_column_bytes": 1304,
+          "table_bytes": 5947392,
+          "index_bytes": 81920,
+          "total_bytes": 6029312
+        },
+        "ingest_retention_state": {
+          "rows": 1,
+          "live_column_bytes": 9,
+          "table_bytes": 532480,
+          "index_bytes": 16384,
+          "total_bytes": 548864
+        },
+        "ingest_retired_batch_chunks": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "ingest_retired_batch_segments": {
+          "rows": 901,
+          "live_column_bytes": 913584,
+          "table_bytes": 1097728,
+          "index_bytes": 2940928,
+          "total_bytes": 4038656
+        },
+        "item_audit": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "item_master": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "line_execution_reservations": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "line_queue_audit": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "line_queue_entries": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 32768,
+          "total_bytes": 40960
+        },
+        "line_queue_policies": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "line_queue_updates": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "lines": {
+          "rows": 1,
+          "live_column_bytes": 57,
+          "table_bytes": 49152,
+          "index_bytes": 49152,
+          "total_bytes": 98304
+        },
+        "mes_management_audit": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "production_events": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "production_executions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "recipe_versions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "registration_id_counters": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "registration_receipts": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "roles": {
+          "rows": 4,
+          "live_column_bytes": 51,
+          "table_bytes": 49152,
+          "index_bytes": 16384,
+          "total_bytes": 65536
+        },
+        "run_reconciliations": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "run_summary_conflicts": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "sites": {
+          "rows": 1,
+          "live_column_bytes": 28,
+          "table_bytes": 49152,
+          "index_bytes": 32768,
+          "total_bytes": 81920
+        },
+        "source_streams": {
+          "rows": 1,
+          "live_column_bytes": 63,
+          "table_bytes": 49152,
+          "index_bytes": 81920,
+          "total_bytes": 131072
+        },
+        "stream_gaps": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "stream_progress": {
+          "rows": 1,
+          "live_column_bytes": 35,
+          "table_bytes": 49152,
+          "index_bytes": 16384,
+          "total_bytes": 65536
+        },
+        "tag_definitions": {
+          "rows": 48,
+          "live_column_bytes": 64114,
+          "table_bytes": 122880,
+          "index_bytes": 81920,
+          "total_bytes": 204800
+        },
+        "user_roles": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "users": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "work_order_cancellations": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "work_order_execution_links": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 32768,
+          "total_bytes": 40960
+        },
+        "work_order_releases": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "work_orders": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        }
+      },
+      "expired_receipts": 0,
+      "covered_captures": 54002,
+      "retired_uuid_ids": 54002,
+      "retired_text_ids": 0,
+      "maximum_segment_ids": 61,
+      "exact_alarm_receipt_fk_rows": 0,
+      "database_bytes": 86005427,
+      "all_public_relation_bytes": 76087296,
+      "all_public_live_column_bytes": 26440925
+    },
+    {
+      "simulated_minute": 1440,
+      "tables": {
+        "alarm_actions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 49152,
+          "total_bytes": 57344
+        },
+        "alarm_capture_decisions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "alarm_capture_frontiers": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "alarm_channels": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "alarm_instances": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 32768,
+          "total_bytes": 40960
+        },
+        "alarm_outbox": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "alarm_receipts": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "alarm_rule_versions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "alembic_version": {
+          "rows": 1,
+          "live_column_bytes": 29,
+          "table_bytes": 40960,
+          "index_bytes": 16384,
+          "total_bytes": 57344
+        },
+        "analog_history_clock_state": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "analog_history_minutes": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "analog_history_raw": {
+          "rows": 3,
+          "live_column_bytes": 2032,
+          "table_bytes": 49152,
+          "index_bytes": 131072,
+          "total_bytes": 180224
+        },
+        "assets": {
+          "rows": 3,
+          "live_column_bytes": 147,
+          "table_bytes": 49152,
+          "index_bytes": 65536,
+          "total_bytes": 114688
+        },
+        "auth_audit": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "auth_login_challenges": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "auth_sessions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "capture_clock_evidence": {
+          "rows": 10798,
+          "live_column_bytes": 3606530,
+          "table_bytes": 5660672,
+          "index_bytes": 3031040,
+          "total_bytes": 8691712
+        },
+        "capture_clock_probes": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "command_request_audit": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "command_requests": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 32768,
+          "total_bytes": 40960
+        },
+        "downtime_reason_history": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "equipment_state_events": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "event_apply_errors": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "event_inbox": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 40960,
+          "total_bytes": 49152
+        },
+        "execution_plans": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "execution_totals": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "guest_rate_windows": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "guest_viewer_accounts": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "ingest_batches": {
+          "rows": 10798,
+          "live_column_bytes": 20114535,
+          "table_bytes": 29532160,
+          "index_bytes": 8388608,
+          "total_bytes": 37920768
+        },
+        "ingest_conflicts": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "ingest_receipts": {
+          "rows": 10798,
+          "live_column_bytes": 1738476,
+          "table_bytes": 3670016,
+          "index_bytes": 13402112,
+          "total_bytes": 17072128
+        },
+        "ingest_retention_ranges": {
+          "rows": 1,
+          "live_column_bytes": 1304,
+          "table_bytes": 5947392,
+          "index_bytes": 81920,
+          "total_bytes": 6029312
+        },
+        "ingest_retention_state": {
+          "rows": 1,
+          "live_column_bytes": 9,
+          "table_bytes": 532480,
+          "index_bytes": 16384,
+          "total_bytes": 548864
+        },
+        "ingest_retired_batch_chunks": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "ingest_retired_batch_segments": {
+          "rows": 1261,
+          "live_column_bytes": 1278984,
+          "table_bytes": 1515520,
+          "index_bytes": 4358144,
+          "total_bytes": 5873664
+        },
+        "item_audit": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "item_master": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "line_execution_reservations": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "line_queue_audit": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "line_queue_entries": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 32768,
+          "total_bytes": 40960
+        },
+        "line_queue_policies": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "line_queue_updates": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "lines": {
+          "rows": 1,
+          "live_column_bytes": 57,
+          "table_bytes": 49152,
+          "index_bytes": 49152,
+          "total_bytes": 98304
+        },
+        "mes_management_audit": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "production_events": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "production_executions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "recipe_versions": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "registration_id_counters": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "registration_receipts": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "roles": {
+          "rows": 4,
+          "live_column_bytes": 51,
+          "table_bytes": 49152,
+          "index_bytes": 16384,
+          "total_bytes": 65536
+        },
+        "run_reconciliations": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "run_summary_conflicts": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "sites": {
+          "rows": 1,
+          "live_column_bytes": 28,
+          "table_bytes": 49152,
+          "index_bytes": 32768,
+          "total_bytes": 81920
+        },
+        "source_streams": {
+          "rows": 1,
+          "live_column_bytes": 63,
+          "table_bytes": 49152,
+          "index_bytes": 81920,
+          "total_bytes": 131072
+        },
+        "stream_gaps": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "stream_progress": {
+          "rows": 1,
+          "live_column_bytes": 35,
+          "table_bytes": 49152,
+          "index_bytes": 16384,
+          "total_bytes": 65536
+        },
+        "tag_definitions": {
+          "rows": 48,
+          "live_column_bytes": 64114,
+          "table_bytes": 122880,
+          "index_bytes": 81920,
+          "total_bytes": 204800
+        },
+        "user_roles": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 16384,
+          "total_bytes": 24576
+        },
+        "users": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 8192,
+          "total_bytes": 16384
+        },
+        "work_order_cancellations": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "work_order_execution_links": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 32768,
+          "total_bytes": 40960
+        },
+        "work_order_releases": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        },
+        "work_orders": {
+          "rows": 0,
+          "live_column_bytes": 0,
+          "table_bytes": 8192,
+          "index_bytes": 24576,
+          "total_bytes": 32768
+        }
+      },
+      "expired_receipts": 0,
+      "covered_captures": 75602,
+      "retired_uuid_ids": 75602,
+      "retired_text_ids": 0,
+      "maximum_segment_ids": 61,
+      "exact_alarm_receipt_fk_rows": 0,
+      "database_bytes": 88348339,
+      "all_public_relation_bytes": 78430208,
+      "all_public_live_column_bytes": 26806394
+    }
+  ],
+  "outcome": "passed",
+  "before_load": {
+    "tables": {
+      "alarm_actions": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 49152,
+        "total_bytes": 57344
+      },
+      "alarm_capture_decisions": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 24576,
+        "total_bytes": 32768
+      },
+      "alarm_capture_frontiers": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "alarm_channels": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 24576,
+        "total_bytes": 32768
+      },
+      "alarm_instances": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 32768,
+        "total_bytes": 40960
+      },
+      "alarm_outbox": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "alarm_receipts": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "alarm_rule_versions": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 24576,
+        "total_bytes": 32768
+      },
+      "alembic_version": {
+        "rows": 1,
+        "live_column_bytes": 29,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "analog_history_clock_state": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "analog_history_minutes": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "analog_history_raw": {
+        "rows": 3,
+        "live_column_bytes": 2032,
+        "table_bytes": 16384,
+        "index_bytes": 131072,
+        "total_bytes": 147456
+      },
+      "assets": {
+        "rows": 3,
+        "live_column_bytes": 147,
+        "table_bytes": 16384,
+        "index_bytes": 65536,
+        "total_bytes": 81920
+      },
+      "auth_audit": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "auth_login_challenges": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "auth_sessions": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 24576,
+        "total_bytes": 32768
+      },
+      "capture_clock_evidence": {
+        "rows": 1,
+        "live_column_bytes": 332,
+        "table_bytes": 16384,
+        "index_bytes": 49152,
+        "total_bytes": 65536
+      },
+      "capture_clock_probes": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 24576,
+        "total_bytes": 32768
+      },
+      "command_request_audit": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "command_requests": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 32768,
+        "total_bytes": 40960
+      },
+      "downtime_reason_history": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 24576,
+        "total_bytes": 32768
+      },
+      "equipment_state_events": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "event_apply_errors": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "event_inbox": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 40960,
+        "total_bytes": 49152
+      },
+      "execution_plans": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "execution_totals": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "guest_rate_windows": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "guest_viewer_accounts": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "ingest_batches": {
+        "rows": 1,
+        "live_column_bytes": 1850,
+        "table_bytes": 16384,
+        "index_bytes": 81920,
+        "total_bytes": 98304
+      },
+      "ingest_conflicts": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "ingest_receipts": {
+        "rows": 1,
+        "live_column_bytes": 159,
+        "table_bytes": 16384,
+        "index_bytes": 90112,
+        "total_bytes": 106496
+      },
+      "ingest_retention_ranges": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "ingest_retention_state": {
+        "rows": 1,
+        "live_column_bytes": 1,
+        "table_bytes": 16384,
+        "index_bytes": 16384,
+        "total_bytes": 32768
+      },
+      "ingest_retired_batch_chunks": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 24576,
+        "total_bytes": 32768
+      },
+      "ingest_retired_batch_segments": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 49152,
+        "total_bytes": 57344
+      },
+      "item_audit": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "item_master": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "line_execution_reservations": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "line_queue_audit": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "line_queue_entries": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 32768,
+        "total_bytes": 40960
+      },
+      "line_queue_policies": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "line_queue_updates": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "lines": {
+        "rows": 1,
+        "live_column_bytes": 57,
+        "table_bytes": 16384,
+        "index_bytes": 49152,
+        "total_bytes": 65536
+      },
+      "mes_management_audit": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 24576,
+        "total_bytes": 32768
+      },
+      "production_events": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "production_executions": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 24576,
+        "total_bytes": 32768
+      },
+      "recipe_versions": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 24576,
+        "total_bytes": 32768
+      },
+      "registration_id_counters": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "registration_receipts": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "roles": {
+        "rows": 4,
+        "live_column_bytes": 51,
+        "table_bytes": 16384,
+        "index_bytes": 16384,
+        "total_bytes": 32768
+      },
+      "run_reconciliations": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "run_summary_conflicts": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "sites": {
+        "rows": 1,
+        "live_column_bytes": 28,
+        "table_bytes": 16384,
+        "index_bytes": 32768,
+        "total_bytes": 49152
+      },
+      "source_streams": {
+        "rows": 1,
+        "live_column_bytes": 63,
+        "table_bytes": 16384,
+        "index_bytes": 81920,
+        "total_bytes": 98304
+      },
+      "stream_gaps": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "stream_progress": {
+        "rows": 1,
+        "live_column_bytes": 35,
+        "table_bytes": 16384,
+        "index_bytes": 16384,
+        "total_bytes": 32768
+      },
+      "tag_definitions": {
+        "rows": 48,
+        "live_column_bytes": 64114,
+        "table_bytes": 114688,
+        "index_bytes": 81920,
+        "total_bytes": 196608
+      },
+      "user_roles": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "users": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "work_order_cancellations": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 24576,
+        "total_bytes": 32768
+      },
+      "work_order_execution_links": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 32768,
+        "total_bytes": 40960
+      },
+      "work_order_releases": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 24576,
+        "total_bytes": 32768
+      },
+      "work_orders": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 24576,
+        "total_bytes": 32768
+      }
+    },
+    "expired_receipts": 0,
+    "covered_captures": 0,
+    "retired_uuid_ids": 0,
+    "retired_text_ids": 0,
+    "maximum_segment_ids": 0,
+    "exact_alarm_receipt_fk_rows": 0,
+    "database_bytes": 11687603,
+    "all_public_relation_bytes": 2408448,
+    "all_public_live_column_bytes": 68898
+  },
+  "elapsed_seconds": 171.84484714199994,
+  "before_vacuum": {
+    "tables": {
+      "alarm_actions": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 49152,
+        "total_bytes": 57344
+      },
+      "alarm_capture_decisions": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 24576,
+        "total_bytes": 32768
+      },
+      "alarm_capture_frontiers": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "alarm_channels": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 24576,
+        "total_bytes": 32768
+      },
+      "alarm_instances": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 32768,
+        "total_bytes": 40960
+      },
+      "alarm_outbox": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "alarm_receipts": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "alarm_rule_versions": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 24576,
+        "total_bytes": 32768
+      },
+      "alembic_version": {
+        "rows": 1,
+        "live_column_bytes": 29,
+        "table_bytes": 40960,
+        "index_bytes": 16384,
+        "total_bytes": 57344
+      },
+      "analog_history_clock_state": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "analog_history_minutes": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "analog_history_raw": {
+        "rows": 3,
+        "live_column_bytes": 2032,
+        "table_bytes": 49152,
+        "index_bytes": 131072,
+        "total_bytes": 180224
+      },
+      "assets": {
+        "rows": 3,
+        "live_column_bytes": 147,
+        "table_bytes": 49152,
+        "index_bytes": 65536,
+        "total_bytes": 114688
+      },
+      "auth_audit": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "auth_login_challenges": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "auth_sessions": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 24576,
+        "total_bytes": 32768
+      },
+      "capture_clock_evidence": {
+        "rows": 10798,
+        "live_column_bytes": 3606530,
+        "table_bytes": 5660672,
+        "index_bytes": 3031040,
+        "total_bytes": 8691712
+      },
+      "capture_clock_probes": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 24576,
+        "total_bytes": 32768
+      },
+      "command_request_audit": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "command_requests": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 32768,
+        "total_bytes": 40960
+      },
+      "downtime_reason_history": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 24576,
+        "total_bytes": 32768
+      },
+      "equipment_state_events": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "event_apply_errors": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "event_inbox": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 40960,
+        "total_bytes": 49152
+      },
+      "execution_plans": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "execution_totals": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "guest_rate_windows": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "guest_viewer_accounts": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "ingest_batches": {
+        "rows": 10798,
+        "live_column_bytes": 20114535,
+        "table_bytes": 29532160,
+        "index_bytes": 8388608,
+        "total_bytes": 37920768
+      },
+      "ingest_conflicts": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "ingest_receipts": {
+        "rows": 10798,
+        "live_column_bytes": 1738476,
+        "table_bytes": 3670016,
+        "index_bytes": 13402112,
+        "total_bytes": 17072128
+      },
+      "ingest_retention_ranges": {
+        "rows": 1,
+        "live_column_bytes": 1304,
+        "table_bytes": 5947392,
+        "index_bytes": 81920,
+        "total_bytes": 6029312
+      },
+      "ingest_retention_state": {
+        "rows": 1,
+        "live_column_bytes": 9,
+        "table_bytes": 532480,
+        "index_bytes": 16384,
+        "total_bytes": 548864
+      },
+      "ingest_retired_batch_chunks": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 24576,
+        "total_bytes": 32768
+      },
+      "ingest_retired_batch_segments": {
+        "rows": 1261,
+        "live_column_bytes": 1278984,
+        "table_bytes": 1515520,
+        "index_bytes": 4284416,
+        "total_bytes": 5799936
+      },
+      "item_audit": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "item_master": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "line_execution_reservations": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "line_queue_audit": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "line_queue_entries": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 32768,
+        "total_bytes": 40960
+      },
+      "line_queue_policies": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "line_queue_updates": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "lines": {
+        "rows": 1,
+        "live_column_bytes": 57,
+        "table_bytes": 49152,
+        "index_bytes": 49152,
+        "total_bytes": 98304
+      },
+      "mes_management_audit": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 24576,
+        "total_bytes": 32768
+      },
+      "production_events": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "production_executions": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 24576,
+        "total_bytes": 32768
+      },
+      "recipe_versions": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 24576,
+        "total_bytes": 32768
+      },
+      "registration_id_counters": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "registration_receipts": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "roles": {
+        "rows": 4,
+        "live_column_bytes": 51,
+        "table_bytes": 49152,
+        "index_bytes": 16384,
+        "total_bytes": 65536
+      },
+      "run_reconciliations": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "run_summary_conflicts": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "sites": {
+        "rows": 1,
+        "live_column_bytes": 28,
+        "table_bytes": 49152,
+        "index_bytes": 32768,
+        "total_bytes": 81920
+      },
+      "source_streams": {
+        "rows": 1,
+        "live_column_bytes": 63,
+        "table_bytes": 49152,
+        "index_bytes": 81920,
+        "total_bytes": 131072
+      },
+      "stream_gaps": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "stream_progress": {
+        "rows": 1,
+        "live_column_bytes": 35,
+        "table_bytes": 49152,
+        "index_bytes": 16384,
+        "total_bytes": 65536
+      },
+      "tag_definitions": {
+        "rows": 48,
+        "live_column_bytes": 64114,
+        "table_bytes": 122880,
+        "index_bytes": 81920,
+        "total_bytes": 204800
+      },
+      "user_roles": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 16384,
+        "total_bytes": 24576
+      },
+      "users": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 8192,
+        "total_bytes": 16384
+      },
+      "work_order_cancellations": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 24576,
+        "total_bytes": 32768
+      },
+      "work_order_execution_links": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 32768,
+        "total_bytes": 40960
+      },
+      "work_order_releases": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 24576,
+        "total_bytes": 32768
+      },
+      "work_orders": {
+        "rows": 0,
+        "live_column_bytes": 0,
+        "table_bytes": 8192,
+        "index_bytes": 24576,
+        "total_bytes": 32768
+      }
+    },
+    "expired_receipts": 0,
+    "covered_captures": 75602,
+    "retired_uuid_ids": 75602,
+    "retired_text_ids": 0,
+    "maximum_segment_ids": 61,
+    "exact_alarm_receipt_fk_rows": 0,
+    "database_bytes": 88266419,
+    "all_public_relation_bytes": 78356480,
+    "all_public_live_column_bytes": 26806394
+  },
+  "payload_average_bytes": 6865.871458333333,
+  "growth_estimate": {
+    "basis": "12h to 24h after warmup; extrapolation, not a capacity guarantee",
+    "includes": "all public tables including alarm decisions/receipts and retired IDs",
+    "limit_bytes": 500000000,
+    "live_columns": {
+      "observed_12h_delta_bytes": 727709,
+      "estimated_growth_bytes_per_day": 1455418,
+      "estimated_additional_days_until_0_5gb": 325.12556942404177
+    },
+    "relation_files": {
+      "observed_12h_delta_bytes": 4136960,
+      "estimated_growth_bytes_per_day": 8273920,
+      "estimated_additional_days_until_0_5gb": 50.95163985148515
+    },
+    "database_files": {
+      "observed_12h_delta_bytes": 4136960,
+      "estimated_growth_bytes_per_day": 8273920,
+      "estimated_additional_days_until_0_5gb": 49.752917722192144
+    }
+  },
+  "maintenance_summary": {
+    "calls": 1440,
+    "status_counts": {
+      "EMPTY": 179,
+      "PRUNED": 1261
+    },
+    "deleted_count": 75602,
+    "compacted_count": 75602,
+    "budget_exhausted_calls": 0,
+    "first_tick": "2026-10-25T06:41:22.846029+00:00",
+    "last_tick": "2026-10-26T06:40:24.727134+00:00",
+    "full_measurement_sha256": "0cdafbf709303f251ec7a0c205ba89aa87a45673ec3d5791071a39e5c79217da"
+  }
+}

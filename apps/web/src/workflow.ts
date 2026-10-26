@@ -3,7 +3,7 @@ import { screenUInt64 } from './screenState'
 
 export type WorkflowKind = 'release' | 'bind'
 export interface ReleaseBody { release_id: string; expected_row_version: string }
-export interface BindBody extends CommandScope { command_id: string; expected_work_order_version: string; expected_control_version: string }
+export interface BindBody extends CommandScope { command_id: string; expected_work_order_version: string; expected_control_version: string; auto_end_at_target?: boolean; start_when_ready?: boolean }
 export type WorkflowIntent = { work_order_id: string; actor: string } & (ReleaseBody | BindBody)
 export interface ReleaseReceipt { release_id: string; work_order_id: string; released_by: string; released_at: string; status: 'RELEASED'; row_version: string }
 export interface BindReceipt extends CommandScope { work_order_id: string; execution_id: string; command_id: string; work_order_row_version: string; load_request: CommandRequest }
@@ -21,15 +21,18 @@ const whitespace = new Set([9, 10, 11, 12, 13, 32, 133, 160, 5760, ...Array.from
 export const workflowId = (v: unknown): v is string => typeof v === 'string' && [...v].length >= 1 && [...v].length <= 128 && ![...v].some(c => whitespace.has(c.codePointAt(0)!)) && ![...v].some(c => { const n = c.codePointAt(0)!; return n >= 0xd800 && n <= 0xdfff })
 const positive = (v: unknown) => screenUInt64(v) && v !== '0'
 const time = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|\+00:00)$(?![\s\S])/.test(v) && !v.startsWith('0000-') && Number.isFinite(Date.parse(v)) && new Date(v).toISOString().slice(0, 10) === v.slice(0, 10)
-function obj(v: unknown, keys: string[]): Record<string, unknown> {
+function obj(v: unknown, keys: string[], optional: string[] = []): Record<string, unknown> {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return fail()
   const r = v as Record<string, unknown>
-  if (Object.keys(r).length !== keys.length || !keys.every(k => Object.hasOwn(r, k))) return fail()
+  if (!keys.every(k => Object.hasOwn(r, k)) || !Object.keys(r).every(k => keys.includes(k) || optional.includes(k))) return fail()
   return r
 }
+/** LOAD_JOB policy flags (CX-33/34); absent on records created before they existed. */
+const POLICY = ['auto_end_at_target', 'start_when_ready']
+const policyValid = (r: Record<string, unknown>) => POLICY.every(k => !Object.hasOwn(r, k) || typeof r[k] === 'boolean')
 export function workflowBody(kind: WorkflowKind, intent: WorkflowIntent): ReleaseBody | BindBody {
   if (kind === 'release' && 'release_id' in intent) return { release_id: intent.release_id, expected_row_version: intent.expected_row_version }
-  if (kind === 'bind' && 'command_id' in intent) return { command_id: intent.command_id, line_id: intent.line_id, source_id: intent.source_id, stream_id: intent.stream_id, expected_work_order_version: intent.expected_work_order_version, expected_control_version: intent.expected_control_version }
+  if (kind === 'bind' && 'command_id' in intent) return { command_id: intent.command_id, line_id: intent.line_id, source_id: intent.source_id, stream_id: intent.stream_id, expected_work_order_version: intent.expected_work_order_version, expected_control_version: intent.expected_control_version, ...(intent.auto_end_at_target === undefined ? {} : { auto_end_at_target: intent.auto_end_at_target }), ...(intent.start_when_ready === undefined ? {} : { start_when_ready: intent.start_when_ready }) }
   return fail()
 }
 export function workflowPath(kind: WorkflowKind, order: string, id?: string) {
@@ -40,7 +43,8 @@ export function workflowIdentity(intent: WorkflowIntent) { return 'release_id' i
 export function sameIntent(left: WorkflowIntent, right: WorkflowIntent) { const keys = Object.keys(left); return keys.length === Object.keys(right).length && keys.every(k => left[k as keyof WorkflowIntent] === right[k as keyof WorkflowIntent]) }
 export function parseWorkflow(kind: WorkflowKind, value: unknown, order: string, id: string, expected?: WorkflowIntent, expectedOrder?: { recipe_version_id: string; target_quantity: number } | null): WorkflowRecord {
   const raw = obj(value, ['intent', 'receipt'])
-  const intent = obj(raw.intent, kind === 'release' ? ['work_order_id', 'actor', 'release_id', 'expected_row_version'] : ['work_order_id', 'actor', 'command_id', 'line_id', 'source_id', 'stream_id', 'expected_work_order_version', 'expected_control_version'])
+  const intent = obj(raw.intent, kind === 'release' ? ['work_order_id', 'actor', 'release_id', 'expected_row_version'] : ['work_order_id', 'actor', 'command_id', 'line_id', 'source_id', 'stream_id', 'expected_work_order_version', 'expected_control_version'], kind === 'release' ? [] : POLICY)
+  if (!policyValid(intent)) return fail()
   if (intent.work_order_id !== order || !workflowId(intent.actor) || !workflowId(order) || !workflowId(id)) return fail()
   if (kind === 'release') {
     if (intent.release_id !== id || !positive(intent.expected_row_version)) return fail()
@@ -53,7 +57,8 @@ export function parseWorkflow(kind: WorkflowKind, value: unknown, order: string,
     const request = obj(r.load_request, ['schema_version', 'command_id', 'target_id', 'execution_id', 'command', 'requested_by', 'requested_at', 'expires_at', 'expected_control_version'])
     if (request.schema_version !== '1.0' || request.command_id !== id || request.target_id !== 'Line' || request.execution_id !== r.execution_id || request.requested_by !== intent.actor || request.expected_control_version !== intent.expected_control_version || !time(request.requested_at) || !time(request.expires_at) || Date.parse(request.expires_at) - Date.parse(request.requested_at) !== 5000) return fail()
     const command = obj(request.command, ['kind', 'args'])
-    const args = obj(command.args, ['work_order_id', 'recipe_version', 'target_quantity', 'parameters'])
+    const args = obj(command.args, ['work_order_id', 'recipe_version', 'target_quantity', 'parameters'], POLICY)
+    if (!policyValid(args) || POLICY.some(k => Object.hasOwn(intent, k) && Object.hasOwn(args, k) && intent[k] !== args[k])) return fail()
     const parameters = obj(args.parameters, ['temperature_c', 'speed_m_per_min'])
     if (expectedOrder && (args.recipe_version !== expectedOrder.recipe_version_id || args.target_quantity !== expectedOrder.target_quantity)) return fail()
     if (command.kind !== 'LOAD_JOB' || args.work_order_id !== order || !workflowId(args.recipe_version) || typeof args.target_quantity !== 'number' || !Number.isInteger(args.target_quantity) || args.target_quantity < 1 || args.target_quantity > 4294967295 || typeof parameters.temperature_c !== 'number' || !Number.isFinite(parameters.temperature_c) || parameters.temperature_c < 0 || typeof parameters.speed_m_per_min !== 'number' || !Number.isFinite(parameters.speed_m_per_min) || parameters.speed_m_per_min <= 0) return fail()

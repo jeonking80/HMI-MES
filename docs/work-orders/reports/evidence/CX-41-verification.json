@@ -1,0 +1,55 @@
+{
+  "runs": [
+    {
+      "run": "focused",
+      "tests": 841,
+      "failures": 41,
+      "errors": 0,
+      "skipped": 0,
+      "time_seconds": 127.391
+    },
+    {
+      "run": "focused-recheck",
+      "tests": 41,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time_seconds": 48.278
+    },
+    {
+      "run": "capacity",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time_seconds": 231.924
+    },
+    {
+      "run": "integration-full",
+      "tests": 1876,
+      "failures": 26,
+      "errors": 6,
+      "skipped": 0,
+      "time_seconds": 1950.566
+    },
+    {
+      "run": "downgrade-recheck",
+      "tests": 39,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time_seconds": 105.32
+    }
+  ],
+  "full_integration_executions": 1,
+  "full_integration_after_final_fix_reexecuted": false,
+  "unit_tests_in_focused_run": 787,
+  "user_decision": "Preserve existing FK references; report capture-proportional alarm receipt limitation",
+  "public_operations": false,
+  "operational_runtime_changes": false,
+  "ruff": "passed",
+  "format_files": 275,
+  "collection_sha256": "a138916b0185462ae95ff79ae2c3c620ed8e957a39cab24eeca9c7553dfde3b2",
+  "browser_actual_attempts": 1,
+  "browser_result": "PASS: final SETTLED totals matched real simulator"
+}

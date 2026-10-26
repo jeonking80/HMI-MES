@@ -35,6 +35,7 @@ from apps.api.work_orders import (
 from contracts.models import UINT64_MAX, CommandResult, CommandSubmission, Parameters
 from contracts.tags.validate import load_contract
 from contracts.transport import BatchBody, GatewayBatch, batch_digest
+from tests.integration.item_seed import seed_item
 
 AT = datetime(2026, 10, 28, tzinfo=UTC)
 ORIGIN = "https://cancel.example.test"
@@ -87,6 +88,7 @@ def state(migrated, request):
     bootstrap_reference_data(migrated)
     auth = UserAuth(migrated, allowed_origins={ORIGIN}, clock=lambda: AT)
     session = account(auth, "manager", {"production_manager", "operator"})
+    seed_item(migrated, "item", actor="manager", now=AT)
     service = IngestionService(migrated)
     service.configure_source(**SCOPE, gateway_id="gateway", capture_generation=1, now=AT)
     with migrated.begin() as db:

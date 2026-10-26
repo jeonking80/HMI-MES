@@ -73,6 +73,16 @@
         },
         "parameters": {
           "$ref": "#/$defs/Parameters"
+        },
+        "auto_end_at_target": {
+          "default": true,
+          "title": "Auto End At Target",
+          "type": "boolean"
+        },
+        "start_when_ready": {
+          "default": false,
+          "title": "Start When Ready",
+          "type": "boolean"
         }
       },
       "required": [

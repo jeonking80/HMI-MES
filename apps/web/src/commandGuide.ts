@@ -16,7 +16,7 @@ export function stepGuide(values: Record<string, unknown>): { step: number; tone
   switch (state) {
     case 0: return { step: 0, tone: 'info', title: '정지 상태입니다.', next: `새 작업은 작업지시 화면에서 배포한 뒤 실행 연결로 불러옵니다. 방금 작업을 불러왔다면 예열이 끝나 준비 상태가 될 때까지 기다립니다.${heat}`, recommended: null, progress: null }
     case 1: return { step: 1, tone: 'good', title: '준비 완료입니다.', next: '운전 시작 · 재개를 누르면 생산을 시작합니다.', recommended: 'START', progress }
-    case 2: return { step: 2, tone: 'good', title: '운전 중입니다.', next: `${amount} 목표에 닿아도 자동으로 끝나지 않습니다. 끝내려면 현재 작업 종료를 누릅니다.`, recommended: progress !== null && progress >= 1 ? 'END_RUN' : null, progress }
+    case 2: return { step: 2, tone: 'good', title: '운전 중입니다.', next: `${amount} 실행 연결 때 자동 종료를 켰다면 목표에 닿을 때 PLC가 스스로 끝냅니다. 직접 끝내려면 현재 작업 종료를 누릅니다.`, recommended: progress !== null && progress >= 1 ? 'END_RUN' : null, progress }
     case 3: return { step: 2, tone: 'warn', title: '일시 정지 상태입니다.', next: `${amount} 운전 시작 · 재개로 이어서 생산하거나 현재 작업 종료로 끝냅니다.`, recommended: 'START', progress }
     case 4: return { step: 3, tone: 'info', title: '종료 중입니다.', next: '설비가 재공을 정리하고 있습니다. 정지가 확인되면 실적 정산을 확인합니다.', recommended: null, progress }
     case 5: return { step: 2, tone: 'bad', title: `고장 상태입니다 (코드 ${String(values['Line.FaultCode'] ?? '?')}).`, next: '현장에서 원인을 해소한 뒤 고장 리셋을 누릅니다.', recommended: 'RESET_FAULT', progress }

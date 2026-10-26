@@ -28,7 +28,7 @@ from apps.api.auth import UserAuth
 from apps.api.bootstrap import LINE_ID
 from apps.gateway.http_client import IntakeClient, IntakeConfig
 from contracts.models import CommandRequest, ReadEventsRequest, RunSummaryRequest
-from contracts.transport import BatchBody, GatewayBatch, batch_digest
+from contracts.transport import BatchBody, CaptureTime, GatewayBatch, batch_digest
 
 CHILD = r"""
 import json,sys,time
@@ -371,7 +371,12 @@ async def test_1800_capture_fifo_drain_with_live_collection(pipeline, tmp_path, 
         await page.locator("#current-login").wait_for(state="visible", timeout=10000)
         assert await page.locator("#current-login").text_content() == "fifo-viewer"
         anchor = observation.acquired_at - timedelta(seconds=1800)
-        mono = observation.capture_time.monotonic_seconds - 1800
+        # Synthetic history has its own epoch and positive read brackets, even
+        # when this kernel has been up for less than 1,800 seconds. Sharing the
+        # real collector's epoch would create a reversal when live reads resume.
+        preload_epoch = "fifo-preload-" + uuid4().hex
+        preload_span = observation.capture_time.utc_read_span_seconds
+        mono = preload_span + 1.0
 
         def body(seq, selected=(), gaps=()):
             at = anchor + timedelta(seconds=seq - 1)
@@ -399,8 +404,10 @@ async def test_1800_capture_fifo_drain_with_live_collection(pipeline, tmp_path, 
                 capture_generation=1,
                 capture_seq=seq,
                 captured_at=at,
-                capture_time=observation.capture_time.model_copy(
-                    update={"monotonic_seconds": mono + seq - 1}
+                capture_time=CaptureTime(
+                    clock_epoch=preload_epoch,
+                    monotonic_seconds=mono + seq - 1,
+                    utc_read_span_seconds=preload_span,
                 ),
                 communication={
                     "state": "GOOD",

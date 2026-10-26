@@ -21,10 +21,12 @@ from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter, ValidationError
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
+from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 
 from apps.api.alarm_lifecycle import AlarmConflict
 from apps.api.alarm_store import AlarmStoreUnavailable
+from apps.api.capture_clock import CLOCK_EVIDENCE_REVISIONS
 from apps.api.commands import (
     CommandConflict,
     CommandScopeError,
@@ -37,12 +39,22 @@ from apps.api.database import (
     SUPPORTED_COMMAND_REVISIONS,
     SUPPORTED_INGESTION_REVISIONS,
 )
+from apps.api.ingest_retention import (
+    IngestRetentionExpired,
+    latest_capture_table,
+    reject_legacy_retention_setting,
+    retention_available,
+    retention_hours_from_env,
+    schedule_ingest_maintenance,
+    validate_retention_hours,
+)
 from apps.api.ingestion import (
     IngestConflict,
     IngestionService,
     IngestionUnavailable,
     SourceBindingError,
 )
+from apps.api.line_queue import advance_line_once
 from apps.api.measured_clock import (
     MeasuredClockConflict,
     ProbeCapacityError,
@@ -190,8 +202,11 @@ class InternalConfig:
     allow_insecure_loopback: bool = False
     max_body_bytes: int = 4 * 1024 * 1024
     clock: Callable[[], datetime] = lambda: datetime.now(UTC)
+    ingest_retention_hours: int = field(default_factory=retention_hours_from_env)
 
     def __post_init__(self) -> None:
+        reject_legacy_retention_setting()
+        validate_retention_hours(self.ingest_retention_hours)
         if type(self.max_body_bytes) is not int or not 1 <= self.max_body_bytes <= 4 * 1024 * 1024:
             raise ValueError("internal request bound must be within 1..4194304 bytes")
         if type(self.allow_insecure_loopback) is not bool:
@@ -275,6 +290,13 @@ def create_internal_app(
     @app.exception_handler(RequestValidationError)
     async def invalid(request: Request, error: RequestValidationError):
         return JSONResponse({"detail": "invalid batch"}, status_code=422)
+
+    @app.exception_handler(IngestRetentionExpired)
+    async def retention_expired(request: Request, error: IngestRetentionExpired):
+        return JSONResponse(
+            {"detail": "original capture retention expired", "reason_code": "RETENTION_EXPIRED"},
+            status_code=410,
+        )
 
     @app.exception_handler(IngestConflict)
     async def conflict(request: Request, error: IngestConflict):
@@ -417,7 +439,8 @@ def create_internal_app(
         def issue():
             with ingestion_service._transaction() as connection:
                 heads = connection.execute(text("SELECT version_num FROM alembic_version"))
-                if heads.scalars().all() != ["0018_clock_evidence"]:
+                revisions = heads.scalars().all()
+                if len(revisions) != 1 or revisions[0] not in CLOCK_EVIDENCE_REVISIONS:
                     raise IngestionUnavailable("clock probe schema unavailable")
                 ingestion_service._advisory(connection, "gateway", payload.gateway_id)
                 source = ingestion_service._lock_stream(
@@ -448,6 +471,9 @@ def create_internal_app(
         payload = await command_body(request, TypeAdapter(dict))
         if payload:
             raise HTTPException(422, "claim body must be empty")
+        # Complete and commit one bounded queue step before ordinary dispatch.
+        # Only the authenticated credential scope can select automation work.
+        await run_in_threadpool(command_transaction, binding, advance_line_once)
         work = await run_in_threadpool(command_transaction, binding, claim_next)
         return {"work": work.model_dump(mode="json") if work is not None else None}
 
@@ -490,11 +516,21 @@ def create_internal_app(
                 )
                 if source is None:
                     raise SourceBindingError("Configured source binding is unavailable")
+                retained = retention_available(connection)
+                table = latest_capture_table(connection)
+                fields = (
+                    "captured_at,clock_epoch,monotonic_seconds,utc_read_span_seconds"
+                    if retained
+                    else "body"
+                )
                 latest = (
                     connection.execute(
                         text(
-                            "SELECT batch_id,capture_seq,content_sha256,stored_at,body "
-                            "FROM ingest_batches WHERE source_id=:s AND stream_id=:t "
+                            "SELECT batch_id,capture_seq,content_sha256,stored_at,"
+                            + fields
+                            + " FROM "
+                            + table
+                            + " WHERE source_id=:s AND stream_id=:t "
                             "AND gateway_id=:g AND capture_generation=:generation "
                             "ORDER BY capture_seq DESC LIMIT 1"
                         ),
@@ -510,15 +546,26 @@ def create_internal_app(
                 )
                 capture = None
                 if latest is not None:
-                    # Expose original metadata only. An observed epoch is not proof
-                    # of synchronization, freshness, or a shared host clock.
+                    if retained:
+                        captured_at = latest["captured_at"]
+                        capture_time = None
+                        if latest["clock_epoch"] is not None:
+                            capture_time = {
+                                "clock_epoch": latest["clock_epoch"],
+                                "monotonic_seconds": latest["monotonic_seconds"],
+                                "utc_read_span_seconds": latest["utc_read_span_seconds"],
+                            }
+                    else:
+                        captured_at = latest["body"]["captured_at"]
+                        capture_time = latest["body"].get("capture_time")
+                    # Compact metadata preserves the frontier; it never proves clock quality.
                     capture = {
                         "batch_id": latest["batch_id"],
                         "capture_seq": str(latest["capture_seq"]),
                         "content_sha256": latest["content_sha256"],
                         "stored_at": latest["stored_at"],
-                        "captured_at": latest["body"]["captured_at"],
-                        "capture_time": latest["body"].get("capture_time"),
+                        "captured_at": captured_at,
+                        "capture_time": capture_time,
                     }
                 return {
                     "scope": {
@@ -578,7 +625,14 @@ def create_internal_app(
             authenticated_key_id=binding.key_id,
             now=request.state.clock_received_at,
         )
-        return JSONResponse(ack.model_dump(mode="json"))
+        return JSONResponse(
+            ack.model_dump(mode="json"),
+            background=BackgroundTask(
+                schedule_ingest_maintenance,
+                ingestion_service.engine,
+                config.ingest_retention_hours,
+            ),
+        )
 
     mount_settlement_routes(app, ingestion_service.engine, authenticate, now)
     return app

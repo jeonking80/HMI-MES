@@ -4,6 +4,7 @@ import type { Session } from './auth'
 import { CommandHTTPError, commandHTTP, commandLookupPath, commandLabels, newCommandRequest, parseResult, sameScope, statusLabels, terminal, uint64String } from './commands'
 import type { CommandKind, CommandRequest, CommandScope, TrackedCommand } from './commands'
 import { STEPS, stepGuide } from './commandGuide'
+import { conflictMessage } from './conflictReasons'
 
 interface Props {
   source: CommandScope; session: Session; blockedReason: string; values: Record<string, unknown>
@@ -29,6 +30,25 @@ export default function CommandPanel({ source, session, blockedReason, newIntent
   const finished = tracked !== null && (terminal(tracked.result) || tracked.phase === 'REJECTED')
   const endRun = tracked?.request?.command.kind === 'END_RUN'
   const state = values['Line.State']
+  // CX-35: speed may move within ±20 % of the LOAD baseline (and 1–60 m/min) while running or paused.
+  const activeExecution = typeof values['Line.ActiveExecutionId'] === 'string' && values['Line.ActiveExecutionId'] ? values['Line.ActiveExecutionId'] as string : null
+  const [baseline, setBaseline] = useState<{ execution: string; temperature: number; speed: number; recipe: string } | null>(null)
+  const [speedInput, setSpeedInput] = useState('')
+  useEffect(() => {
+    if (!activeExecution || !operator) return
+    const controller = new AbortController()
+    const query = new URLSearchParams({ execution_id: activeExecution, line_id: source.line_id, source_id: source.source_id, stream_id: source.stream_id })
+    void commandHTTP(`/api/v1/execution-record?${query}`, controller.signal).then(value => {
+      const execution = (value as { execution?: { recipe_version?: unknown; parameters?: { temperature_c?: unknown; speed_m_per_min?: unknown } } }).execution
+      const temperature = execution?.parameters?.temperature_c, speed = execution?.parameters?.speed_m_per_min
+      if (typeof temperature === 'number' && typeof speed === 'number' && typeof execution?.recipe_version === 'string') setBaseline({ execution: activeExecution, temperature, speed, recipe: execution.recipe_version })
+    }).catch(() => {})
+    return () => controller.abort()
+  }, [activeExecution, operator, source.line_id, source.source_id, source.stream_id])
+  const speedBase = baseline && baseline.execution === activeExecution ? baseline : null
+  const speedRange = speedBase ? { min: Math.max(1, Math.ceil(speedBase.speed * 0.8 * 10) / 10), max: Math.min(60, Math.floor(speedBase.speed * 1.2 * 10) / 10) } : null
+  const speedValue = Number(speedInput)
+  const speedProblem = !speedRange ? '현재 실행의 기준 속도를 확인하고 있습니다.' : speedInput === '' || !Number.isFinite(speedValue) || speedValue < speedRange.min || speedValue > speedRange.max ? `${speedRange.min}~${speedRange.max} m/min 안에서 입력해 주세요.` : ''
 
   useEffect(() => () => { postController.current?.abort() }, [])
   useEffect(() => {
@@ -79,6 +99,7 @@ export default function CommandPanel({ source, session, blockedReason, newIntent
       || values['Line.EStop'] !== false || values['Line.GuardClosed'] !== true || values['Line.FaultCode'] !== 0
       || values['Line.Permissive'] !== true || values['Sealer.Ready'] !== true)) return '시작에는 준비·일시정지 상태와 자동 모드, 안전 입력 및 준비 완료가 필요합니다.'
     if (kind === 'PAUSE' && state !== 2) return '일시 정지는 운전 중인 현재 실행에만 요청할 수 있습니다.'
+    if (kind === 'SET_PARAMETERS' && ![2, 3].includes(Number(state))) return '속도는 운전 중이거나 일시 정지한 현재 실행에서만 바꿀 수 있습니다.'
     if (kind === 'END_RUN' && ![0, 1, 2, 3, 5, 6].includes(Number(state))) return '현재 설비 상태에서는 작업 종료를 요청할 수 없습니다.'
     if (kind === 'END_RUN' && [5, 6].includes(Number(state))
       && ['Infeed', 'Sealer', 'Outfeed'].some(group => values[`${group}.RunFeedback`] !== false || values[`${group}.ActualSpeed`] !== 0)) return '고장·비상정지 중 종료는 모든 구동 정지를 확인해야 요청할 수 있습니다.'
@@ -92,12 +113,12 @@ export default function CommandPanel({ source, session, blockedReason, newIntent
   const endConfirmationReason = disabledReason('END_RUN') || (confirmEnd && (confirmEnd.execution !== values['Line.ActiveExecutionId']
     || confirmEnd.version !== values['Line.ControlVersion'] || confirmEnd.epoch !== values['Line.CounterEpoch']) ? '확인 중 실행 또는 제어 버전이 바뀌었습니다. 취소 후 다시 확인해 주세요.' : '')
 
-  async function submit(kind: CommandKind) {
+  async function submit(kind: CommandKind, args: Record<string, unknown> = {}) {
     if (submitting.current || disabledReason(kind) || (kind === 'END_RUN' && (!confirmEnd || endConfirmationReason))) return
     submitting.current = true
     setConfirmEnd(null)
     setLookupMessage('')
-    const request = newCommandRequest(kind, values['Line.ActiveExecutionId'] as string, values['Line.ControlVersion'] as string, session.login)
+    const request = newCommandRequest(kind, values['Line.ActiveExecutionId'] as string, values['Line.ControlVersion'] as string, session.login, args)
     const intent: TrackedCommand = {
       commandId: request.command_id, scope: { line_id: source.line_id, source_id: source.source_id, stream_id: source.stream_id },
       request, counterEpoch: values['Line.CounterEpoch'] as string, result: null, phase: 'SUBMITTING', message: '',
@@ -118,7 +139,7 @@ export default function CommandPanel({ source, session, blockedReason, newIntent
       const knownRejection = cause instanceof CommandHTTPError && [400, 404, 409, 413, 415, 422, 429].includes(cause.status)
       setTracked(previous => previous && previous.commandId === request.command_id ? {
         ...previous, phase: knownRejection ? 'REJECTED' : 'UNCERTAIN',
-        message: knownRejection ? 'API가 이 요청을 거절했습니다. 최신 조건을 확인해 주세요. PLC 실행 성공이 아닙니다.'
+        message: knownRejection ? conflictMessage(cause.reasonCode) ?? 'API가 이 요청을 거절했습니다. 최신 조건을 확인해 주세요. PLC 실행 성공이 아닙니다.'
           : '요청 응답 불명 · 서버에 저장되었을 수 있습니다. 원래 ID만 조회하며 새 ID로 다시 보내지 않습니다.',
       } : previous)
     } finally { submitting.current = false }
@@ -160,6 +181,16 @@ export default function CommandPanel({ source, session, blockedReason, newIntent
     {confirmEnd && <div className="end-confirm" role="group" aria-labelledby="end-confirm-heading">
       <h3 id="end-confirm-heading">현재 작업의 종료를 요청하시겠습니까?</h3><p>실행 {confirmEnd.execution}의 신규 투입을 중지하고 재공 정리 후 종료하도록 요청합니다. 종료가 확정되면 이 실행을 다시 시작할 수 없습니다. MES 실적 정산 완료와는 구분됩니다.</p>
       {endConfirmationReason && <p className="message caution">{endConfirmationReason}</p>}<div><button id="command-END_RUN-confirm" className="button danger" type="button" disabled={!!endConfirmationReason} onClick={() => void submit('END_RUN')}>현재 실행 종료 요청</button><button className="button secondary" type="button" onClick={() => setConfirmEnd(null)}>취소</button></div>
+    </div>}
+    {operator && [2, 3].includes(Number(state)) && <div id="speed-adjust" className="speed-adjust">
+      <h3>운전 중 속도 조정</h3>
+      <p className="form-help">작업을 불러올 때의 기준 속도 {speedBase ? `${speedBase.speed} m/min` : '확인 중'}에서 ±20 % 안에서만 바꿀 수 있습니다. 온도는 바꾸지 않습니다. PLC가 판정하고 실행 기록에 남깁니다.</p>
+      <form onSubmit={event => { event.preventDefault(); if (!speedProblem && !disabledReason('SET_PARAMETERS') && speedBase) void submit('SET_PARAMETERS', { recipe_version: speedBase.recipe, parameters: { temperature_c: speedBase.temperature, speed_m_per_min: speedValue } }) }}>
+        <label htmlFor="speed-adjust-value">새 속도 (m/min)</label>
+        <div className="speed-adjust-row"><input id="speed-adjust-value" type="number" step="0.1" min={speedRange?.min} max={speedRange?.max} value={speedInput} placeholder={speedBase ? String(speedBase.speed) : ''} onChange={event => setSpeedInput(event.target.value)} />
+        <button id="command-SET_PARAMETERS" className="button secondary" type="submit" disabled={!!speedProblem || !!disabledReason('SET_PARAMETERS')}>운전 속도 변경</button></div>
+        <p className="command-reason">{disabledReason('SET_PARAMETERS') || speedProblem || '요청 시 서버와 PLC가 범위를 다시 확인합니다.'}</p>
+      </form>
     </div>}
     {tracked && <div id="command-tracker" className="command-tracker">
       <p className="section-kicker">ORIGINAL COMMAND</p><h3 id="command-status" data-status={tracked.phase === 'REJECTED' ? 'HTTP_REJECTED' : tracked.phase === 'SUBMITTING' ? 'SUBMITTING' : result?.status ?? 'UNKNOWN'}>{tracked.phase === 'REJECTED' ? 'API 요청 거절' : tracked.phase === 'SUBMITTING' ? '요청 응답 확인 중' : result ? statusLabels[result.status] : '요청 결과 불명'}</h3>

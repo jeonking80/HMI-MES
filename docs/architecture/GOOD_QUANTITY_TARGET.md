@@ -28,3 +28,37 @@ without admitting replacements toward its larger target.
 ```sh
 uv run pytest -q tests/integration/test_simulator_controller.py tests/integration/test_controller_retention.py
 ```
+
+## CX-33 approved automatic completion
+
+The earlier explicit-END-only rule above is superseded for new opted-in LOADs.
+Reason: an automatic packaging run should complete when the PLC observes its good
+output target, while preserving the original execution and durable accounting.
+LOAD auto_end_at_target defaults true; binding exposes the same option. False
+keeps the preceding explicit-END behavior, including the existing good+WIP cap.
+
+The PLC checks actual process good_quantity, inhibits new admission, drains WIP,
+and completes only with zero WIP and stopped output/feedback/speed. Existing
+pending commands, unresolved conflicts, recovery, faults and safety inputs retain
+priority. It does not start, unpause, clear a fault or change modes. No fabricated
+CommandRequest, END_RUN ID or command reservation is used. The final state event,
+process quantities, summary and TARGET_AUTO_END audit proof share the storage
+owner's transaction. Crash before commit rolls back all of them.
+
+New automatic summaries carry end_reason=TARGET_REACHED; newly completed operator
+END_RUN carries OPERATOR. Historical finals retain an unknown/absent reason.
+Retention accepts an automatic final only with a unique durable target proof
+bound to the successful original explicit-policy LOAD, execution, target, observed
+good count, original final event sequence and canonical final summary. Operator
+and legacy finals still require their original successful END_RUN completion.
+Final source evidence never resolves an unknown API command result by itself.
+
+Existing policy-free journal bytes and final-summary hashes are unchanged.
+Old accepted LOADs and restored policy-free PLC state retain false. New omitted
+policy resolves true before storing its immutable request. Process dataclass
+snapshots are unchanged. Legacy V1 state field sets are frozen during migration
+so added fields do not invalidate the known format; old V2 state fills false/None.
+
+UI and rollout remain Claude-owned: exact binding parsers must accept the optional
+intent/LOAD flag and summary reason before this backend contract is deployed for
+public operation. The running runtime and WO-T1 are not upgraded by this commit.

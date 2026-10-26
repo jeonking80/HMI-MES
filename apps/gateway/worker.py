@@ -9,7 +9,12 @@ from uuid import uuid4
 from pydantic import TypeAdapter
 
 from apps.gateway.buffer import BufferFull, GatewayBuffer
-from apps.gateway.http_client import DeliveryRejected, DeliveryUncertain, IntakeClient
+from apps.gateway.http_client import (
+    DeliveryRejected,
+    DeliveryRetentionExpired,
+    DeliveryUncertain,
+    IntakeClient,
+)
 from apps.gateway.opcua_client import GatewayMethodUncertain, GatewayOPCUAClient
 from contracts.clock_evidence import ClockProbeRequest, MeasuredClockEvidence
 from contracts.models import UINT64_MAX, EventReadError, Identifier, ReadEventsRequest
@@ -262,6 +267,8 @@ class GatewayPump:
         delivered, delivery_error = False, None
         try:
             delivered = await self.deliver_once()
+        except DeliveryRetentionExpired:
+            raise
         except (DeliveryUncertain, DeliveryRejected) as error:
             delivery_error = type(error).__name__
         capture = await self.capture_once()
@@ -316,6 +323,9 @@ class GatewayPump:
                     failures = 0
                     report("delivery", "committed" if sent else "idle")
                     await pause(0.01 if sent else 0.2)
+                except DeliveryRetentionExpired as error:
+                    report("delivery", "recovery_required", error)
+                    raise
                 except (DeliveryUncertain, DeliveryRejected) as error:
                     failures = min(failures + 1, 4)
                     report("delivery", "blocked", error)

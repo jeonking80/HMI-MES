@@ -24,6 +24,7 @@ from contracts.models import (
     UInt64,
     UTCTimestamp,
 )
+from contracts.parameter_history import validate_speed_adjustment
 
 Number = Annotated[float, Field(strict=True, ge=0)]
 Mode = Literal["LOCAL", "REMOTE"]
@@ -71,6 +72,23 @@ class PLCInputs(ContractModel):
     speed_m_per_min: Number = 0.0
 
 
+class StartSafety(ContractModel):
+    estop: StrictBool
+    guard_closed: StrictBool
+    fault_code: UInt32
+    fault_resettable: StrictBool
+    equipment_ready: StrictBool
+    latched_fault_code: UInt32
+    pressure_ready: StrictBool
+
+
+class StartReservation(ContractModel):
+    command_id: Identifier
+    requested_by: Identifier
+    authority: Mode
+    safety: StartSafety
+
+
 class PLCState(ContractModel):
     target_id: Identifier = "Line"
     state: LineState = LineState.RECOVERY_REQUIRED
@@ -88,7 +106,15 @@ class PLCState(ContractModel):
     work_order_id: Identifier | None = None
     recipe_version: Identifier | None = None
     parameters: Parameters | None = None
+    # Original LOAD values bound every subsequent active speed adjustment.
+    recipe_baseline: Parameters | None = None
+    recipe_baseline_version: Identifier | None = None
     target_quantity: UInt32 = 0
+    auto_end_at_target: StrictBool = False
+    start_when_ready: StrictBool = False
+    start_reservation: StartReservation | None = None
+    start_reservation_cancel_reason: Identifier | None = None
+    end_reason: Literal["OPERATOR", "TARGET_REACHED"] | None = None
     run_state: RunState | None = None
     wip_quantity: UInt32 = 0
     last_event_seq: UInt64 = 0
@@ -103,10 +129,32 @@ class PLCState(ContractModel):
     def consistent(self) -> Self:
         if (self.pending_command_id is None) != (self.pending_kind is None):
             raise ValueError("pending command identity and kind must be paired")
-        if self.stop_purpose is not None and self.pending_kind != self.stop_purpose:
+        if self.start_reservation is not None and (
+            not self.start_when_ready or self.execution_id is None or self.run_state != "LOADED"
+        ):
+            raise ValueError("start reservation requires an opted-in loaded execution")
+        autonomous = (
+            self.stop_purpose == "END_RUN"
+            and self.pending_kind is None
+            and self.auto_end_at_target
+            and self.end_reason == "TARGET_REACHED"
+            and self.run_state == "ENDING"
+        )
+        if (
+            self.stop_purpose is not None
+            and self.pending_kind != self.stop_purpose
+            and not autonomous
+        ):
             raise ValueError("stop purpose must match pending command")
         if self.execution_id is None and any(
-            x is not None for x in (self.parameters, self.recipe_version, self.run_state)
+            x is not None
+            for x in (
+                self.parameters,
+                self.recipe_baseline,
+                self.recipe_baseline_version,
+                self.recipe_version,
+                self.run_state,
+            )
         ):
             raise ValueError("execution settings require an execution")
         if self.run_output and self.state not in {LineState.RUNNING, LineState.STOPPING}:
@@ -161,6 +209,8 @@ def _control_tuple(s: PLCState) -> tuple:
         s.permissive,
         s.ready,
         s.recovery_required,
+        s.start_reservation,
+        s.start_reservation_cancel_reason,
     )
 
 
@@ -177,6 +227,44 @@ def _within_limits(parameters: Parameters, config: PLCConfig) -> bool:
         config.temperature_min_c <= parameters.temperature_c <= config.temperature_max_c
         and config.speed_min_m_per_min <= parameters.speed_m_per_min <= config.speed_max_m_per_min
     )
+
+
+def _start_safety(s: PLCState) -> StartSafety:
+    return StartSafety(
+        **{
+            name: getattr(s.inputs, name)
+            for name in (
+                "estop",
+                "guard_closed",
+                "fault_code",
+                "fault_resettable",
+                "equipment_ready",
+            )
+        },
+        latched_fault_code=s.latched_fault_code,
+        pressure_ready=s.pressure_ready,
+    )
+
+
+def _cancel_start(s: PLCState, reason: str) -> PLCState:
+    if s.start_reservation is None:
+        return s
+    return _copy(s, start_reservation=None, start_reservation_cancel_reason=reason)
+
+
+def _check_start_reservation(s: PLCState) -> PLCState:
+    reservation = s.start_reservation
+    if reservation is None:
+        return s
+    if s.recovery_required:
+        return _cancel_start(s, "RECOVERY_REQUIRED")
+    if s.control_mode != reservation.authority:
+        return _cancel_start(s, "CONTROL_MODE_CHANGED")
+    if s.operation_mode != "AUTO":
+        return _cancel_start(s, "OPERATION_MODE_CHANGED")
+    if _start_safety(s) != reservation.safety or not s.permissive:
+        return _cancel_start(s, "SAFETY_INPUT_CHANGED")
+    return s
 
 
 def _evaluate(s: PLCState, config: PLCConfig, *, promote_ready: bool = True) -> PLCState:
@@ -229,7 +317,7 @@ def _evaluate(s: PLCState, config: PLCConfig, *, promote_ready: bool = True) -> 
         state = LineState.STOPPED
     elif promote_ready and state == LineState.STOPPED and ready:
         state = LineState.READY
-    return _copy(
+    evaluated = _copy(
         s,
         state=state,
         run_output=output,
@@ -238,6 +326,7 @@ def _evaluate(s: PLCState, config: PLCConfig, *, promote_ready: bool = True) -> 
         permissive=permissive,
         ready=ready,
     )
+    return _check_start_reservation(evaluated)
 
 
 def update_inputs(
@@ -298,7 +387,7 @@ def restart(state: PLCState, *, config: PLCConfig = DEFAULT_CONFIG) -> PLCState:
     return _commit(
         state,
         _evaluate(
-            _copy(state, recovery_required=True, run_output=False),
+            _copy(_cancel_start(state, "RESTART"), recovery_required=True, run_output=False),
             config,
         ),
     )
@@ -383,6 +472,13 @@ def _guards(
             return _deny(
                 "LOAD_BLOCKED", "Load requires stopped drives, zero WIP and settled prior run"
             )
+        if request.command.args.start_when_ready:
+            if s.operation_mode != "AUTO":
+                return _deny("MANUAL_MODE", "Reserved START requires AUTO operation mode")
+            if not s.permissive:
+                return _deny(
+                    "START_RESERVATION_BLOCKED", "Reserved START requires live safety permissives"
+                )
     elif kind == "START":
         if s.operation_mode != "AUTO":
             return _deny("MANUAL_MODE", "START requires AUTO operation mode")
@@ -418,15 +514,47 @@ def _guards(
         ):
             return _deny("UNSAFE_WIP", "WIP drain requires live pressure and equipment permissives")
     elif kind == "SET_PARAMETERS":
-        if (
+        args = request.command.args
+        if s.state in {LineState.RUNNING, LineState.PAUSED}:
+            if (
+                s.execution_id is None
+                or s.run_state != s.state.value
+                or s.parameters is None
+                or s.recipe_baseline is None
+                or s.recipe_baseline_version is None
+                or not s.permissive
+                or (
+                    s.state == LineState.PAUSED
+                    and (s.inputs.run_feedback or s.inputs.speed_m_per_min != 0)
+                )
+            ):
+                return _deny(
+                    "PARAMETERS_BLOCKED", "Speed adjustment requires a safe active execution"
+                )
+            if (
+                args.recipe_version != s.recipe_version
+                or args.recipe_version != s.recipe_baseline_version
+                or args.parameters.temperature_c != s.parameters.temperature_c
+                or args.parameters.temperature_c != s.recipe_baseline.temperature_c
+            ):
+                return _deny(
+                    "PARAMETERS_BLOCKED", "Active adjustment must retain recipe and temperature"
+                )
+            try:
+                validate_speed_adjustment(args.parameters, s.recipe_baseline)
+            except ValueError:
+                return _deny(
+                    "PARAMETERS_OUT_OF_RANGE", "Speed must stay within 20 percent of LOAD recipe"
+                )
+        elif (
             s.execution_id is None
             or s.run_state in {None, "ENDING", "ENDED"}
-            or s.state not in {LineState.STOPPED, LineState.READY, LineState.PAUSED}
+            or s.state not in {LineState.STOPPED, LineState.READY}
             or s.inputs.run_feedback
             or s.inputs.speed_m_per_min != 0
         ):
             return _deny("PARAMETERS_BLOCKED", "Parameters require a stopped active execution")
-        if request.command.args.recipe_version == s.recipe_version:
+        elif args.recipe_version == s.recipe_version:
             return _deny("RECIPE_VERSION_REUSED", "A setting change requires a new recipe version")
     if kind in {"LOAD_JOB", "SET_PARAMETERS"} and not _within_limits(
         request.command.args.parameters,
@@ -489,24 +617,43 @@ def execute_command(
             work_order_id=command.args.work_order_id,
             recipe_version=command.args.recipe_version,
             parameters=command.args.parameters,
+            recipe_baseline=command.args.parameters,
+            recipe_baseline_version=command.args.recipe_version,
             target_quantity=command.args.target_quantity,
+            auto_end_at_target=command.args.auto_end_at_target,
+            start_when_ready=command.args.start_when_ready,
+            start_reservation=(
+                StartReservation(
+                    command_id=request.command_id,
+                    requested_by=request.requested_by,
+                    authority=authority,
+                    safety=_start_safety(checked),
+                )
+                if command.args.start_when_ready
+                else None
+            ),
+            start_reservation_cancel_reason=None,
+            end_reason=None,
             run_state="LOADED",
             previous_execution_settled=False,
         )
     elif kind == "SET_PARAMETERS":
+        checked = _cancel_start(checked, "PARAMETERS_CHANGED")
         changes = dict(
             recipe_version=command.args.recipe_version, parameters=command.args.parameters
         )
     elif kind == "RESET_FAULT":
         changes = dict(latched_fault_code=0, state=LineState.STOPPED, run_output=False)
     else:
+        if kind in {"START", "END_RUN"}:
+            checked = _cancel_start(checked, "MANUAL_START" if kind == "START" else "MANUAL_END")
         changes = dict(pending_command_id=request.command_id, pending_kind=kind)
         if kind == "START":
             changes.update(state=LineState.RUNNING, run_output=True)
         elif kind == "PAUSE":
             changes.update(state=LineState.STOPPING, run_output=False, stop_purpose="PAUSE")
         else:
-            changes.update(run_state="ENDING", stop_purpose="END_RUN")
+            changes.update(run_state="ENDING", stop_purpose="END_RUN", end_reason="OPERATOR")
             if checked.state not in {LineState.FAULT, LineState.ESTOP}:
                 changes.update(state=LineState.STOPPING, run_output=checked.wip_quantity > 0)
     result = _evaluate(_copy(checked, **changes), config, promote_ready=kind != "RESET_FAULT")
@@ -582,7 +729,7 @@ def finish_command(
             and s.inputs.speed_m_per_min == 0
             and final_boundary_durable
         )
-        changes = dict(run_state="ENDED", run_output=False)
+        changes = dict(run_state="ENDED", run_output=False, end_reason="OPERATOR")
         if s.state not in {LineState.FAULT, LineState.ESTOP, LineState.RECOVERY_REQUIRED}:
             changes["state"] = LineState.STOPPED
         if s.wip_quantity == 0:
@@ -591,3 +738,83 @@ def finish_command(
         return PLCTransition(state=_commit(state, s), status="ACCEPTED")
     s = _copy(s, **changes, pending_command_id=None, pending_kind=None, stop_purpose=None)
     return PLCTransition(state=_commit(state, s), status="SUCCEEDED")
+
+
+def advance_start_reservation(
+    state: PLCState,
+    *,
+    config: PLCConfig = DEFAULT_CONFIG,
+) -> PLCState:
+    """Consume original LOAD intent once at a safe READY boundary, without a command."""
+    s = _evaluate(state, config)
+    if (
+        s.start_reservation is not None
+        and s.state == LineState.READY
+        and s.ready
+        and s.run_state == "LOADED"
+        and s.pending_command_id is None
+        and not s.unresolved_conflict
+        and not s.inputs.run_feedback
+        and s.inputs.speed_m_per_min == 0
+    ):
+        s = _copy(
+            s,
+            start_reservation=None,
+            start_reservation_cancel_reason=None,
+            state=LineState.RUNNING,
+            run_state="RUNNING",
+            run_output=True,
+        )
+    return _commit(state, s)
+
+
+def advance_target_end(
+    state: PLCState,
+    *,
+    good_quantity: int,
+    config: PLCConfig = DEFAULT_CONFIG,
+) -> PLCState:
+    """End an opted-in run from observed target output without inventing a command.
+
+    The owner persists final quantities, the final event boundary and an audit proof
+    in the same transaction. Existing commands and safety conditions retain priority.
+    """
+    s = _evaluate(state, config)
+    if (
+        not s.auto_end_at_target
+        or s.pending_command_id is not None
+        or s.unresolved_conflict
+        or s.recovery_required
+        or s.state in {LineState.FAULT, LineState.ESTOP, LineState.RECOVERY_REQUIRED}
+    ):
+        return _commit(state, s)
+    if (
+        s.run_state == "RUNNING"
+        and s.state == LineState.RUNNING
+        and s.operation_mode == "AUTO"
+        and s.permissive
+        and good_quantity >= s.target_quantity
+    ):
+        s = _copy(
+            s,
+            run_state="ENDING",
+            state=LineState.STOPPING,
+            stop_purpose="END_RUN",
+            end_reason="TARGET_REACHED",
+            run_output=s.wip_quantity > 0,
+        )
+    if (
+        s.run_state == "ENDING"
+        and s.end_reason == "TARGET_REACHED"
+        and s.wip_quantity == 0
+        and not s.inputs.run_feedback
+        and s.inputs.speed_m_per_min == 0
+    ):
+        s = _copy(
+            s,
+            run_state="ENDED",
+            state=LineState.STOPPED,
+            run_output=False,
+            stop_purpose=None,
+        )
+    return _commit(state, _evaluate(s, config))

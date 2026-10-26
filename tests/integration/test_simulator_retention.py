@@ -281,7 +281,7 @@ def test_v2_migration_preserves_other_components_and_protects_legacy_rows_for_ne
     clock = Clock()
     clock.advance(100 * WEEK)
     with open_store(path, clock) as store:
-        assert store.connection.execute("PRAGMA user_version").fetchone()[0] == 3
+        assert store.connection.execute("PRAGMA user_version").fetchone()[0] == 4
         assert store.connection.execute("SELECT value FROM companion").fetchone()[0] == "preserve"
         store.acknowledge_recovery()
         assert read(store).events == (event,)

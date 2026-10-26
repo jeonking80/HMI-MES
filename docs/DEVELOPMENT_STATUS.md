@@ -545,3 +545,29 @@ M1의 주요 독립 운전·권한·실제 생산 경로는 확인했지만, 원
 
 
 - 16차 C안 보정(2026-10-25): 2시간>=max_age 보존·schema v3 삭제 구간·중간 예외 건너뛰기·v1/v2 원자 이관과 검증을 구현했다. high 검토 및 전체 단위/관련 게이트웨이796개1회 통과(463.82초), 포맷7개1회 통과. Ruff1회 unused UTC1건을 제거했으나 재검사하지 않았다. 86,400쌍 가속50.843초/정리후16,556~16,596B/고정예외3행 포함11행 유지. 운영의04:32Z 사본을 파생 복제해 이관·정리1회에서9,999,850→2,376,190B,8,167행 삭제·구간2행·EVICTED/유실453행 원문보존을 확인했다. 운영 원본·공개 DB·runtime·생산·배포 미적용. 상세 CX-31-ledger-retention.md 16차 절.
+
+- 14차 CX-31(2026-10-25): 409 공개 사유8개를 contracts에 고정하고 작업지시/명령 응답에 detail+reason_code를 추가했다. 권한·거절 조건·판정 순서와 기존 detail을 유지하며 진단/비밀 문자열을 노출하지 않는다. 관련 API/도메인219개1회 통과(185.81초), 변경11개 Ruff·포맷 각1회 통과. 운영 runtime·WO-T1·공개DB·생산 조작 없음. 보고서 CX-31.md; 게이트웨이 보존 CX-31-ledger-retention.md와 별도다.
+
+- 14차 CX-32(2026-10-25): 서버 recipe vN/날짜별WO ID와 actor-bound request_id 원래 응답 조회를 추가했다. 자동/수동 잠금·counter/정의/audit/receipt 원자 저장, schema19 불변영수증·최소runtime grants와 이관batch를 준비하고18/19 clock 호환을 유지했다. high DB격리검토, 관련201개1회 통과(123.00초), 변경17개 Ruff·포맷 각1회 통과(benchmark 기존E402 bootstrap만명시제외). 공개DB·runtime·WO-T1·UI·생산·배포 미변경. 상세 CX-32.md.
+
+- 14차 CX-33(2026-10-25): 새LOAD 기본true 목표 자동종료·TARGET_REACHED/OPERATOR와 원자적 완료 proof를 구현했다. 기존policy-free 작업/저널은false·기존final hash보존, 수동END증거·정산미정명령차단 유지. 최초513통과/크래시관찰fixture3실패(186.14초) 후 데이터관찰만 수정해3개1.97초 통과. 포맷11개1회 통과; Ruff I0011건 정렬 수정후1회제한으로재검미실행. highbackend검토완료. UI exactparser 변경은 Claude의 공개배포 선행조건, runtime·WO-T1·공개DB 미변경. CX-33.md 참조.
+
+- 14차 CX-34(2026-10-25): 명시적 시작예약 defaultfalse·성공원래LOAD provenance·load+operate 권한·READY 일회시작·안전/모드/재시작취소를 구현했다. high제어검토 완료. 최초404통과/manager FK fixture6오류(135.53초) 뒤 데이터만고쳐 해당6개11.56초통과. Ruff·포맷 각1회통과, fixture이후재검미실행. UI parser는 Claude 배포선행작업, runtime·WO-T1·공개DB·생산조작없음. CX-34.md 참조.
+
+- 14차 CX-35(2026-10-25): 원래LOAD 레시피 ±20%·PLC1~60·온도불변의 RUNNING/PAUSED 속도조정, PARAMETERS_CHANGED/영구history/정확한inbox 정산을 구현했다. storage4/runtime3 원자이관·보존/FK/크래시·권한 high검토 완료. 최초626통과/4schema·fixture·구PAUSED기대값실패(149.72초) 뒤 제품추가변경없이 해당4개0.54초통과. Ruff1회SQL길이3건·포맷1회들여쓰기1건 수동수정후재검미실행. runtime·WO-T1·공개DB·UI미변경; 배포전UI parser Claude담당. CX-35.md 참조.
+
+- 14차 CX-36(2026-10-25): 명시적 source/generation·사람권한 라인큐, 고정LOADID·불변receipt·기존bind/claim·정산후다음연결과 schema20/grants/batch를 구현했다. 최초278통과/fixture3실패(279.29초), 데이터보정3개재검2통과/1실패(9.25초). 남은실제캡처지연race는 high확인후PENDING정산선행으로수정, 해당결합1개7.04초통과. Ruff·포맷 각1회통과후보정재검은미실행. DB이관·권한/잠금/원래ID high검토, runtime·WO-T1·공개DB·UI·생산미변경. CX-36.md 참조.
+
+- 14차 CX-37(2026-10-25): 불변 품목master·등록/목록/단건API, 새recipe/작업지시의registered/enabled참조와 schema21backfill/FK/grants/batch를 구현했다. 실제hmi_app item→recipe→order·원래영수증/카운터/감사보존·구schema/새head큐와 gate를 high검토했다. 최초345통과/fixture별칭1오류(379.44초), import만보정해1개5.86초통과. 변경23개Ruff·포맷 각1회통과후fixture재검만수행. CX31~37분할반영; UI·공개이관/배포/SQLite운영전환 Claude담당, runtime·WO-T1·공개DB·생산·8시간시험미실행. CX33/35 Ruff재검미실행 기록유지. CX-37.md 참조.
+
+- 17차 CX-39(2026-10-25): FieldChannels의 storage4/runtime3·정확한 parameter-history trigger를 반영하고 기존 무결성 거절/DDL검사를 유지했다. 운영 ro사본3/2→4/3 검사통과, 원래사건10643+기존field자료보존·원본불변. 전체unit+관련54통합모듈 최초1949통과/fixture6실패(1223.34초), 데이터보정후6재검5통과/UInt64 fixture1실패(0.62초), 해당1개0.52초통과. Ruff·포맷263개통과로 CX33/35재검포함, 최종fixture3개도통과. polling실제serve/복구는통과했으나 browser1회는 빈품목목록 UI 첫등록 실패로차단, 원문CX-39.md; UI·스크립트수정/재시도없음. 공개DB·운영원본·생산조작·8시간시험없음.
+
+- 18차 CX-40(2026-10-25): 승인된 기본7일 수집원본 정리/schema22·영구receipt/종료범위·HTTP410·clock/알람frontier·트렌드/보고서 만료표시 구현, high검토 완료. 신규57개 최초22통과/35실패→33통과/2실패→2통과; 기존1392선택은 socket제한158통과중단 뒤1232통과/2회귀실패(1103.77초). clock span보존·probe scope우선100건 계약을 고쳐 영향85개84통과/fixture1실패, communication데이터보정1개5.70초통과. Ruff·format272개 및 최종수정 재검통과. 합성1000capture/일8·9일의원본7000행유지, 영구receipt/물리용량 증가한계기록. polling build통과/browser실제1회는빈품목UI첫등록에서차단; UI·공개이관/배포·운영runtime·WO-T1·생산·8시간시험없음. 전체완료아님, 상세CX-40.md.
+
+- 19차 CX-41(2026-10-26): HOURS 기본168·최소3/구DAYS거절, schema23 exactID청크·FK안전 영수증 압축과 시계근거 보존, 기존4회귀 수정. 사용자 선택대로 capture별 알람FK는 보존하며 선형증가 한계기록. 단위787포함 선행800통과/41실패→SQL별칭수정41통과. 통합전체1876개 단일1회1844통과/26실패/6오류(1950.63초): 무조건downgrade거절을 보존검증부미사용복구로고쳐 실패32개포함39개105.32초통과, 최종소스로전체재실행했다고표시않음. Ruff·format275통과, polling 실제browser→OPC→SETTLED1회통과. 86400capture(평균6858.87B)3h가속231.93초통과: raw/receipt10575,range1,chunk297; VACUUM후 DB540038835B로무료0.5GB목표미달. 공개DB·Vercel·운영runtime·사용자설비생산조작·8시간시험없음. CX-41.md 참조; 전체프로젝트완료아님.
+
+- 20차 CX-42(2026-10-26): 제품005d080에서 schema24 append-only정규UUID16B/기타exacttext, ACK전송뒤ASGI수명내정리·schema조회공유·clock최근접중복제거축소 구현/high검토. unit790포함선행860통과/ASGIfixture1실패→1개0.23초통과; 통합전체1893개단일1회1278.71초전부통과. 동일기계mainf992/제품005d080의공통fixture FIFO각1회복구119.95→114.53초·API호출당43.85→40.75ms; main원래부팅시각fixture8.85초/ingest0실패별도보존. 교차86400capture×알람채널0/1모두1032.32초통과: DB88.35/360.40MB·파일추정증가8.27/289.51MB/일·첫날뒤500MB잔여49.75/0.482일(운영보장아님), 실제FK86400보존. Ruff/포맷278·renderercmp·polling실제browser→SETTLED1회통과. 공개DB·Vercel·사용자runtime/설비조작·8시간시험미실행; 상세CX-42.md, 전체프로젝트완료주장아님.
+
+- 20차6절 후속(2026-10-26): Claude e4d5815 병합. 종료후LOAD에서Sealer.Ready=True요구만제거, 모든품질/신선도/정지/WIP/모드/정산/권한/원래ID보호유지; 일시대기reason노출과회복시해제(auto/revision불변). 실제simulatorproject_tags회귀·관련통합153개104.18초·변경Ruff/format통과/high검토. extended1회기본/E1/E2통과·E3첫queue-1실제LOAD/READY확인후스크립트reload재로그인누락으로workspace selector Timeout; E3전체미통과/queue-2검증미실행, UI/스크립트수정·재시도없음. CX-42.md6절참조. 사용자운영runtime·설비·공개DB·Vercel미변경.
+
+- Claude 통합 검증(2026-10-26, 병합본 `8077a03`): 화면 시험 100, `tests/unit`+대기열 통합 821 통과, Ruff·포맷 통과. `check-operable-system.py --analytics-dir --guest-dir --extended-dir` 1회 통과(기본 생산·SETTLED, 보고서 4쪽, 게스트, E1 자동 시작·목표 자동 종료, E2 운전 중 속도 변경, E3 대기열 정산 후 다음 작업 연결, 화면 수집 상태 95회 표본 중 비정상 0). `tests/integration` 전체 단일 실행(`e4d5815`, 대기열 수정 전)은 1892 통과/1 실패: FIFO 1,800건 300초. 같은 Claude 컨테이너에서 단독 실행 시 main `f9926d0`도 300.2초 failed_deadline(ingest 호출당 116.5ms), 병합본 300.2초(113.9ms)로 둘 다 실패하며 회귀는 없음. Codex 기계에서는 둘 다 약 115~120초 통과. 이 컨테이너의 FIFO 기준 미달은 미해결로 남긴다. 확장 검사 중 화면 결함 4건(첫 품목, 정책 플래그 파싱, 속도 변경 실행 보관, 배포 직후 대기열 후보)과 대기열 대기/차단 문구를 수정했다. 공개 사이트 수락·장시간 운전은 미실행.

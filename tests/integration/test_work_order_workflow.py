@@ -39,6 +39,7 @@ from apps.simulator.storage import SimulatorStorage
 from contracts.models import CommandRequest, Parameters, ReadEventsRequest
 from contracts.tags.validate import load_contract
 from contracts.transport import BatchBody, GatewayBatch, batch_digest
+from tests.integration.item_seed import seed_item
 
 AT = datetime(2026, 10, 23, tzinfo=UTC)
 ORIGIN = "https://workflow.example.test"
@@ -71,6 +72,7 @@ def state(migrated, request):
     clock = [AT]
     auth = UserAuth(migrated, allowed_origins={ORIGIN}, clock=lambda: clock[0])
     session = account(auth, "manager", {"production_manager", "operator"})
+    seed_item(migrated, "item", actor="manager", now=AT)
     principal = Principal("manager", frozenset({"production_manager", "operator"}), False)
     service = IngestionService(migrated)
     service.configure_source(
@@ -342,8 +344,59 @@ async def test_invalid_evidence_returns_409_and_no_provisional_execution(
         headers=headers(state),
     )
     assert response.status_code == 409
+    assert response.json()["reason_code"] == (
+        "STATE_NOT_ALLOWED" if "values" in bad_capture else "FRESH_SOURCE_REQUIRED"
+    )
     assert scalar(state, "SELECT count(*) FROM production_executions") == 0
     assert scalar(state, "SELECT count(*) FROM command_requests") == 0
+
+
+async def test_binding_conflicts_distinguish_versions_original_binding_and_unsettled_slot(
+    state, client
+):
+    release_path = "/api/v1/work-orders/work-A/release"
+    stale_release = await client.post(
+        release_path,
+        json={"release_id": "release-stale", "expected_row_version": "2"},
+        headers=headers(state),
+    )
+    assert stale_release.status_code == 409
+    assert stale_release.json()["reason_code"] == "WORK_ORDER_VERSION_CHANGED"
+    release(state)
+    bound = await client.post(
+        "/api/v1/work-orders/work-A/bind",
+        json=intent().model_dump(mode="json"),
+        headers=headers(state),
+    )
+    assert bound.status_code == 200
+    # A new ID cannot replay the receipt; current version reveals the existing binding.
+    for version, expected_reason in (
+        ("2", "WORK_ORDER_VERSION_CHANGED"),
+        ("3", "WORK_ORDER_ALREADY_BOUND"),
+    ):
+        response = await client.post(
+            "/api/v1/work-orders/work-A/bind",
+            json={
+                **intent().model_dump(mode="json"),
+                "command_id": "rebind-" + version,
+                "expected_work_order_version": version,
+            },
+            headers=headers(state),
+        )
+        assert response.status_code == 409
+        assert response.json()["reason_code"] == expected_reason
+    release(state, "work-B", release_id="release-B")
+    response = await client.post(
+        "/api/v1/work-orders/work-B/bind",
+        json={**intent().model_dump(mode="json"), "command_id": "load-B"},
+        headers=headers(state),
+    )
+    assert response.status_code == 409
+    assert response.json()["reason_code"] == "RESERVED_EXECUTION_NOT_SETTLED"
+    assert scalar(state, "SELECT count(*) FROM production_executions") == 1
+    assert scalar(state, "SELECT count(*) FROM command_requests") == 1
+    assert scalar(state, "SELECT count(*) FROM work_order_execution_links") == 1
+    assert scalar(state, "SELECT count(*) FROM line_execution_reservations") == 1
 
 
 def test_concurrent_different_jobs_reserve_one_execution_and_original_same_intent_replays(state):

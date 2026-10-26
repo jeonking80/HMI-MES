@@ -6,11 +6,12 @@ from threading import Lock
 import sqlalchemy as sa
 from sqlalchemy.exc import SQLAlchemyError
 
+from apps.api.capture_clock import CLOCK_EVIDENCE_REVISIONS
 from apps.api.database import SUPPORTED_AUTH_REVISIONS
 from apps.api.trend_history import TREND_REVISIONS
 
 # Downtime annotations require schema16; guest schema17 is independent. Reuse
-# the explicit service revision allowlists so a reviewed schema18 can opt in.
+# the explicit service revision allowlists so reviewed successor schemas can opt in.
 ANALYTICS_REVISIONS = (TREND_REVISIONS & SUPPORTED_AUTH_REVISIONS) - {"0015_analog_history"}
 REQUIRED_ROUTES = frozenset(
     {
@@ -81,7 +82,7 @@ def _database_available(auth) -> bool:
                 "downtime_reason_history",
             ):
                 db.execute(sa.text(f"SELECT 1 FROM {table} LIMIT 0"))
-            if revisions[0] == "0018_clock_evidence":
+            if revisions[0] in CLOCK_EVIDENCE_REVISIONS:
                 db.execute(sa.text("SELECT 1 FROM capture_clock_evidence LIMIT 0"))
         return True
     except SQLAlchemyError:

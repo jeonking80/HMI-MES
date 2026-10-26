@@ -167,3 +167,69 @@ GET은 모든 기존 역할의 `read` 권한, 유효한 로그인 세션과 최�
 ```
 
 현재 웹 **61개 순수 시험·typecheck/lint/build** 및 실제 전체 Chromium/일회용 PostgreSQL/API 검사도 통과했다. 실제 브라우저의6-case는 UI recipe/작업지시 commit 응답 유실 후 원래 GET 복구, 특수 작업지시의 UI 취소, 별도 실제 API로 저장한 특수 original cancellation/release ID의 수동 GET 복구와 추가 POST 부재를 확인한다. 원래 LOAD/command 특수 ID는 영구PG6-case와 순수 URL 시험으로, 실제 브라우저에서는 기존 원래 LOAD/command 추적 회귀로 검증했다. 로그 `.local/qa/identifier-browser.log`, 화면 `.local/qa/app-a-identifiers-run-identifiers.png`다. 실제 OPC/PLC 운전 시험을 대체하지 않는다.
+
+## CX-32: 서버 ID 발급과 원래 등록 결과 조회
+
+변경 이유: 목록을 읽어 화면에서 다음 번호를 계산하면 동시 등록이 충돌한다. 서버가
+자동 ID·원래 등록 응답·감사를 같은 트랜잭션에 저장하도록 추가했다. 기존 수동 ID와
+불변 정의·응답 형식은 유지한다. 품목 마스터는 별도 CX-37 범위다.
+
+`POST /api/v1/recipe-versions`에서 id와 version을 모두 생략/null/빈 문자열로 보내면
+recipe_id 그룹의 다음 숫자 vN과 `{recipe_id}-vN`을 발급한다. 둘 중 하나만 생략하면422다.
+작업지시 id를 생략/null/빈 문자열로 보내면 KST 예정일 planned_date의
+`WO-YYYYMMDD-NNN`을 발급한다. NNN은 최소3자리이며999 뒤에는1000이다.
+서버 UTC 현재일로 예정일을 바꾸지 않는다. 공백 문자열은 유효한 ID로 변환하지 않는다.
+자동 발급에는 request_id가 필수다. 기존 수동 등록에는 선택이고, 넣으면 같은 복구 계약을 쓴다.
+
+예시:
+
+```json
+{"request_id":"recipe-registration-1","recipe_id":"packing","item_id":"item-A",
+ "parameters":{"temperature_c":150.0,"speed_m_per_min":6.0}}
+```
+
+응답은 원래 RecipeVersion/WorkOrder 객체이고 발급된 id·version이 들어 있다.
+`GET /api/v1/registration-receipts/recipe?request_id=...` 또는
+`GET /api/v1/registration-receipts/work-order?request_id=...`로 원래 등록 응답을 조회한다.
+정확히 한 query만 허용하며 로그인 read 권한과 Cache-Control:no-store를 적용한다.
+같은 원래 계정의 새 세션에서도 조회할 수 있지만 다른 계정에는404다. POST의 같은 키에
+다른 본문/계정은409 ID_CONTENT_CONFLICT이며 원래 응답을 노출하지 않는다.
+
+정규화된 원래 본문은 request_id를 제외하고 보관한다. 같은 키·본문은 최초 응답을 그대로
+반환하며 작업지시가 나중에 RELEASED/CANCELLED로 바뀌어도 최초 DRAFT 등록 응답을 반환한다.
+결과 불명 시 새 키를 만들어 다시 등록하지 말고 원래 키만 조회/재확인한다.
+
+schema0019_registration_ids는 namespace별 숫자 counter와 불변 registration_receipts를
+추가한다. request lock→종류별 registration lock→기존 불변 writer 순서이며 직접 Python
+수동 writer도 같은 종류 잠금을 쓴다. recipe와 work order는 서로 독립이다. counter는 기존
+수동 vN/날짜 ID와 이미 쓰인 ID를 반영하며 점유 ID는 건너뛴다. 따라서 번호 공백은 가능하다.
+원본 등록·counter 증가·audit·receipt가 함께 커밋/롤백된다. DB에 잠금을 우회한 임의 SQL을
+동시에 넣는 경로의 자동 재시도까지 제공하지 않는다.
+
+ID 길이를 자르지 않으며 발급 결과가 Identifier 범위를 벗어나거나 지원 숫자 범위를
+소진하면 고정422 입력 오류로 거절한다. counter는 양의 정확한 정수이며 최대 signed bigint다.
+기존 수동 등록은 지원되는 이전 schema에서도 동작하지만 자동/키가 있는 등록은0019가 필요하다.
+head19에서도 기존 clock-evidence18의 검증과 분석 정책을 유지한다.
+
+운영 이관은 Claude가 수행한다. 준비 파일은 `deploy/neon-http/upgrade-0018-0019.json`,
+`deploy/neon-http/grants-0019.json`, `deploy/neon-registration-grants.sql`이다.
+renderer의 registration-upgrade/registration-grants로 재현한다. 이전17/18 batch는 유지한다.
+기존18 clock grants가 선행하며 app에는 counter SELECT/INSERT/UPDATE, receipt SELECT/INSERT만
+준다. receipt UPDATE/DELETE/TRUNCATE는 금지한다. app에 ownership/DDL 권한을 주지 않는다.
+되돌리기는 counter·receipt가 모두 비어 있을 때만 downgrade가 가능하다. 사용한 번호와
+원래 결과를 지우는 downgrade는 차단하므로 실제 사용 이후 rollback은 사전 백업/별도 검토가 필요하다.
+이번 변경으로 공개 DB에 자동 migration을 실행하거나 UI를 바꾸지 않는다.
+
+## CX-37 — 등록된 품목 참조 (schema21)
+
+CX-32 당시 후속 범위였던 품목 마스터를 추가했다. schema21의 새로운
+recipe/work-order 등록은 실제 item_master에 있고 enabled=true인 품목만
+참조한다. 수동/자동 ID 발급에 같은 검사를 적용하며, unknown item을
+자동 생성하지 않는다. 기존 ID/등록 영수증 재조회는 먼저 처리하고,
+구schema 동작·원래 실행/정산/bind 조건은 유지한다.
+
+변경 이유는 자유 문자열 품목을 등록된 업무 정의로 제한하기 위해서다.
+기존 품목은 0021에서 합집합으로 보존 등록하고 FK를 추가한다. name=id와
+unit=EA는 이관 기본값이며 실제 품목 정보를 복원했다는 뜻이 아니다.
+목록/등록 API·불변 정의·최소 grants·롤백·UI seed 영향은
+[ITEM_MASTER.md](ITEM_MASTER.md)를 따른다. 공개 이관은 Claude가 수행한다.

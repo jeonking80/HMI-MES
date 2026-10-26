@@ -6,6 +6,7 @@ from datetime import timedelta
 
 import sqlalchemy as sa
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from starlette.concurrency import run_in_threadpool
 
@@ -27,8 +28,10 @@ from apps.api.ingestion import (
 )
 from apps.api.models import Line
 from apps.api.settlement import SettlementScopeError, reconcile_execution
-from apps.api.snapshot import read_snapshot
-from contracts.models import CommandRequest, ContractModel, Identifier
+from apps.api.snapshot import SnapshotNotFound, read_snapshot
+from contracts.conflict_codes import ConflictReason
+from contracts.models import CommandRequest, ContractModel, Identifier, Parameters
+from contracts.parameter_history import validate_speed_adjustment
 from contracts.tags.validate import load_contract
 
 _TAGS = {tag["logical_name"] for tag in load_contract()["tags"]}
@@ -70,8 +73,14 @@ def _configured(connection, scope, *, lock=False):
     return row
 
 
-def _deny():
-    raise HTTPException(409, "current evidence does not permit this command")
+class CommandPreflightConflict(CommandConflict):
+    """Browser preflight denial, retaining its fixed public detail."""
+
+
+def _deny(reason_code=ConflictReason.STATE_NOT_ALLOWED):
+    raise CommandPreflightConflict(
+        "current evidence does not permit this command", reason_code=reason_code
+    )
 
 
 def _preflight(connection, body, source, now):
@@ -81,15 +90,18 @@ def _preflight(connection, body, source, now):
         or not timedelta(0) < request.expires_at - now <= timedelta(seconds=5)
         or request.expires_at - request.requested_at > timedelta(seconds=5)
     ):
-        _deny()
-    snapshot = read_snapshot(
-        connection,
-        line_id=body.line_id,
-        source_id=body.source_id,
-        stream_id=body.stream_id,
-        now=now,
-        prefer_complete_capture=True,
-    )
+        _deny(ConflictReason.FRESH_SOURCE_REQUIRED)
+    try:
+        snapshot = read_snapshot(
+            connection,
+            line_id=body.line_id,
+            source_id=body.source_id,
+            stream_id=body.stream_id,
+            now=now,
+            prefer_complete_capture=True,
+        )
+    except SnapshotNotFound:
+        _deny(ConflictReason.FRESH_SOURCE_REQUIRED)
     samples = {sample.tag_id: sample for sample in snapshot.screen.view.samples}
     if (
         snapshot.health.state != "CAPTURE_FRESH"
@@ -100,7 +112,7 @@ def _preflight(connection, body, source, now):
         or set(samples) != _TAGS
         or any(not item.fresh for item in snapshot.evidence)
     ):
-        _deny()
+        _deny(ConflictReason.FRESH_SOURCE_REQUIRED)
     if any(
         sample.status_code >> 30 != 0
         or sample.reading.value is None
@@ -112,13 +124,12 @@ def _preflight(connection, body, source, now):
         )
         for sample in samples.values()
     ):
-        _deny()
+        _deny(ConflictReason.FRESH_SOURCE_REQUIRED)
     values = {name: sample.reading.value for name, sample in samples.items()}
-    if (
-        values["Line.ControlMode"] != 1
-        or values["Line.ControlVersion"] != request.expected_control_version
-    ):
+    if values["Line.ControlMode"] != 1:
         _deny()
+    if values["Line.ControlVersion"] != request.expected_control_version:
+        _deny(ConflictReason.CONTROL_VERSION_STALE)
     progress = (
         connection.execute(
             sa.select(stream_progress).where(
@@ -130,7 +141,7 @@ def _preflight(connection, body, source, now):
         .first()
     )
     if progress is None or values["Line.EventSeq"] > progress["verified_through_seq"]:
-        _deny()
+        _deny(ConflictReason.FRESH_SOURCE_REQUIRED)
     if (
         connection.execute(
             sa.select(stream_gaps.c.from_seq)
@@ -150,7 +161,7 @@ def _preflight(connection, body, source, now):
             .limit(1)
         ).first()
     ):
-        _deny()
+        _deny(ConflictReason.FRESH_SOURCE_REQUIRED)
     execution = None
     if request.execution_id is not None:
         execution = (
@@ -165,7 +176,7 @@ def _preflight(connection, body, source, now):
             .first()
         )
         if execution is None:
-            _deny()
+            _deny(ConflictReason.PHYSICAL_EXECUTION_MISMATCH)
     active = values["Line.ActiveExecutionId"] or None
     kind = request.command.kind
     if kind in {"START", "PAUSE", "END_RUN"}:
@@ -173,15 +184,31 @@ def _preflight(connection, body, source, now):
             active != request.execution_id
             or execution["counter_epoch"] != values["Line.CounterEpoch"]
         ):
-            _deny()
+            _deny(ConflictReason.PHYSICAL_EXECUTION_MISMATCH)
     elif kind == "RESET_FAULT":
         if active != request.execution_id:
-            _deny()
+            _deny(ConflictReason.PHYSICAL_EXECUTION_MISMATCH)
         if execution is not None and execution["counter_epoch"] != values["Line.CounterEpoch"]:
-            _deny()
+            _deny(ConflictReason.PHYSICAL_EXECUTION_MISMATCH)
     elif kind == "SET_PARAMETERS":
         if active is not None or request.execution_id is not None:
-            _deny()
+            if (
+                execution is None
+                or active != request.execution_id
+                or execution["counter_epoch"] != values["Line.CounterEpoch"]
+            ):
+                _deny(ConflictReason.PHYSICAL_EXECUTION_MISMATCH)
+            if values["Line.State"] not in {2, 3}:
+                _deny()
+            args = request.command.args
+            if args.recipe_version != execution["recipe_version"]:
+                _deny()
+            try:
+                validate_speed_adjustment(
+                    args.parameters, Parameters.model_validate(execution["parameters"])
+                )
+            except ValueError:
+                _deny()
     elif kind == "LOAD_JOB":
         if values["Line.State"] != 0 or values["Line.WipCount"] != 0:
             _deny()
@@ -190,15 +217,16 @@ def _preflight(connection, body, source, now):
             sa.text("SELECT target_quantity FROM execution_plans WHERE execution_id=:id"),
             {"id": request.execution_id},
         ).scalar_one_or_none()
+        if execution["counter_epoch"] != values["Line.CounterEpoch"]:
+            _deny(ConflictReason.PHYSICAL_EXECUTION_MISMATCH)
         if (
             target is None
             or target != args.target_quantity
-            or execution["counter_epoch"] != values["Line.CounterEpoch"]
             or execution["work_order_id"] != args.work_order_id
             or execution["recipe_version"] != args.recipe_version
             or execution["parameters"] != args.parameters.model_dump(mode="json")
         ):
-            _deny()
+            _deny(ConflictReason.ID_CONTENT_CONFLICT)
         if active is not None:
             if active == request.execution_id:
                 _deny()
@@ -211,7 +239,7 @@ def _preflight(connection, body, source, now):
                 now=now,
             )
             if previous.status != "SETTLED":
-                _deny()
+                _deny(ConflictReason.RESERVED_EXECUTION_NOT_SETTLED)
 
 
 def mount_control_routes(
@@ -337,5 +365,27 @@ def mount_control_routes(
 
         try:
             return await run_in_threadpool(submit)
-        except (CommandConflict, CommandScopeError, SettlementScopeError):
-            raise HTTPException(409, "command conflicts with current durable evidence") from None
+        except CommandPreflightConflict as exc:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "detail": "current evidence does not permit this command",
+                    "reason_code": exc.reason_code,
+                },
+            )
+        except (CommandConflict, CommandScopeError) as exc:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "detail": "command conflicts with current durable evidence",
+                    "reason_code": exc.reason_code,
+                },
+            )
+        except SettlementScopeError:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "detail": "command conflicts with current durable evidence",
+                    "reason_code": ConflictReason.STATE_NOT_ALLOWED,
+                },
+            )
