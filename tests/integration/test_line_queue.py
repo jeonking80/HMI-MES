@@ -18,6 +18,7 @@ from apps.simulator.controller import SimulatorController
 from apps.simulator.plc import PLCInputs
 from apps.simulator.process import ProcessConfig
 from apps.simulator.storage import SimulatorStorage
+from apps.simulator.tags import project_tags
 from contracts.models import CommandRequest, CommandResult, ReadEventsRequest
 from contracts.transport import BatchBody, GatewayBatch, batch_digest
 from tests.integration.test_internal_api import binding
@@ -152,19 +153,17 @@ async def test_browser_requires_login_and_csrf_for_queue_mutation(state):
 
 
 def safe_capture(state, controller, *, active, **changes):
+    # Use the exact projection published by the simulator /snapshot and OPC UA
+    # adapters. In particular ENDED executions report Sealer.Ready=False.
+    process = controller.storage.load_execution()
     values = {
-        "Line.ControlVersion": controller.state.control_version,
+        **project_tags(
+            controller.state,
+            process,
+            counter_epoch=controller.storage.identity.counter_epoch,
+            heartbeat=process.tick if process else 0,
+        ),
         "Line.ActiveExecutionId": active,
-        "Line.EventSeq": controller.read_events(
-            ReadEventsRequest(source_id="source", stream_id="stream", after_seq=0, limit=1000)
-        )
-        .events[-1]
-        .seq,
-        "Line.OperationMode": 1,
-        "Line.GuardClosed": True,
-        "Line.Permissive": True,
-        "Sealer.GuardClosed": True,
-        "Sealer.Ready": True,
         **changes,
     }
     capture(state, values=values)
@@ -365,6 +364,33 @@ def completed(state, tmp_path):
         yield state, controller, first
 
 
+def test_actual_ended_snapshot_loads_next_order_without_sealer_ready(completed):
+    state, controller, first = completed
+    process = controller.storage.load_execution()
+    values = project_tags(
+        controller.state,
+        process,
+        counter_epoch=controller.storage.identity.counter_epoch,
+        heartbeat=process.tick,
+    )
+    assert controller.state.run_state == "ENDED"
+    assert values["Line.State"] == 0
+    assert values["Line.WipCount"] == 0
+    assert values["Sealer.Ready"] is False
+    assert values["Line.ActiveExecutionId"] == first["execution_id"]
+    capture(state, values=values)
+    queued = read(state)["entries"][0]
+    receipt = advance(state)
+    assert receipt is not None
+    assert receipt["command_id"] == queued["load_command_id"]
+    assert receipt["load_request"]["command"]["args"]["start_when_ready"] is False
+    execute_load(state, controller, receipt)
+    assert advance(state) is None
+    assert read(state)["entries"][0]["binding_receipt"] == receipt
+    assert read(state)["blocked_reason"] is None
+    assert scalar(state, "SELECT count(*) FROM command_requests") == 2
+
+
 @pytest.mark.parametrize(
     "damage",
     [
@@ -404,8 +430,47 @@ def test_current_identity_source_and_physical_evidence_block_automatic_bind(comp
         active = changes.pop("Line.ActiveExecutionId", first["execution_id"])
         safe_capture(state, controller, active=active, **changes)
     assert advance(state) is None
+    current = read(state)
+    assert current["blocked_reason"] is not None
+    if damage not in {"disabled-user", "lost-permission", "generation", "wrong-active"}:
+        assert current["auto_advance"] is True
     assert scalar(state, "SELECT count(*) FROM command_requests") == 1
     assert scalar(state, "SELECT count(*) FROM work_order_execution_links") == 1
+
+
+def test_recoverable_load_condition_is_visible_then_clears_on_same_queue_policy(completed):
+    state, controller, first = completed
+    original = read(state)
+    safe_capture(state, controller, active=first["execution_id"], **{"Line.WipCount": 1})
+    assert advance(state) is None
+    blocked = read(state)
+    assert blocked["blocked_reason"] == "LOAD_CONDITION_NOT_MET:Line.WipCount"
+    assert blocked["auto_advance"] is True
+    assert blocked["revision"] == original["revision"]
+    assert blocked["entries"] == original["entries"]
+    safe_capture(state, controller, active=first["execution_id"])
+    receipt = advance(state)
+    assert receipt["command_id"] == original["entries"][0]["load_command_id"]
+    current = read(state)
+    assert current["blocked_reason"] is None
+    assert current["revision"] == original["revision"]
+
+
+@pytest.mark.parametrize("invalid_sample", ["bad", "null"])
+def test_sealer_readiness_still_requires_known_good_evidence(completed, invalid_sample):
+    state, controller, _first = completed
+    process = controller.storage.load_execution()
+    values = project_tags(
+        controller.state,
+        process,
+        counter_epoch=controller.storage.identity.counter_epoch,
+        heartbeat=process.tick,
+    )
+    capture(state, values=values, **{invalid_sample: "Sealer.Ready"})
+    assert advance(state) is None
+    assert read(state)["blocked_reason"] == "FRESH_SOURCE_REQUIRED"
+    assert read(state)["auto_advance"] is True
+    assert scalar(state, "SELECT count(*) FROM command_requests") == 1
 
 
 @pytest.mark.parametrize("status", ["OUTCOME_UNKNOWN", "FAILED"])

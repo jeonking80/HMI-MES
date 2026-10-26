@@ -1,0 +1,40 @@
+{
+  "E1": {
+    "execution_id": "4870a966-dec4-4e15-814c-617c6785d74f",
+    "end_reason": "TARGET_REACHED",
+    "good": "5",
+    "reject": "2",
+    "seconds_bind_to_settled": 8.5
+  },
+  "E2": {
+    "execution_id": "96f41cbd-ec7d-4401-aad6-535076964c5b",
+    "speed_tag_after_change": null,
+    "final_parameters": {
+      "temperature_c": 150.0,
+      "speed_m_per_min": 12.0
+    },
+    "baseline_parameters": {
+      "temperature_c": 150.0,
+      "speed_m_per_min": 10.0
+    },
+    "parameter_changes": 1,
+    "good": "12"
+  },
+  "screen_samples": {
+    "total": 78,
+    "not_fresh": 17,
+    "not_fresh_values": [
+      "<absent>"
+    ],
+    "line_states": [
+      "<absent>",
+      "운전 중",
+      "일시 정지",
+      "정지",
+      "정지 중",
+      "준비"
+    ],
+    "health_changes": 1
+  },
+  "browser_errors": []
+}

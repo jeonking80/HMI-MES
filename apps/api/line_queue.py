@@ -301,6 +301,7 @@ def _block(db, policy, reason, now):
 
 
 def _record_binding(db, policy, entry, receipt, now, *, manual=False):
+    _wait_reason(db, policy, None)
     db.execute(
         text(
             "UPDATE line_queue_entries SET state='BOUND',binding_receipt=CAST(:receipt AS jsonb) "
@@ -318,6 +319,17 @@ def _record_binding(db, policy, entry, receipt, now, *, manual=False):
     )
 
 
+def _wait_reason(db, policy, reason):
+    """Expose recoverable waits without changing the operator's queue policy."""
+    db.execute(
+        text(
+            "UPDATE line_queue_policies SET blocked_reason=:reason WHERE line_id=:line "
+            "AND blocked_reason IS DISTINCT FROM :reason"
+        ),
+        {"line": policy["line_id"], "reason": reason},
+    )
+
+
 def _safe_values(snapshot):
     if (
         snapshot.health.state != "CAPTURE_FRESH"
@@ -327,10 +339,10 @@ def _safe_values(snapshot):
         or snapshot.missing_tag_ids
         or any(not item.fresh for item in snapshot.evidence)
     ):
-        return None
+        return None, "FRESH_SOURCE_REQUIRED"
     samples = snapshot.screen.view.samples
     if any(sample.status_code >> 30 or sample.reading.value is None for sample in samples):
-        return None
+        return None, "FRESH_SOURCE_REQUIRED"
     values = {sample.tag_id: sample.reading.value for sample in samples}
     expected = {
         "Line.State": 0,
@@ -342,7 +354,6 @@ def _safe_values(snapshot):
         "Line.Permissive": True,
         "Line.FaultCode": 0,
         "Sealer.GuardClosed": True,
-        "Sealer.Ready": True,
     }
     for group in ("Infeed", "Sealer", "Outfeed"):
         expected.update(
@@ -353,9 +364,12 @@ def _safe_values(snapshot):
                 f"{group}.FaultCode": 0,
             }
         )
-    if any(values.get(name) != value for name, value in expected.items()):
-        return None
-    return values
+    for name, value in expected.items():
+        if values.get(name) != value:
+            return None, "LOAD_CONDITION_NOT_MET:" + name
+    # Sealer.Ready is a START condition. ENDED runs legitimately clear readiness
+    # before the next managed LOAD establishes its recipe and warm-up state.
+    return values, None
 
 
 def advance_line_once(
@@ -419,6 +433,8 @@ def advance_line_once(
             or (command["collision_latched"])
         ):
             _block(db, policy, "ORIGINAL_LOAD_REQUIRES_HUMAN", now)
+        else:
+            _wait_reason(db, policy, "ORIGINAL_LOAD_PENDING")
         return None
     entry = (
         db.execute(
@@ -432,6 +448,7 @@ def advance_line_once(
         .first()
     )
     if entry is None:
+        _wait_reason(db, policy, None)
         return None
     # Manual binding can consume an explicitly enrolled first order, with original evidence.
     link = (
@@ -489,6 +506,8 @@ def advance_line_once(
             _block(db, policy, "ORIGINAL_LOAD_REQUIRES_HUMAN", now)
         elif command["status"] == "SUCCEEDED":
             _record_binding(db, policy, entry, link["receipt"], now, manual=True)
+        else:
+            _wait_reason(db, policy, "ORIGINAL_LOAD_PENDING")
         return None
     if order["status"] != "RELEASED" or int(order["row_version"]) != int(
         entry["expected_row_version"]
@@ -508,6 +527,7 @@ def advance_line_once(
         .first()
     )
     if reserved is None:
+        _wait_reason(db, policy, "PRIOR_EXECUTION_REQUIRED")
         return None
     if any(reserved[name] != policy[name] for name in ("line_id", "source_id", "stream_id")):
         _block(db, policy, "PRIOR_EXECUTION_SCOPE_CHANGED", now)
@@ -521,6 +541,7 @@ def advance_line_once(
         now=now,
     )
     if settled.status == "PENDING":
+        _wait_reason(db, policy, "PRIOR_EXECUTION_SETTLEMENT_PENDING")
         return None
     if settled.status != "SETTLED":
         _block(db, policy, "PRIOR_EXECUTION_NOT_SETTLED", now)
@@ -535,9 +556,11 @@ def advance_line_once(
             prefer_complete_capture=True,
         )
     except SnapshotNotFound:
+        _wait_reason(db, policy, "FRESH_SOURCE_REQUIRED")
         return None
-    values = _safe_values(snapshot)
+    values, reason = _safe_values(snapshot)
     if values is None:
+        _wait_reason(db, policy, reason)
         return None
     if values.get("Line.ActiveExecutionId") != reserved["execution_id"]:
         _block(db, policy, "PHYSICAL_EXECUTION_MISMATCH", now)

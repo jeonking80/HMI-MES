@@ -1,0 +1,40 @@
+Live local: provision disposable users, certificates and source identity
+Live local: simulator browser login and mandatory password change
+Live local: five explicit operator recovery checks; select REMOTE/AUTO
+Live local: recovery response received; select REMOTE/AUTO
+Live local: REMOTE/AUTO response received
+Live local: App A browser login and mandatory password change
+Live local: browser registers 150 C / 10 m/min recipe and target-20 work order
+Live local: recipe submitted; await confirmed registration
+Live local: work order form prepared
+Live local: work order submitted; await confirmed registration
+Live local: release registered work order
+Live local: acknowledge confirmed release tracker
+Live local: wait for actual source readiness before binding
+Live local: wait for real default-physics preheat to READY (bounded 45 seconds)
+Live local: START through browser; wait for actual good output >= 2
+Live local: PAUSE through browser and verify actual PLC PAUSED
+Live local: confirmed END_RUN; wait for original execution final settlement
+Live local: SETTLED: browser/API totals match real simulator final summary
+Live local: E1 new item recipe through the item master
+Live local: E1 auto start when ready + auto end at target 5, no manual command
+Live local: E2 manual START, speed change 10 -> 12 m/min while running, END_RUN
+Live local: E3 line queue loads the next order after settlement
+QUEUE {"line_id":"packaging-line-1","revision":"1","auto_advance":true,"source_id":"a85d5418-c81c-4ed8-948e-d0b13be53833","stream_id":"5e66d3ff-2bae-475c-8f3c-71fa5f1e51f8","gateway_id":"live-gateway","capture_generation":"1","enabled_by":"live-operator","blocked_reason":"PRIOR_EXECUTION_SETTLEMENT_PENDING","entries":[{"entry_id":"b0635a18-c200-5a31-9b43-d2103f6b2590","position":0,"work_order_id":"queue-1","load_command_id":"1e89d40f-a035-5ef6-aed2-e934c06b9c0e","state":"BOUND","binding_receipt":{"line_id":"packaging-line-1","source_id":"a85d5418-c81c-4ed8-948e-d0b13be53833","stream_id":"5e66d3ff-2bae-475c-8f3c-71fa5f1e51f8","command_id":"1e89d40f-a035-5ef6-aed2-e934c06b9c0e","execution_id":"35b65ac6-9950-43e3-8583-6fce13aaf3c1","load_request":{"command":{"args":{"parameters":{"temperature_c":150.0,"speed_m_per_min":10.0},"work_order_id":"queue-1","recipe_version":"auto-recipe-v1","target_quantity":3,"start_when_ready":false,"auto_end_at_target":true},"kind":"LOAD_JOB"},"target_id":"Line","command_id":"1e89d40f-a035-5ef6-aed2-e934c06b9c0e","expires_at":"2026-10-26T08:30:23.803567Z","execution_id":"35b65ac6-9950-43e3-8583-6fce13aaf3c1","requested_at":"2026-10-26T08:30:18.803567Z","requested_by":"live-operator","schema_version":"1.0","expected_control_version":"17"},"work_order_id":"queue-1","work_order_row_version":"3"},"expected_row_version":"2"},{"entry_id":"07f61087-e161-533d-9fd5-0ef95339d618","position":1,"work_order_id":"queue-2","load_command_id":"e572de91-4f29-59f8-9908-2e0cbfbd8e85","state":"WAITING","binding_receipt":null,"expected_row_version":"2"}]}
+SIM {"target_id": "Line", "state": "READY", "control_version": "18", "control_mode": "REMOTE", "operation_mode": "AUTO", "inputs": {"estop": false, "guard_closed": true, "fault_code": 0, "fault_resettable": true, "equipment_ready": true, "temperature_c": 149.9, "temperature_offset_c": 0.0, "pressure_bar": 6.0, "run_feedback": false, "speed_m_per_min": 0.0}, "recovery_required": false, "latched_fault_code": 0, "pressure_ready": true, "permissive": true, "ready": true, "run_output": false, "execution_id": "35b65ac6-9950-43e3-8583-6fce13aaf3c1", "work_order_id": "queue-1", "recipe_version": "auto-recipe-v1", "parameters": {"temperature_c": 150.0, "speed_m_per_min": 10.0}, "recipe_baseline": {"temperature_c": 150.0, "speed_m_per_min": 10.0}, "recipe_baseline_version": "auto-recipe-v1", "target_quantity": 3, "auto_end_at_target": true, "start_when_ready": false, "start_reservation": null, "start_reservation_cancel_reason": null, "end_reason": null, "run_state": "LOADED", "wip_quantity": 0, "last_event_seq": "49", "previous_execution_settled": false, "unresolved_conflict": false, "pending_command_id": null, "pending_kind": null, "stop_purpose": null}
+Traceback (most recent call last):
+  File "/workspace/HMI-MES/scripts/check-operable-system.py", line 1032, in exercise_extended
+    await monitoring()
+  File "/workspace/HMI-MES/scripts/check-operable-system.py", line 831, in monitoring
+    await page.locator("#workspace-operations").click()
+  File "/workspace/HMI-MES/.venv/lib/python3.12/site-packages/playwright/async_api/_generated.py", line 15527, in click
+    await self._impl_obj.click(
+  File "/workspace/HMI-MES/.venv/lib/python3.12/site-packages/playwright/_impl/_locator.py", line 160, in click
+    return await self._frame.click(self._selector, strict=True, **params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+playwright._impl._errors.TimeoutError: Locator.click: Timeout 25000ms exceeded.
+Call log:
+  - waiting for locator("#workspace-operations")
+
+{"E1": {"execution_id": "4870a966-dec4-4e15-814c-617c6785d74f", "end_reason": "TARGET_REACHED", "good": "5", "reject": "2", "seconds_bind_to_settled": 8.5}, "E2": {"execution_id": "96f41cbd-ec7d-4401-aad6-535076964c5b", "speed_tag_after_change": null, "final_parameters": {"temperature_c": 150.0, "speed_m_per_min": 12.0}, "baseline_parameters": {"temperature_c": 150.0, "speed_m_per_min": 10.0}, "parameter_changes": 1, "good": "12"}, "screen_samples": {"total": 78, "not_fresh": 17, "not_fresh_values": ["<absent>"], "line_states": ["<absent>", "운전 중", "일시 정지", "정지", "정지 중", "준비"], "health_changes": 1}, "browser_errors": []}
+FAIL: TimeoutError (E3 line queue loads the next order after settlement)
