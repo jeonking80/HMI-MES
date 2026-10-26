@@ -364,10 +364,13 @@ export function parseSpc(value: unknown): Spc {
 // The largest legal trend (4 tags x 10,080 minute points) is about 7 MiB of JSON.
 const MAX_BYTES = 16 * 1024 * 1024
 
+// Reports over a long run can take tens of seconds; the serverless function allows 60 seconds.
+const READ_TIMEOUT_MS = 45_000
+
 export async function readJson<T>(path: string, parse: (value: unknown) => T, signal: AbortSignal): Promise<T> {
   let response: Response
   try {
-    response = await fetch(path, { credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]) })
+    response = await fetch(path, { credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.any([signal, AbortSignal.timeout(READ_TIMEOUT_MS)]) })
   } catch (cause) {
     if (signal.aborted) throw cause
     throw new AnalyticsError(0, '서버 응답을 확인할 수 없습니다. 연결을 확인해 주세요.')
