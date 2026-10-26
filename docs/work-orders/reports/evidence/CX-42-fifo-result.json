@@ -1,0 +1,513 @@
+{
+  "preloaded": 1800,
+  "scope": "synthetic historical preload; real FIFO HTTP/PG and live OPC48tags1Hz",
+  "deadline_seconds": 300,
+  "outcome": "passed",
+  "time_quality_policy": "unaltered CLI startup validity; historical backlog UNKNOWN",
+  "test_sha256": "03535455e9d2ad9ccfce122d53651bc2767dc2c21ce9f07bdc18486de7690d07",
+  "user_http_sha256": "e884b82eb45011ef5051238d28f8ebb2245dafb2e2ebcf95ee1b32dbb77f3957",
+  "browser_preflight": {
+    "login": "fifo-viewer",
+    "rendered_tags": 48,
+    "screen_responses": 2,
+    "seconds": 1.0209815690000141
+  },
+  "preload_seconds": 15.107078307999927,
+  "seconds": 114.52992293599982,
+  "queue": {
+    "pending_batches": 0,
+    "inflight_batches": 0,
+    "queue_bytes": 0,
+    "metadata_bytes": 2813518,
+    "loss_records": 0,
+    "oldest_queued_at": null,
+    "age_limit_reached": false,
+    "database_bytes": 30404608,
+    "wal_bytes": 4190072,
+    "shared_memory_bytes": 32768
+  },
+  "progress": {
+    "source_id": "a0a556a3-86b1-4c9e-a33a-6f21d4c15323",
+    "stream_id": "3e34fa44-f365-43a1-9e3b-04f115e49342",
+    "verified_through_seq": "2932",
+    "latest_ingested_seq": "2932",
+    "unresolved_gaps": []
+  },
+  "measurements": {
+    "enqueue": {
+      "calls": 115,
+      "seconds": 1.1261601270011852,
+      "max": 0.01977046899992274
+    },
+    "lease_next": {
+      "calls": 1923,
+      "seconds": 4.279460205993928,
+      "max": 0.00916263599992817
+    },
+    "acknowledge": {
+      "calls": 1915,
+      "seconds": 3.0871474390000913,
+      "max": 0.035999044999698526
+    },
+    "deliver": {
+      "calls": 1915,
+      "seconds": 85.7683626570074,
+      "max": 0.23029714599988438
+    },
+    "read_tags": {
+      "calls": 115,
+      "seconds": 0.2455497700007072,
+      "max": 0.012176388000170846,
+      "starts": [
+        3818.927678608,
+        3819.928521275,
+        3820.929507009,
+        3821.930593289,
+        3822.931282011,
+        3823.931499781,
+        3824.931972227,
+        3825.933708237,
+        3826.934639096,
+        3827.936427394,
+        3828.937173754,
+        3829.938198075,
+        3830.93875619,
+        3831.938999787,
+        3832.93941985,
+        3833.939955761,
+        3834.940644148,
+        3835.941018332,
+        3836.941694861,
+        3837.94198034,
+        3838.943305243,
+        3839.944220209,
+        3840.944937017,
+        3841.945700714,
+        3842.94709548,
+        3843.947887495,
+        3844.948661999,
+        3845.950324087,
+        3846.950490678,
+        3847.950883272,
+        3848.950999058,
+        3849.951753807,
+        3850.952320588,
+        3851.953281123,
+        3852.954364908,
+        3853.954788924,
+        3854.955503851,
+        3855.956075823,
+        3856.956543617,
+        3857.956712241,
+        3858.957245419,
+        3859.958993077,
+        3860.960337744,
+        3861.961891696,
+        3862.962896079,
+        3863.963687827,
+        3864.964079006,
+        3865.966102124,
+        3866.966739118,
+        3867.967076401,
+        3868.967922405,
+        3869.969757504,
+        3870.970568201,
+        3871.971537191,
+        3872.972309865,
+        3873.972748057,
+        3874.973885045,
+        3875.975397689,
+        3876.975586723,
+        3877.977351157,
+        3878.977517958,
+        3879.978102944,
+        3880.978677623,
+        3881.979409125,
+        3882.980308885,
+        3883.980665411,
+        3884.982256683,
+        3885.982752285,
+        3886.986531101,
+        3887.987202761,
+        3888.987597287,
+        3889.988383225,
+        3890.989612178,
+        3891.990385231,
+        3892.991686439,
+        3893.993894606,
+        3894.994109602,
+        3895.994897562,
+        3896.995835583,
+        3897.996698031,
+        3898.996866362,
+        3899.997452572,
+        3900.998083521,
+        3901.998645956,
+        3902.999416328,
+        3903.999887638,
+        3905.001616629,
+        3906.001997327,
+        3907.002226197,
+        3908.002540515,
+        3909.003529696,
+        3910.004047806,
+        3911.004227797,
+        3912.004625464,
+        3913.006248605,
+        3914.00701917,
+        3915.007347659,
+        3916.007721332,
+        3917.009840558,
+        3918.010246201,
+        3919.01249531,
+        3920.01309908,
+        3921.013561153,
+        3922.014261453,
+        3923.014981795,
+        3924.017015432,
+        3925.017644561,
+        3926.01841012,
+        3927.019024362,
+        3928.019502638,
+        3929.020391072,
+        3930.021222877,
+        3931.021965848,
+        3932.023539045,
+        3933.02394665
+      ]
+    },
+    "user_snapshot_dom": {
+      "calls": 110,
+      "seconds": 3.2587123349976537,
+      "max": 0.07344767799986585
+    }
+  },
+  "observer_seconds": 1.8122952920025455,
+  "observer_calls": 110,
+  "source_head": 2932,
+  "checkpoints": [
+    {
+      "sent": 1,
+      "seconds": 0.0824339789996884,
+      "queue_batches": 1801,
+      "queue_bytes": 27442123,
+      "verified": 4,
+      "source_head": 2932
+    },
+    {
+      "sent": 155,
+      "seconds": 8.56897754099964,
+      "queue_batches": 1655,
+      "queue_bytes": 25242974,
+      "verified": 4,
+      "source_head": 2932
+    },
+    {
+      "sent": 309,
+      "seconds": 17.049915209999654,
+      "queue_batches": 1509,
+      "queue_bytes": 23038599,
+      "verified": 4,
+      "source_head": 2932
+    },
+    {
+      "sent": 470,
+      "seconds": 26.573866772999736,
+      "queue_batches": 1358,
+      "queue_bytes": 20762335,
+      "verified": 4,
+      "source_head": 2932
+    },
+    {
+      "sent": 620,
+      "seconds": 35.10829819499986,
+      "queue_batches": 1216,
+      "queue_bytes": 18621634,
+      "verified": 4,
+      "source_head": 2932
+    },
+    {
+      "sent": 776,
+      "seconds": 44.6018597049997,
+      "queue_batches": 1070,
+      "queue_bytes": 16419866,
+      "verified": 4,
+      "source_head": 2932
+    },
+    {
+      "sent": 932,
+      "seconds": 54.190118816999984,
+      "queue_batches": 924,
+      "queue_bytes": 14220548,
+      "verified": 4,
+      "source_head": 2932
+    },
+    {
+      "sent": 1097,
+      "seconds": 63.62727836799968,
+      "queue_batches": 768,
+      "queue_bytes": 11861715,
+      "verified": 4,
+      "source_head": 2932
+    },
+    {
+      "sent": 1255,
+      "seconds": 73.05057804699982,
+      "queue_batches": 619,
+      "queue_bytes": 9606564,
+      "verified": 4,
+      "source_head": 2932
+    },
+    {
+      "sent": 1418,
+      "seconds": 82.47750590299984,
+      "queue_batches": 466,
+      "queue_bytes": 7292184,
+      "verified": 4,
+      "source_head": 2932
+    },
+    {
+      "sent": 1571,
+      "seconds": 91.875092193,
+      "queue_batches": 322,
+      "queue_bytes": 5113327,
+      "verified": 4,
+      "source_head": 2932
+    },
+    {
+      "sent": 1725,
+      "seconds": 102.25601648199972,
+      "queue_batches": 179,
+      "queue_bytes": 2953951,
+      "verified": 4,
+      "source_head": 2932
+    },
+    {
+      "sent": 1881,
+      "seconds": 111.47580634299993,
+      "queue_batches": 31,
+      "queue_bytes": 529027,
+      "verified": 2932,
+      "source_head": 2932
+    }
+  ],
+  "browser_screen_responses": 132,
+  "collection": {
+    "configured_interval_seconds": 1.0,
+    "captures": 115,
+    "first_monotonic": 3818.927678608,
+    "last_monotonic": 3933.02394665,
+    "interval_mean_seconds": 1.0008444565087742,
+    "interval_max_seconds": 1.0037788159997945
+  },
+  "user_api": {
+    "ingest": {
+      "calls": 0,
+      "seconds": 0,
+      "max": 0
+    },
+    "sql": {
+      "other.SELECT": {
+        "calls": 1725,
+        "seconds": 0.49807170299573045
+      },
+      "other.UPDATE": {
+        "calls": 2,
+        "seconds": 0.0007116040001164947
+      },
+      "analog_history_raw.SELECT": {
+        "calls": 1,
+        "seconds": 0.0007864949998293014
+      },
+      "analog_history_minutes.SELECT": {
+        "calls": 1,
+        "seconds": 0.0003947350000998995
+      },
+      "capture_clock_evidence.SELECT": {
+        "calls": 1,
+        "seconds": 0.0002965969997603679
+      },
+      "other.DELETE": {
+        "calls": 2,
+        "seconds": 0.0009543690007376426
+      },
+      "other.INSERT": {
+        "calls": 3,
+        "seconds": 0.0010284009995302767
+      },
+      "line_lock_share": {
+        "calls": 242,
+        "seconds": 2.894616016998498
+      },
+      "ingest_batches.SELECT": {
+        "calls": 242,
+        "seconds": 0.09529227000211904
+      }
+    },
+    "functions": {
+      "apps.api.trend_history.capture_trends": {
+        "calls": 0,
+        "seconds": 0.0
+      },
+      "apps.api.trend_history.raw_observations": {
+        "calls": 0,
+        "seconds": 0.0
+      },
+      "apps.api.trend_history.points_for": {
+        "calls": 0,
+        "seconds": 0.0
+      },
+      "apps.api.trend_history.cleanup_trends": {
+        "calls": 0,
+        "seconds": 0.0
+      },
+      "apps.api.trend_history.fence_incomplete_reversal_minutes": {
+        "calls": 0,
+        "seconds": 0.0
+      },
+      "apps.api.capture_clock.record_capture_clock": {
+        "calls": 0,
+        "seconds": 0.0
+      }
+    }
+  },
+  "api": {
+    "ingest": {
+      "calls": 1916,
+      "seconds": 78.08483875798856,
+      "max": 0.12394383199989534
+    },
+    "sql": {
+      "other.SELECT": {
+        "calls": 30615,
+        "seconds": 3.877849906008123
+      },
+      "line_lock_update": {
+        "calls": 1916,
+        "seconds": 0.315222221005115
+      },
+      "ingest_batches.SELECT": {
+        "calls": 1919,
+        "seconds": 0.26108885000758164
+      },
+      "event_inbox.SELECT": {
+        "calls": 9040,
+        "seconds": 2.685442303999025
+      },
+      "event_inbox.INSERT": {
+        "calls": 2932,
+        "seconds": 0.6316328230113868
+      },
+      "other.INSERT": {
+        "calls": 4848,
+        "seconds": 0.7224979649745364
+      },
+      "event_inbox.UPDATE": {
+        "calls": 2932,
+        "seconds": 0.4028011370137392
+      },
+      "other.UPDATE": {
+        "calls": 2927,
+        "seconds": 0.3259418160023415
+      },
+      "stream_progress.SELECT": {
+        "calls": 1916,
+        "seconds": 0.18497202400203605
+      },
+      "stream_gaps.SELECT": {
+        "calls": 1916,
+        "seconds": 0.1948994889980895
+      },
+      "stream_progress.UPDATE": {
+        "calls": 1916,
+        "seconds": 0.37384204800673615
+      },
+      "stream_gaps.DELETE": {
+        "calls": 1916,
+        "seconds": 0.21535515599452992
+      },
+      "ingest_batches.INSERT": {
+        "calls": 1916,
+        "seconds": 1.444622892010102
+      },
+      "other.WITH": {
+        "calls": 2,
+        "seconds": 0.0024637789997541404
+      },
+      "other.(SELECT": {
+        "calls": 1916,
+        "seconds": 0.44386659998781397
+      },
+      "capture_clock_evidence.INSERT": {
+        "calls": 1916,
+        "seconds": 0.4917996269896321
+      },
+      "analog_history_raw.INSERT": {
+        "calls": 17244,
+        "seconds": 2.621884900004261
+      },
+      "analog_history_raw.SELECT": {
+        "calls": 18926,
+        "seconds": 4.599850867017722
+      },
+      "analog_history_minutes.INSERT": {
+        "calls": 17010,
+        "seconds": 2.8581002239948248
+      },
+      "analog_history_raw.UPDATE": {
+        "calls": 17010,
+        "seconds": 22.360946508024426
+      },
+      "analog_history_raw.DELETE": {
+        "calls": 1916,
+        "seconds": 0.409173527004441
+      },
+      "analog_history_minutes.DELETE": {
+        "calls": 1916,
+        "seconds": 0.21568750799269765
+      },
+      "other.SET": {
+        "calls": 6,
+        "seconds": 0.0008406779998040292
+      },
+      "stream_gaps.INSERT": {
+        "calls": 1801,
+        "seconds": 0.28596991000858907
+      }
+    },
+    "functions": {
+      "apps.api.trend_history.capture_trends": {
+        "calls": 1916,
+        "seconds": 47.42003969798225
+      },
+      "apps.api.trend_history.raw_observations": {
+        "calls": 17010,
+        "seconds": 11.74037626599602
+      },
+      "apps.api.trend_history.points_for": {
+        "calls": 17010,
+        "seconds": 2.754204721032238
+      },
+      "apps.api.trend_history.cleanup_trends": {
+        "calls": 1916,
+        "seconds": 0.8851784050043534
+      },
+      "apps.api.trend_history.fence_incomplete_reversal_minutes": {
+        "calls": 1916,
+        "seconds": 0.2871137250135689
+      },
+      "apps.api.capture_clock.record_capture_clock": {
+        "calls": 1916,
+        "seconds": 2.8863650830062397
+      }
+    }
+  },
+  "pytest_phases": {
+    "setup": "passed",
+    "call": "passed",
+    "teardown": "passed"
+  },
+  "phase_outcome": "passed",
+  "exit_code": 0,
+  "product_commit": "005d080fb471181220edf5e39a16193068eef823"
+}

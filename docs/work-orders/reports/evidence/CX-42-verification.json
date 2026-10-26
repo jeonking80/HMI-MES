@@ -1,0 +1,60 @@
+{
+  "product_commit": "005d080fb471181220edf5e39a16193068eef823",
+  "main_product_commit": "f9926d0aa0e09f85d90e2a06ff6337f7d5de9251",
+  "machine_hostname": "6243eb6a4ca5",
+  "python": "3.12.14",
+  "common_fifo_fixture_sha256": "03535455e9d2ad9ccfce122d53651bc2767dc2c21ce9f07bdc18486de7690d07",
+  "runs": [
+    {
+      "run": "focused",
+      "tests": 861,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "time_seconds": 91.079
+    },
+    {
+      "run": "scheduler-recheck",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time_seconds": 0.227
+    },
+    {
+      "run": "capacity",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time_seconds": 1032.319
+    },
+    {
+      "run": "integration-full",
+      "tests": 1893,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time_seconds": 1278.689
+    },
+    {
+      "run": "result-fifo",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time_seconds": 143.958
+    }
+  ],
+  "full_integration_executions": 1,
+  "all_unit_cases_in_focused": 790,
+  "standalone_fifo_valid_measurements_per_product": 1,
+  "main_preflight_failure_excluded_from_timing": true,
+  "ruff": "passed",
+  "format_files": 278,
+  "renderer_cmp": "both matched",
+  "public_operations": false,
+  "user_runtime_changes": false,
+  "browser": "PASS: real final SETTLED totals matched",
+  "browser_attempts": 1
+}
