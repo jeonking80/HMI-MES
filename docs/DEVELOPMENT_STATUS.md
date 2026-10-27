@@ -6,6 +6,10 @@
 
 기준 문서: [기획서](HMI_MES_시스템_기획서_v1_0.md), [개발계획서](HMI_MES_개발계획서_v1_0.md).
 
+## 2026-10-26 — 22차 진단·설계 (현재 기준 main bae8599)
+
+21차는 보류한다. [CX-44 전체 진단](work-orders/reports/CX-44.md), [재설계안](architecture/REDESIGN_PROPOSAL.md), [실행 계획](architecture/RECOVERY_PLAN.md)을 작성했다. 제품 코드·이관·공개 DB·Vercel·runtime은 변경하지 않았다. 공개 GET 9회와 정적 코드·기존 시험 근거를 확인했으며 새 시험은 실행하지 않았다. 공개 DB 연결값이 없어 표별 용량·정확 행 수·증가율 실측은 **차단** 상태다. 상단의 기존 0014/1913개 기록과 아래 누적 이력은 당시 기록이며 최신 전체 수락 통과를 뜻하지 않는다. 최신 F01~F10/T01~T12/M0~M5 상태와 분할·모의·실패·미실행 구분은 CX-44를 따른다. 설계 승인 전 구현하지 않으며 8시간 제외 지시는 유지한다.
+
 ## 운영 원칙
 
 주 에이전트가 의존성과 통합 검증을 조정한다. 서브에이전트는 `gpt-6.1-sol` medium을 기본으로 사용하며, high는 DB 마이그레이션·데이터 격리 등 위험도가 높은 검토에만 사용한다. DEV 항목을 작은 작업으로 나누고 각 결과를 확인한 뒤 후속 작업을 배정한다. 아래 작은 작업의 통과는 상위 DEV나 전체 프로젝트의 완료를 의미하지 않는다.
@@ -573,3 +577,12 @@ M1의 주요 독립 운전·권한·실제 생산 경로는 확인했지만, 원
 - Claude 통합 검증(2026-10-26, 병합본 `8077a03`): 화면 시험 100, `tests/unit`+대기열 통합 821 통과, Ruff·포맷 통과. `check-operable-system.py --analytics-dir --guest-dir --extended-dir` 1회 통과(기본 생산·SETTLED, 보고서 4쪽, 게스트, E1 자동 시작·목표 자동 종료, E2 운전 중 속도 변경, E3 대기열 정산 후 다음 작업 연결, 화면 수집 상태 95회 표본 중 비정상 0). `tests/integration` 전체 단일 실행(`e4d5815`, 대기열 수정 전)은 1892 통과/1 실패: FIFO 1,800건 300초. 같은 Claude 컨테이너에서 단독 실행 시 main `f9926d0`도 300.2초 failed_deadline(ingest 호출당 116.5ms), 병합본 300.2초(113.9ms)로 둘 다 실패하며 회귀는 없음. Codex 기계에서는 둘 다 약 115~120초 통과. 이 컨테이너의 FIFO 기준 미달은 미해결로 남긴다. 확장 검사 중 화면 결함 4건(첫 품목, 정책 플래그 파싱, 속도 변경 실행 보관, 배포 직후 대기열 후보)과 대기열 대기/차단 문구를 수정했다. 공개 사이트 수락·장시간 운전은 미실행.
 
 - 공개 적용(2026-10-26, Claude, 사용자 승인): 이관 직전 HTTPS 논리 백업(50개 테이블, 131,534행, 행 수 일치, 0018). Neon HTTP 배치로 0019~0024 이관·권한 6단계 적용, `alembic_version=0024_ingest_retired_segments`. Vercel `HMI_INGEST_RETENTION_HOURS=3`(production·preview) 설정. PR #25 병합 `fd66aae`, 운영 배포 READY, `/api/ready` 200. 게스트로 라인 모니터링·작업지시·대시보드·보고서 화면 표시, 브라우저 오류·HTTP 4xx/5xx 0. 공개 runtime은 2026-10-25 09:39Z 이후 수집 정지 상태라 라인 상태는 불명·수집 지연으로 표시된다. 공개 운전·정산 수락은 runtime 재시작 후 미실행.
+
+- 공개 재개·1회 동작 확인(2026-10-27, Claude, 사용자 지시 "코덱스 안 써, 니가 다 해"): 기존 Neon `hmi-mes-demo`가 무료 전송량 한도(Network transfer 9.26GB)로 차단돼 새 무료 프로젝트 `hmi-mes-demo2`(싱가포르, PostgreSQL 18, DB `neondb`)로 옮겼다.
+  - DB 설치: `neon-init.sql`과 0014→0024 업그레이드·권한 배치를 DB 이름만 `neondb`로 바꿔 적용했다. 로컬 PostgreSQL 17 리허설 후 적용했고 0024, 라인 1·설비 3·태그 48·역할 4를 확인했다.
+  - 설정값: 앱 명령(bootstrap-user/guest, configure-source)으로 리허설 DB에 만든 행을 옮겼다. 계정 demo·viewer·guest-viewer, 수집원 `demo-packaging-source-v1`/`events-main`, 게이트웨이 `demo-packaging-gateway-v1` generation 1, 품목 2, 공정 설정 2.
+  - Vercel: `hmi_app` 로그인 연결과 새 게이트웨이 자격(`HMI_GATEWAY_CREDENTIALS_JSON`, 30일 만료)으로 교체했다. 운영 배포 `dpl_8bfidAZbvGdc3v2Pebt9AxaQK6Wf`, `/api/ready` 200.
+  - runtime: 이번에는 Claude 클라우드 컨테이너에서 `deploy/plant_runtime.py` prepare→serve→commission으로 실행했다(01:05Z~01:08Z).
+  - 공개 브라우저 1회 결과: demo 로그인(첫 비밀번호 변경) → 작업지시 `PUB-10270106`(RCP-T1-v1, 목표 5) 등록·배포 → 실행 연결(준비 후 자동 시작·목표 자동 종료) → `SETTLED`, 종료 사유 `TARGET_REACHED`, 양품 5·불량 2 → 실적 보고서(가동 비율 20.4%, 불명 2초)·트렌드 표시. 관찰한 수집 상태는 모두 "최근 수집 확인"이었고 브라우저 오류는 0이었다.
+  - 종료 후 수집 185건, 사건 순번 12/12, 충돌·대조 필요 false, DB 19MB였다.
+  - 한계: 비밀값(DB 앱 비밀번호, 게이트웨이 토큰, demo 비밀번호)은 이 컨테이너의 보호 파일에만 있다. 컨테이너가 회수되면 다음 실행 때 토큰과 Vercel 자격을 다시 만들어야 한다. 장시간·세션 초기화(23차)·전송량 실측은 미실행이다.

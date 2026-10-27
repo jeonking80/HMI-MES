@@ -212,3 +212,9 @@ input:disabled { background:#f1f4f7; }
 .queue-actions { display:flex; gap:.25rem; }
 .queue-actions .button, .queue-add .button { min-height:32px; padding:.2rem .6rem; font-size:.74rem; }
 .queue-add { display:flex; flex-wrap:wrap; gap:.35rem; align-items:center; font-size:.8rem; margin:.5rem 0; }
+.runtime-power { display:flex; flex-wrap:wrap; gap:1rem; align-items:center; justify-content:space-between; padding:1rem 1.2rem; margin-bottom:1rem; border:1px solid #d5dee8; border-radius:10px; background:#fff; }
+.runtime-power h2 { margin:.1rem 0 .3rem; font-size:1.05rem; }
+.runtime-power p { margin:0; }
+.runtime-power[data-state="RUNNING"] { border-color:#2e8b57; }
+.runtime-power[data-state="ERROR"] { border-color:#c0392b; }
+.runtime-power-actions { display:flex; gap:.5rem; }

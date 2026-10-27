@@ -6,6 +6,7 @@ import base64
 import binascii
 import hashlib
 import ipaddress
+import json
 import os
 import re
 import secrets
@@ -61,6 +62,7 @@ from apps.api.measured_clock import (
     ProbeScopeError,
     issue_probe,
 )
+from apps.api.runtime_control import RuntimeControlUnavailable, agent_exchange
 from apps.api.settlement_http import mount_settlement_routes
 from contracts.clock_evidence import ClockProbeRequest
 from contracts.models import CommandNotFound, CommandResult, CommandSubmission, Identifier, UInt64
@@ -490,6 +492,32 @@ def create_internal_app(
         payload = await command_body(request, TypeAdapter(CommandResult | CommandNotFound))
         await run_in_threadpool(command_transaction, binding, apply_result, payload)
         return {"committed": True, "command_id": payload.command_id}
+
+    @app.post("/internal/v1/runtime-control/agent")
+    async def runtime_agent(request: Request):
+        # The plant host agent reports its state and reads the operator's request.
+        authenticate(request)
+        raw = await request.body()
+        if len(raw) > 1024:
+            raise HTTPException(413, "agent report too large")
+        try:
+            body = json.loads(raw)
+            if not isinstance(body, dict) or set(body) - {"state", "detail"}:
+                raise ValueError
+            state, detail = body["state"], body.get("detail")
+        except (ValueError, KeyError):
+            raise HTTPException(422, "invalid agent report") from None
+
+        def exchange():
+            with ingestion_service.engine.begin() as connection:
+                return agent_exchange(connection, state=state, detail=detail, now=now())
+
+        try:
+            return await run_in_threadpool(exchange)
+        except RuntimeControlUnavailable:
+            raise HTTPException(404, "runtime control not installed") from None
+        except ValueError:
+            raise HTTPException(422, "invalid agent report") from None
 
     @app.get("/health/live")
     async def live():
