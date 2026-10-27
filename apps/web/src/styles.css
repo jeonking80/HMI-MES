@@ -241,3 +241,7 @@ input:disabled { background:#f1f4f7; }
 .binding-selected p { margin:.55rem 0 0; font-size:.84rem; font-weight:650; color:#2d5a8a; }
 .binding-empty { margin:.8rem 0; padding:.8rem 1rem; border:1px dashed #b8c6d6; border-radius:10px; font-size:.84rem; color:#4a5d73; }
 @media (prefers-reduced-motion: reduce) { .guide-focus { animation:none; outline:3px solid #f2b640; } }
+.recipe-mode { margin:0 0 1rem; padding:.7rem .9rem; border-radius:8px; font-size:.84rem; line-height:1.6; border:1px solid #a8d0be; background:#edf7f3; color:#2f5f4b; }
+.recipe-mode[data-mode="version"] { border-color:#c9d8e6; background:#f3f8fc; color:#2d4d70; }
+.mes-form-actions { display:flex; flex-wrap:wrap; gap:.6rem; margin-top:1rem; }
+.row-actions { display:flex; flex-wrap:wrap; gap:.4rem; }
