@@ -254,6 +254,8 @@ input:disabled { background:#f1f4f7; }
 .rc-params strong { font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:1.8rem; }
 .rc-params small { font-family:var(--font-sans); font-size:.85rem; color:#5f7186; }
 .rc-next { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; padding-top:14px; border-top:1px solid #e4eaf0; }
+.field-label { display:block; font-weight:700; font-size:.9rem; margin-bottom:6px; }
+.item-auto-id { margin:0; min-height:44px; display:flex; align-items:center; padding:0 12px; border-radius:10px; background:#eef2f7; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight:600; color:#1f3247; }
 .item-search { font:inherit; min-height:40px; padding:0 12px; border-radius:10px; border:1px solid #c4cfdb; }
 .wo-board { display:flex; flex-direction:column; gap:14px; }
 .wo-filters { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
@@ -281,3 +283,20 @@ input:disabled { background:#f1f4f7; }
 .wo-timeline li { display:flex; gap:12px; }
 .wo-timeline li > span:first-child { flex:0 0 96px; white-space:nowrap; color:#5f7186; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .mes-generated-ids > summary { cursor:pointer; font-size:.85rem; color:#5f7186; margin:4px 0 8px; }
+
+/* Planning pages (공정 설정 · 품목 · 작업지시): one pattern — toolbar, list | detail, forms in the detail panel. */
+#mes-recipes,#mes-items,#mes-orders { background:transparent; border:0; padding:0; margin-top:16px; }
+.pl-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-height:48px; margin-bottom:14px; }
+.pl-count { font-size:.9rem; color:#5f7186; font-weight:600; }
+.pl-toolbar .item-search { width:240px; }
+.rc-detail form fieldset, .rc-card fieldset { border:0; margin:0; padding:0; min-width:0; }
+.rc-card .form-help { margin:0; }
+.rc-card .mes-form-grid { gap:4px 20px; margin-top:4px; }
+.rc-card .mes-form-actions { justify-content:flex-end; margin-top:16px; padding-top:16px; border-top:1px solid #e4eaf0; }
+.rc-detail .guide-focus { animation:none; outline:none; }
+.rc-list li button { transition:border-color .12s, background .12s; }
+.rc-list li button:hover { border-color:#9ec1e0; }
+.rc-list .mes-empty, .rc-card.mes-empty { color:#5f7186; }
+.rc-detail > form.rc-card { margin:0; }
+.pl-toolbar .item-search { min-height:44px; }
+.mes-form-grid > .span-2 { grid-column:1 / -1; }

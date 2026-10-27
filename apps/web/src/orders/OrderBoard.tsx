@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 import type { Session } from '../auth'
 import type { RecipeVersion, WorkOrder } from '../mesApi'
 import { MesHTTPError, validDate } from '../mesApi'
@@ -27,10 +27,11 @@ function progressOf(order: OrderSummary) {
   return '배포 전'
 }
 
-export default function OrderBoard({ session, lines, recipes, canWrite, canBind, refreshKey, onSessionInvalid, onRelease, onCancel, onBind, onOpenControl, onReports, onNew, isBlocked }: {
+export default function OrderBoard({ session, lines, recipes, canWrite, canBind, refreshKey, onSessionInvalid, onRelease, onCancel, onBind, onOpenControl, onReports, onNew, isBlocked, creating, onCloseCreate, createPanel }: {
   session: Session; lines: LineChoice[] | null; recipes: RecipeVersion[]; canWrite: boolean; canBind: boolean; refreshKey: string
   onSessionInvalid: () => void; onRelease: (order: WorkOrder) => void; onCancel: (order: WorkOrder) => void; onBind: (order: WorkOrder) => void
   onOpenControl: () => void; onReports: () => void; onNew: () => void; isBlocked: (id: string) => boolean
+  creating: boolean; onCloseCreate: () => void; createPanel: ReactNode
 }) {
   const [items, setItems] = useState<OrderSummary[] | null>(null)
   const [error, setError] = useState('')
@@ -73,7 +74,7 @@ export default function OrderBoard({ session, lines, recipes, canWrite, canBind,
   const recipeOf = (id: string) => recipes.find(item => item.id === id)
   const pendingRevision = revision && ['sending', 'unknown'].includes(revision.phase) ? revision : null
 
-  function pick(order: OrderSummary) { setSelectedId(order.id); if (editing !== order.id) setEditing(null) }
+  function pick(order: OrderSummary) { onCloseCreate(); setSelectedId(order.id); if (editing !== order.id) setEditing(null) }
   function startEdit(order: OrderSummary) {
     setForm({ recipe: order.recipe_version_id, target: String(order.target_quantity), date: order.planned_date })
     setEditing(order.id)
@@ -107,7 +108,7 @@ export default function OrderBoard({ session, lines, recipes, canWrite, canBind,
   }
 
   return <div className="wo-board">
-    <div className="wo-filters" role="tablist" aria-label="작업지시 상태">
+    <div className="pl-toolbar wo-filters" role="tablist" aria-label="작업지시 상태">
       {filters.map(key => <button key={key} type="button" role="tab" aria-selected={filter === key} onClick={() => { setFilter(key); setSelectedId(null); setEditing(null) }}>{key === 'ALL' ? '전체' : phaseLabels[key]} <span>{counts[key]}</span></button>)}
       <span className="wo-spacer" />
       {canWrite && <button type="button" className="button primary" onClick={onNew}>+ 새 작업지시</button>}
@@ -117,14 +118,14 @@ export default function OrderBoard({ session, lines, recipes, canWrite, canBind,
     <div className="rc-layout">
       <div className="rc-list">
         {!items ? <p role="status">작업지시 현황을 조회하고 있습니다.</p> : shown.length === 0 ? <p className="mes-empty">{filter === 'ALL' ? '등록된 작업지시가 없습니다.' : `${phaseLabels[filter as OrderPhase]} 작업지시가 없습니다.`}</p>
-          : <ul id="wo-list">{shown.map(item => <li key={item.id}><button type="button" aria-pressed={selected?.id === item.id} onClick={() => pick(item)}>
+          : <ul id="wo-list">{shown.map(item => <li key={item.id}><button type="button" aria-pressed={!creating && selected?.id === item.id} onClick={() => pick(item)}>
             <span className="rc-name"><strong>{item.id}</strong><em className={`wo-phase wo-${item.phase.toLowerCase()}`}>{phaseLabels[item.phase]}</em></span>
             <small>{item.item_id} · {item.recipe_version_id} · 목표 {item.target_quantity}개</small>
             <small className="wo-progress">{progressOf(item)}</small>
           </button></li>)}</ul>}
       </div>
       <div className="rc-detail">
-        {!selected ? <div className="rc-card mes-empty">왼쪽에서 작업지시를 고르세요.</div> : <div className="rc-card" id="wo-detail">
+        {creating ? createPanel : !selected ? <div className="rc-card mes-empty">왼쪽에서 작업지시를 고르세요.</div> : <div className="rc-card" id="wo-detail">
           <div className="rc-card-head"><div>
             <h3>{selected.id} <em className={`wo-phase wo-${selected.phase.toLowerCase()}`}>{phaseLabels[selected.phase]}</em></h3>
             <p>{selected.item_id} · {lineName(selected.line_id)} · 예정일 {selected.planned_date}</p>
@@ -142,7 +143,7 @@ export default function OrderBoard({ session, lines, recipes, canWrite, canBind,
               <div><label htmlFor="wo-edit-target">목표 양품 수량 (개)</label><input id="wo-edit-target" type="number" min="1" step="1" value={form.target} onChange={event => setForm(previous => ({ ...previous, target: event.target.value }))} /></div>
               <div><label htmlFor="wo-edit-date">생산 예정일</label><input id="wo-edit-date" type="date" value={form.date} onChange={event => setForm(previous => ({ ...previous, date: event.target.value }))} /></div>
             </div>
-            <div className="mes-form-actions"><button id="wo-edit-save" type="submit" className="button primary">수정 저장</button><button type="button" className="button secondary" onClick={() => setEditing(null)}>닫기</button></div></fieldset>
+            <div className="mes-form-actions"><button type="button" className="button secondary" onClick={() => setEditing(null)}>취소</button><button id="wo-edit-save" type="submit" className="button primary">수정 저장</button></div></fieldset>
           </form> : <div className="wo-actions">
             {selected.phase === 'WAITING' && canBind && <button type="button" className="button primary" disabled={isBlocked(selected.id)} onClick={() => onBind(selected)}>운전 제어에서 불러오기 →</button>}
             {selected.phase === 'DRAFT' && canWrite && <button type="button" className="button primary" disabled={isBlocked(selected.id)} onClick={() => onRelease(selected)}>배포</button>}
