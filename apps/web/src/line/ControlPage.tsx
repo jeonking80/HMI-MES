@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
 import type { Session } from '../auth'
 import { terminal } from '../commands'
@@ -105,7 +105,8 @@ function stepOf(live: LiveLine, powerState: string | null, run: ActiveRun | null
   if (powerState !== 'RUNNING' && powerState !== 'NOT_MANAGED') return { current: 1, fault, unknown: powerState === null || powerState === 'UNKNOWN' }
   const made = production(live.known)
   const produced = (made.good ?? 0) + (made.reject ?? 0) > 0
-  if (!run || run.settlement !== 'PENDING') return { current: 2, fault, unknown }
+  // While the record of the live execution is still loading, keep following the line state instead of jumping back.
+  if (run === null || (run && run.settlement !== 'PENDING') || (run === undefined && !live.executionId)) return { current: 2, fault, unknown }
   if ([2, 3].includes(state)) return { current: 4, fault, unknown }
   if (state === 4 || (produced && [0, 1].includes(state))) return { current: 5, fault, unknown }
   return { current: produced ? 4 : 3, fault, unknown }
@@ -136,6 +137,18 @@ function LiveControl({ live, source, session, onSessionInvalid, workflow, tracke
   const run = useActiveRun(source, live.executionId, onSessionInvalid)
   const cmd = useLineCommands({ source, session, blockedReason: live.blockedReason, newIntentBlocked: newIntentBlocked(workflow, live.controlValues), values: live.controlValues, tracked, setTracked, onSessionInvalid })
   const step = stepOf(live, power.state, run)
+  // The confirmed load of a settled run is finished business: close it so the next load is not blocked.
+  const attempt = workflow.attempt
+  const boundExecution = attempt?.kind === 'bind' && attempt.phase === 'confirmed' && attempt.record && 'execution_id' in attempt.record.receipt ? attempt.record.receipt.execution_id : null
+  const archiveTried = useRef<string | null>(null)
+  const [archiveNote, setArchiveNote] = useState<{ execution: string; text: string } | null>(null)
+  const runSettled = !!run && run.executionId === boundExecution && run.settlement !== 'PENDING'
+  useEffect(() => {
+    if (!boundExecution || !runSettled || archiveTried.current === boundExecution) return
+    archiveTried.current = boundExecution
+    workflow.archiveExecution().catch(cause => setArchiveNote({ execution: boundExecution, text: cause instanceof Error && cause.message && !/request was not confirmed/.test(cause.message) ? cause.message : '정산 기록을 확인하지 못했습니다.' }))
+  }, [boundExecution, runSettled, workflow])
+  const retryArchive = () => { setArchiveNote(null); archiveTried.current = null; if (boundExecution) workflow.archiveExecution().catch(cause => setArchiveNote({ execution: boundExecution, text: cause instanceof Error ? cause.message : '정산 기록을 확인하지 못했습니다.' })) }
   // A picked step stays open only while the line is still in the step it was picked from.
   const [picked, setPicked] = useState<{ step: Step; from: Step } | null>(null)
   const open = picked && picked.from === step.current ? picked.step : null
@@ -175,6 +188,7 @@ function LiveControl({ live, source, session, onSessionInvalid, workflow, tracke
       <section className="lc-card cs-panel" aria-labelledby="step-panel-heading" data-current={shown === step.current}>
         <div className="cs-panel-head"><h3 id="step-panel-heading">{labels[shown]}</h3><span>{shown === step.current ? '지금 단계 · 할 수 있는 것' : stateOfStep(shown) === 'done' ? '지난 단계 · 결과' : '다음 단계 · 이렇게 되면 넘어옵니다'}{open !== null && <> · <button type="button" className="lc-link" onClick={() => setOpen(null)}>지금 단계로</button></>}</span></div>
         {step.fault && <FaultBox live={live} cmd={cmd} />}
+        {archiveNote && archiveNote.execution === boundExecution && <div className="cs-fault" role="alert"><strong>직전 작업 기록을 닫지 못했습니다</strong><span>{archiveNote.text}</span><div><button type="button" className="lc-button" onClick={retryArchive}>다시 확인</button></div></div>}
         {shown === 1 && <PowerStep session={session} power={power} onSessionInvalid={onSessionInvalid} producing={step.current >= 3 && step.current <= 5} />}
         {shown === 2 && (step.current <= 2
           ? <JobStep live={live} source={source} session={session} workflow={workflow} tracked={tracked} selectedOrder={selectedOrder} onSelectOrder={onSelectOrder} onSessionInvalid={onSessionInvalid} onOpenOrders={onOpenOrders} powerOn={step.current === 2} previousSettled={!run || run.settlement !== 'PENDING'} />
@@ -302,7 +316,7 @@ function JobStep({ live, source, session, workflow, tracked, selectedOrder, onSe
     ['라인 정지 · 재공 0개', live.known('Line.State') === null ? null : values['Line.State'] === 0 && values['Line.WipCount'] === 0],
     ['데이터 정상 수집', live.blockedReason === ''],
     ['직전 작업 정산 완료', previousSettled],
-    ['앞선 요청 결과 확인', !(workflow.attempt || (tracked && !(terminal(tracked.result) || tracked.phase === 'REJECTED')))],
+    ['직전 요청 정리', !(workflow.attempt || (tracked && !(terminal(tracked.result) || tracked.phase === 'REJECTED')))],
   ]
   const reason = !allowed ? '이 계정은 작업을 불러올 권한이 없습니다.' : session.must_change_password ? '비밀번호를 먼저 변경해 주세요.'
     : checks.find(([, ok]) => ok !== true) ? `${checks.find(([, ok]) => ok !== true)![0]} 조건을 확인해야 합니다.`
@@ -318,7 +332,7 @@ function JobStep({ live, source, session, workflow, tracked, selectedOrder, onSe
               <input type="radio" name="binding-order" value={item.id} checked={order?.id === item.id} onChange={() => { onSelectOrder(item); setConfirmation(null) }} />
               <span><strong>{item.id}</strong><small>{item.item_id} · {item.recipe_version_id} · 목표 {item.target_quantity.toLocaleString('ko-KR')}개</small></span>
             </label>)}
-        <div className="cs-orders-foot"><button type="button" className="lc-link" onClick={() => setRevision(value => value + 1)}>목록 새로 조회</button><button type="button" className="lc-link" onClick={onOpenOrders}>+ 다른 작업지시 만들기</button></div>
+        <div className="cs-orders-foot"><button type="button" className="lc-link" onClick={() => setRevision(value => value + 1)}>목록 새로 조회</button>{!!orders?.length && <button type="button" className="lc-link" onClick={onOpenOrders}>+ 다른 작업지시 만들기</button>}</div>
       </div>
       <ul className="cs-checks" aria-label="불러오기 조건">{checks.map(([label, ok]) => <li key={label} data-ok={ok === true ? 'yes' : ok === null ? 'unknown' : 'no'}>{ok === true ? '✓' : ok === null ? '?' : '✗'} {label}</li>)}</ul>
     </div>
