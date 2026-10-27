@@ -180,16 +180,21 @@ def canonical_clock_available(db):
     ).scalar_one()
 
 
-def clock_binding_sql(batch, proof, line):
-    """SQL prefilter only; the shared pure clock reader remains authoritative."""
+def clock_binding_sql(batch, proof, line, *, epoch=None, captured=None):
+    """SQL prefilter only; the shared pure clock reader remains authoritative.
+
+    ``epoch``/``captured`` may name values already extracted from the same body.
+    """
+    epoch = epoch or f"{batch}.body->'capture_time'->>'clock_epoch'"
+    captured = captured or f"({batch}.body->>'captured_at')::timestamptz"
     return f"""{proof}.gateway_id={batch}.gateway_id AND {proof}.batch_id={batch}.batch_id
       AND {proof}.line_id={line} AND {proof}.source_id={batch}.source_id
       AND {proof}.stream_id={batch}.stream_id
       AND {proof}.capture_generation={batch}.capture_generation
       AND {proof}.capture_seq={batch}.capture_seq
       AND {proof}.batch_sha256={batch}.content_sha256
-      AND {proof}.clock_epoch={batch}.body->'capture_time'->>'clock_epoch'
-      AND {proof}.original_capture_utc=({batch}.body->>'captured_at')::timestamptz"""
+      AND {proof}.clock_epoch={epoch}
+      AND {proof}.original_capture_utc={captured}"""
 
 
 def _clock_known(row):
@@ -292,28 +297,49 @@ def _clock_reversal_cutoffs(db, line_id, scope):
     return cutoffs
 
 
-def load_report_evidence(db, line_id, start, end, *, scope=None, execution_id=None, reversals=None):
-    """Read retained capture evidence without changing ingestion or alarm decisions.
+def _report_capture_rows(db, line_id, windows, *, scope, reversals):
+    """Return the prefiltered capture rows of each ``(start, end)`` window, in order.
 
-    ``reversals`` lets a caller reuse one stream-wide clock history scan across
-    several reports of the same scope; it must come from ``_clock_reversal_cutoffs``.
+    One statement serves several windows of the same scope: each row carries the
+    windows whose exact prefilter it satisfies, so every window receives the same
+    rows as a separate statement would, without rescanning the retained history.
     """
-    params = {"line": line_id, "start": start - timedelta(seconds=3), "end": end}
-    if reversals is None:
-        reversals = _clock_reversal_cutoffs(db, line_id, scope)
+    params = {
+        "line": line_id,
+        "windows": json.dumps(
+            [
+                dict(
+                    idx=idx,
+                    start=(start - timedelta(seconds=3)).isoformat(),
+                    finish=end.isoformat(),
+                )
+                for idx, (start, end) in enumerate(windows)
+            ]
+        ),
+    }
+    window_start, window_end = "report_window.start", "report_window.finish"
     canonical = canonical_clock_available(db)
-    join = ""
+    # The filter below must inspect every retained capture of the scope (loss
+    # fences and invalidated coordinates have no lower time bound). Each
+    # ``b.body->...`` operator detoasts the full body again, so extract the
+    # read fields once per row; only selected rows project the body itself.
+    join = (
+        " CROSS JOIN LATERAL jsonb_to_record(b.body) AS report_doc("
+        "captured_at text,capture_time jsonb,samples jsonb,communication jsonb) "
+    )
+    epoch_sql = "report_doc.capture_time->>'clock_epoch'"
+    captured_sql = "(report_doc.captured_at)::timestamptz"
     proof = "NULL::jsonb AS clock_evidence"
-    at_sql = "(b.body->>'captured_at')::timestamptz"
+    at_sql = captured_sql
     if canonical:
-        join = (
+        join += (
             " LEFT JOIN capture_clock_evidence clock ON "
             "clock.gateway_id=b.gateway_id AND clock.batch_id=b.batch_id "
         )
         proof = "to_jsonb(clock) AS clock_evidence"
         at_sql = (
             "CASE WHEN "
-            + clock_binding_sql("b", "clock", "s.line_id")
+            + clock_binding_sql("b", "clock", "s.line_id", epoch=epoch_sql, captured=captured_sql)
             + " AND clock.status='GOOD' THEN clock.canonical_api_utc ELSE "
             + at_sql
             + " END"
@@ -321,10 +347,10 @@ def load_report_evidence(db, line_id, start, end, *, scope=None, execution_id=No
     # Unknown-clock sample-less link failures need a receipt fence even when
     # their untrusted claimed UTC falls outside the window. Keep prior fences
     # across day boundaries; normal proof is required to clear them.
-    loss_sql = """jsonb_array_length(b.body->'samples')=0
-        AND jsonb_typeof(b.body->'communication')='object'
-        AND ((b.body->'communication'->>'state') IS DISTINCT FROM 'GOOD'
-          OR (b.body->'communication'->>'connected') IS DISTINCT FROM 'true')"""
+    loss_sql = """jsonb_array_length(report_doc.samples)=0
+        AND jsonb_typeof(report_doc.communication)='object'
+        AND ((report_doc.communication->>'state') IS DISTINCT FROM 'GOOD'
+          OR (report_doc.communication->>'connected') IS DISTINCT FROM 'true')"""
     # Preserve legacy heads without this registry, but on supported analytical
     # heads overlay its cutoff from this statement's snapshot. A cached scan
     # must not mask a reversal committed before the capture SELECT.
@@ -332,17 +358,17 @@ def load_report_evidence(db, line_id, start, end, *, scope=None, execution_id=No
         text("SELECT to_regclass('public.analog_history_clock_state') IS NOT NULL")
     ).scalar_one()
     if registry:
-        join += """ LEFT JOIN public.analog_history_clock_state clock_registry
+        join += f""" LEFT JOIN public.analog_history_clock_state clock_registry
           ON clock_registry.source_id=b.source_id AND clock_registry.stream_id=b.stream_id
           AND clock_registry.gateway_id=b.gateway_id
           AND clock_registry.capture_generation=b.capture_generation
-          AND clock_registry.clock_epoch=b.body->'capture_time'->>'clock_epoch' """
+          AND clock_registry.clock_epoch={epoch_sql} """
         proof += ",clock_registry.reversal_seq AS durable_reversal_seq"
     else:
         proof += ",NULL::numeric AS durable_reversal_seq"
     where = (
-        "s.line_id=:line AND ((" + at_sql + ">=:start AND " + at_sql + "<:end)"
-        " OR (b.stored_at<:end AND " + loss_sql + "))"
+        f"(({at_sql}>={window_start} AND {at_sql}<{window_end})"
+        f" OR (b.stored_at<{window_end} AND {loss_sql}))"
     )
     if canonical:
         params["reversal_keys"] = json.dumps(
@@ -358,27 +384,28 @@ def load_report_evidence(db, line_id, start, end, *, scope=None, execution_id=No
                 for key, value in reversals.items()
             ]
         )
-        cached_invalid = """EXISTS (
+        cached_invalid = f"""EXISTS (
           SELECT 1 FROM jsonb_to_recordset(CAST(:reversal_keys AS jsonb))
           cr(source text,stream text,gateway text,generation numeric,epoch text,cutoff numeric)
           WHERE cr.source=b.source_id AND cr.stream=b.stream_id AND cr.gateway=b.gateway_id
             AND cr.generation=b.capture_generation
-            AND cr.epoch=b.body->'capture_time'->>'clock_epoch' AND b.capture_seq>=cr.cutoff)"""
+            AND cr.epoch={epoch_sql} AND b.capture_seq>=cr.cutoff)"""
         invalid = cached_invalid
         if registry:
             invalid += " OR b.capture_seq>=clock_registry.reversal_seq"
         # An invalidated accepted coordinate is an UNKNOWN barrier even when it
         # precedes this window. Older late captures must not bypass it tomorrow.
         barrier = (
-            clock_binding_sql("b", "clock", "s.line_id")
-            + " AND clock.status='GOOD' AND clock.canonical_api_utc<:end AND ("
+            clock_binding_sql("b", "clock", "s.line_id", epoch=epoch_sql, captured=captured_sql)
+            + f" AND clock.status='GOOD' AND clock.canonical_api_utc<{window_end} AND ("
             + invalid
             + ")"
         )
-        where = "(" + where + " OR (s.line_id=:line AND " + barrier + "))"
+        where = "(" + where + " OR (" + barrier + "))"
+    scope_where = "s.line_id=:line"
     if scope:
         params.update(source=scope["source_id"], stream=scope["stream_id"])
-        where += " AND s.source_id=:source AND s.stream_id=:stream"
+        scope_where += " AND s.source_id=:source AND s.stream_id=:stream"
     # The legacy fallback needs only clock_assessment. Aggregate once per scope
     # instead of probing and detoasting the entire decision history per capture.
     # Keep original bodies intact: canonical evidence validates their full digest.
@@ -391,7 +418,9 @@ def load_report_evidence(db, line_id, start, end, *, scope=None, execution_id=No
         "array_agg(jsonb_build_object('clock_assessment',"
         "d.context->'clock_assessment')) AS contexts "
         "FROM alarm_capture_decisions d JOIN source_streams cs "
-        "USING(source_id,stream_id) WHERE " + context_where + " GROUP BY d.gateway_id,d.batch_id) "
+        "USING(source_id,stream_id) WHERE " + context_where + " GROUP BY d.gateway_id,d.batch_id),"
+        "report_windows AS (SELECT * FROM jsonb_to_recordset(CAST(:windows AS jsonb)) "
+        "AS report_window(idx integer,start timestamptz,finish timestamptz)) "
     )
     # Legacy rows have no canonical body-digest consumer. Keep their original
     # nonempty-sample distinction and only the three tags this projection reads.
@@ -415,21 +444,49 @@ def load_report_evidence(db, line_id, start, end, *, scope=None, execution_id=No
                 + body_projection
                 + " AS body,b.stored_at,"
                 "s.conflicted,s.reconciliation_required," + proof + ","
-                "report_context.contexts FROM ingest_batches b "
+                "report_context.contexts,matched.report_windows FROM ingest_batches b "
                 "JOIN source_streams s USING(source_id,stream_id) "
                 "LEFT JOIN report_clock_contexts report_context "
                 "ON report_context.gateway_id=b.gateway_id "
                 "AND report_context.batch_id=b.batch_id "
                 + join
-                + " WHERE "
+                + " CROSS JOIN LATERAL (SELECT array_agg(report_window.idx) AS report_windows "
+                "FROM report_windows report_window WHERE "
                 + where
-                + " ORDER BY b.capture_generation,b.capture_seq"
+                + ") matched WHERE "
+                + scope_where
+                + " AND matched.report_windows IS NOT NULL"
+                " ORDER BY b.capture_generation,b.capture_seq"
             ),
             params,
         )
         .mappings()
         .all()
     )
+    grouped = [[] for _ in windows]
+    for row in rows:
+        for idx in row["report_windows"]:
+            grouped[idx].append(row)
+    return grouped
+
+
+def load_report_evidence(
+    db, line_id, start, end, *, scope=None, execution_id=None, reversals=None, capture_rows=None
+):
+    """Read retained capture evidence without changing ingestion or alarm decisions.
+
+    ``reversals`` lets a caller reuse one stream-wide clock history scan across
+    several reports of the same scope; it must come from ``_clock_reversal_cutoffs``.
+    ``capture_rows`` are this exact window's rows from ``_report_capture_rows``,
+    loaded with the same scope and ``reversals``.
+    """
+    if reversals is None:
+        reversals = _clock_reversal_cutoffs(db, line_id, scope)
+    if capture_rows is None:
+        capture_rows = _report_capture_rows(
+            db, line_id, [(start, end)], scope=scope, reversals=reversals
+        )[0]
+    rows = capture_rows
     evidence = []
     for row in rows:
         body = row["body"]
@@ -745,18 +802,44 @@ def segment_provenance(segments):
     return provenance(ranges)
 
 
+def _execution_window(row, ended, now):
+    return row["registered_at"], min(ended or now, now)
+
+
 def read_execution_timeline(
-    db, execution_id, line_id, source_id, stream_id, *, now, annotate=None, reversals=None
+    db,
+    execution_id,
+    line_id,
+    source_id,
+    stream_id,
+    *,
+    now,
+    annotate=None,
+    reversals=None,
+    prefetched=None,
 ):
+    """``prefetched`` is ``(execution row, ended, capture rows)`` already read in this
+    transaction for this exact scope by ``read_execution_reports``."""
     scope = dict(line_id=line_id, source_id=source_id, stream_id=stream_id)
-    row = _execution(db, execution_id, line_id, scope)
-    _, ended = execution_state_bounds(db, execution_id)
-    start, end = row["registered_at"], min(ended or now, now)
+    capture_rows = None
+    if prefetched is None:
+        row = _execution(db, execution_id, line_id, scope)
+        _, ended = execution_state_bounds(db, execution_id)
+    else:
+        row, ended, capture_rows = prefetched
+    start, end = _execution_window(row, ended, now)
     segments = build_timeline(
         start,
         end,
         load_report_evidence(
-            db, line_id, start, end, scope=scope, execution_id=execution_id, reversals=reversals
+            db,
+            line_id,
+            start,
+            end,
+            scope=scope,
+            execution_id=execution_id,
+            reversals=reversals,
+            capture_rows=capture_rows,
         ),
     )
     if annotate:
@@ -805,18 +888,28 @@ def read_execution_reports(db, line_id, start, end, *, now, limit=50, cursor=Non
         .all()
     )
     items = []
-    # Clock history is stream-wide: scan it once per stream, not once per execution.
-    reversal_cache = {}
+    listed = []
+    streams = {}
     for execution_id in ids[:limit]:
         row = _execution(db, execution_id, line_id)
         started, ended = execution_state_bounds(db, execution_id)
+        listed.append((execution_id, row, started, ended))
+        streams.setdefault((row["source_id"], row["stream_id"]), []).append(len(listed) - 1)
+    # Clock and capture history are stream-wide: scan each once per stream, not
+    # once per execution. Every execution still receives its own window's rows.
+    reversal_cache = {}
+    capture_rows = [None] * len(listed)
+    for stream, positions in streams.items():
+        scope = dict(line_id=line_id, source_id=stream[0], stream_id=stream[1])
+        reversal_cache[stream] = _clock_reversal_cutoffs(db, line_id, scope)
+        windows = [_execution_window(listed[p][1], listed[p][3], now) for p in positions]
+        loaded = _report_capture_rows(
+            db, line_id, windows, scope=scope, reversals=reversal_cache[stream]
+        )
+        for position, rows in zip(positions, loaded, strict=True):
+            capture_rows[position] = rows
+    for position, (execution_id, row, started, ended) in enumerate(listed):
         stream = (row["source_id"], row["stream_id"])
-        if stream not in reversal_cache:
-            reversal_cache[stream] = _clock_reversal_cutoffs(
-                db,
-                line_id,
-                dict(line_id=line_id, source_id=stream[0], stream_id=stream[1]),
-            )
         timeline = read_execution_timeline(
             db,
             execution_id,
@@ -826,6 +919,7 @@ def read_execution_reports(db, line_id, start, end, *, now, limit=50, cursor=Non
             now=now,
             annotate=annotate,
             reversals=reversal_cache[stream],
+            prefetched=(row, ended, capture_rows[position]),
         )
         status = row["settlement_status"] or "PENDING"
         totals = {k: str(int(row[k + "_quantity"] or 0)) for k in ("good", "reject", "scrap")}
