@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import RuntimePowerPanel from './RuntimePowerPanel'
 import { tagEnums, tagMetadata } from './tagMetadata'
 import CommandPanel from './CommandPanel'
 import CopyId from './CopyId'
@@ -70,6 +71,7 @@ export default function SnapshotPanel({ session, onSessionInvalid, workflow, sel
   }, [attempt, onSessionInvalid])
   const source = sources && selected !== '' ? sources[Number(selected)] : undefined
   return <section className="monitor-section" aria-labelledby="monitor-heading">
+    <RuntimePowerPanel session={session} onSessionInvalid={onSessionInvalid} />
     <div className="monitor-heading"><div><p className="section-kicker">DATA SOURCE</p><h2 id="monitor-heading">설비 수집 상태</h2></div><span className="read-only-tag">실제 저장 관측</span></div>
     {sourceError ? <div className="message error" role="alert">{sourceError}<button type="button" className="button secondary" onClick={() => setAttempt(value => value + 1)}>다시 조회</button></div>
       : sources === null ? <p role="status">등록된 수집원을 확인하고 있습니다.</p>
