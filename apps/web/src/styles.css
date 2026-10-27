@@ -245,3 +245,6 @@ input:disabled { background:#f1f4f7; }
 .recipe-mode[data-mode="version"] { border-color:#c9d8e6; background:#f3f8fc; color:#2d4d70; }
 .mes-form-actions { display:flex; flex-wrap:wrap; gap:.6rem; margin-top:1rem; }
 .row-actions { display:flex; flex-wrap:wrap; gap:.4rem; }
+.mes-tabs { display:flex; gap:4px; border-bottom:1px solid #c4cfdb; margin-bottom:4px; }
+.mes-tabs button { padding:12px 18px; border:0; border-bottom:3px solid transparent; background:transparent; color:#5f7186; font:inherit; font-size:.95rem; cursor:pointer; }
+.mes-tabs button[aria-selected='true'] { border-bottom-color:#215e91; color:#12406a; font-weight:700; }

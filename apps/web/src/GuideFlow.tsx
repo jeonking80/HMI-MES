@@ -60,10 +60,10 @@ export default function GuideFlow({ session, selectedOrder, workflow, onGo }: { 
   const steps: Step[] = [
     { key: 'recipe', label: '공정 설정', todo: '품목과 온도·속도를 정한 공정 설정을 등록하세요.', action: '공정 설정 등록하러 가기', target: { page: 'drafts', anchor: 'mes-recipes' }, done: facts.recipes },
     { key: 'order', label: '작업지시 배포', todo: '공정 설정을 골라 작업지시를 만들고 "등록하고 바로 배포"를 누르세요.', action: '작업지시 만들러 가기', target: { page: 'drafts', anchor: 'mes-orders' }, done: facts.released },
-    { key: 'power', label: '설비 켜기', todo: '설비 전원 카드에서 "설비 켜기"를 누르고 "동작 중"이 될 때까지 기다리세요.', action: '설비 전원으로 가기', target: { page: 'operations', anchor: 'runtime-power' }, done: runtimeOn },
-    { key: 'select', label: '작업지시 선택', todo: '배포된 작업지시 줄의 "실행 연결 준비"를 누르세요.', action: '작업지시 목록으로 가기', target: { page: 'drafts', anchor: 'mes-orders' }, done: !!selectedOrder && selectedOrder.status === 'RELEASED' },
-    { key: 'bind', label: '라인 연결', todo: `${orderId ?? '작업지시'}를 라인에 연결하세요. "실행 연결 내용 확인" → 체크 2개 → "실행 연결 · 작업 불러오기 요청" 순서입니다.`, action: '실행 연결 카드로 가기', target: { page: 'operations', anchor: 'work-order-binding' }, done: bound },
-    { key: 'run', label: '생산 · 결과', todo: '라인 공정 그림에서 양품·불량 수가 오르는지 보고, 끝나면 실적·보고서에서 결과를 확인하세요.', action: '공정 현황 보기', target: { page: 'operations', anchor: 'process-heading' }, done: false },
+    { key: 'power', label: '설비 켜기', todo: '설비 전원 카드에서 "설비 켜기"를 누르고 "동작 중"이 될 때까지 기다리세요.', action: '설비 전원으로 가기', target: { page: 'control', anchor: 'runtime-power' }, done: runtimeOn },
+    { key: 'select', label: '작업지시 선택', todo: '운전 제어의 "작업" 칸에서 배포된 작업지시를 고르세요.', action: '작업 칸으로 가기', target: { page: 'control', anchor: 'work-order-binding' }, done: !!selectedOrder && selectedOrder.status === 'RELEASED' },
+    { key: 'bind', label: '작업 불러오기', todo: `${orderId ?? '작업지시'}를 라인에 불러오세요. "작업 불러오기" → "불러오기 요청" 순서입니다.`, action: '작업 칸으로 가기', target: { page: 'control', anchor: 'work-order-binding' }, done: bound },
+    { key: 'run', label: '생산 · 결과', todo: '라인 모니터링에서 양품·불량 수가 오르는지 보고, 끝나면 실적·보고서에서 결과를 확인하세요.', action: '라인 모니터링 보기', target: { page: 'operations', anchor: 'process-heading' }, done: false },
   ]
   const current = steps.find(step => step.done !== true) ?? steps[steps.length - 1]
   const unknown = current.done === null
