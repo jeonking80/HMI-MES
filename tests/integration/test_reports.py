@@ -115,28 +115,64 @@ def production(state, seq, execution, at, quantity=1):
     ingest(state, GatewayBatch(body=body, content_sha256=batch_digest(body)))
 
 
-def test_coverage_states_communication_time_unknown_and_no_carry(state):
-    ingest(state, capture(1, seconds=0))
-    ingest(
-        state,
-        capture(
-            2, seconds=2, values={"Line.State": 3, "Sealer.State": 3, "Sealer.RunFeedback": False}
-        ),
+def states(state, seq, rows, *, execution="run"):
+    """One event batch of PLC Line STATE_CHANGED events: (seconds, previous, state)."""
+    body = BatchBody(
+        schema_version="1.0",
+        batch_id=f"states-{seq}",
+        gateway_id="gateway",
+        source_id="source",
+        stream_id="stream",
+        capture_generation=1,
+        capture_seq=seq,
+        captured_at=AT + timedelta(seconds=rows[-1][0]),
+        events=[
+            dict(
+                kind="STATE_CHANGED",
+                event_id=f"state-{seq}-{index}",
+                seq=seq * 10 + index,
+                equipment_id="Line",
+                execution_id=execution,
+                source_id="source",
+                stream_id="stream",
+                occurred_at=AT + timedelta(seconds=seconds),
+                payload=dict(previous_state=previous, state=current, control_version=seq),
+            )
+            for index, (seconds, previous, current) in enumerate(rows)
+        ],
     )
-    ingest(state, capture(3, seconds=4, communication_age=5))
-    # Unknown epoch has no configured clock assessment.
-    ingest(state, capture(4, seconds=6, epoch="unknown-clock"))
+    ingest(state, GatewayBatch(body=body, content_sha256=batch_digest(body)))
+
+
+def test_timeline_follows_plc_state_events_and_unobserved_time_is_unknown(state):
+    # Captures every second for 0..20 s and 40..50 s; nothing in between (plant off).
+    seq = 0
+    for second in [*range(0, 21), *range(40, 51)]:
+        seq += 1
+        ingest(state, capture(seq, seconds=second))
+    states(
+        state, 500, [(2, "READY", "RUNNING"), (8, "RUNNING", "PAUSED"), (12, "PAUSED", "RUNNING")]
+    )
+    states(state, 501, [(45, "RUNNING", "STOPPING"), (46, "STOPPING", "STOPPED")])
     with state.engine.begin() as db:
         report = read_execution_timeline(
-            db, "run", LINE_ID, "source", "stream", now=AT + timedelta(seconds=20)
+            db, "run", LINE_ID, "source", "stream", now=AT + timedelta(seconds=50)
         )
+    shape = [
+        (s["from"][17:19], s["to"][17:19], s["class"], s["state"], s.get("unknown_reason"))
+        for s in report["segments"]
+    ]
+    assert shape == [
+        ("00", "02", "STOPPED", "STOPPED", None),
+        ("02", "08", "RUNNING", "RUNNING", None),
+        ("08", "12", "STOPPED", "PAUSED", None),
+        ("12", "23", "RUNNING", "RUNNING", None),
+        ("23", "40", "UNKNOWN", None, "NO_DATA"),
+        ("40", "45", "RUNNING", "RUNNING", None),
+        ("45", "46", "STOPPED", "STOPPING", None),
+    ]  # the execution ends at its final STOPPED event
     assert report["check_ok"]
-    assert report["durations_seconds"] == dict(running=2, stopped=2, unknown=16, total=20)
-    assert {s.get("unknown_reason") for s in report["segments"]} >= {
-        "COMMUNICATION_LOST",
-        "TIME_UNKNOWN",
-    }
-    assert report["segments"][-1]["class"] == "UNKNOWN"
+    assert report["durations_seconds"] == dict(running=22, stopped=7, unknown=17, total=46)
     assert all(s["stop_reason"] is None for s in report["segments"])
 
 
@@ -234,46 +270,11 @@ async def test_asgi_read_permission_strict_queries_csv_and_no_idle_refresh(state
         )
 
 
-def test_permanent_gap_overrides_apparently_healthy_captures(state):
-    for seq, seconds in enumerate((0, 2, 4, 6, 8), start=1):
-        ingest(state, capture(seq, seconds=seconds))
-    production(state, 10, "run", AT + timedelta(seconds=1))
-    production(state, 12, "run", AT + timedelta(seconds=8))
-    ingest(
-        state,
-        capture(
-            13,
-            seconds=10,
-            gaps=[
-                dict(
-                    from_seq=2,
-                    through_seq=2,
-                    irrecoverable=True,
-                    detected_at=AT + timedelta(seconds=10),
-                    reason_code="RETENTION_LOST",
-                    reason="test permanent gap",
-                    affected_execution_ids=["run"],
-                )
-            ],
-        ),
-    )
-    with state.engine.begin() as db:
-        value = read_execution_timeline(
-            db, "run", LINE_ID, "source", "stream", now=AT + timedelta(seconds=10)
-        )
-    assert value["check_ok"]
-    assert value["durations_seconds"] == dict(running=3, stopped=0, unknown=7, total=10)
-    assert any(
-        s["from"] == (AT + timedelta(seconds=1)).isoformat().replace("+00:00", "Z")
-        and s.get("unknown_reason") == "COMMUNICATION_LOST"
-        for s in value["segments"]
-    )
-
-
 def test_midnight_time_split_exact_scope_and_annotator_clock(state):
     midnight = AT + timedelta(hours=15)
     ingest(state, capture(1, seconds=53998))
     ingest(state, capture(2, seconds=54000))
+    states(state, 600, [(53998, "READY", "RUNNING")])
     calls = []
 
     def annotate(db, segments, scope, *, now):
@@ -381,183 +382,6 @@ def test_final_settlement_totals_and_state_event_bounds(state):
     assert item["durations_seconds"]["total"] == 5
     assert item["totals"] == dict(good="0", reject="0", scrap="0")
     assert "EXECUTION_NOT_SETTLED" not in item["provisional_reasons"]
-
-
-def test_two_live_sources_are_ambiguous_but_exact_scope_is_preserved(state):
-    from apps.api.alarm_consumer import AlarmConsumerConfig
-    from apps.api.alarm_lifecycle import AlarmScope
-
-    second_scope = AlarmScope(
-        line_id=LINE_ID, source_id="second", stream_id="stream", asset_id="Sealer"
-    )
-    service = IngestionService(state.engine)
-    service.configure_source(
-        line_id=LINE_ID,
-        source_id="second",
-        stream_id="stream",
-        gateway_id="second-gateway",
-        capture_generation=1,
-        now=AT,
-    )
-    with state.engine.begin() as db:
-        install_rule(
-            db,
-            second_scope,
-            PRESSURE,
-            input_id="second-install",
-            principal=ADMIN,
-            at=AT - timedelta(minutes=1),
-        )
-    original = config(rules=(PRESSURE,))
-    second_policy = original.clock_policy.model_copy(
-        update={"source_id": "second", "gateway_id": "second-gateway"}
-    )
-    second_config = AlarmConsumerConfig(
-        scope=second_scope,
-        gateway_id="second-gateway",
-        capture_generation=1,
-        rules=(PRESSURE,),
-        clock_policy=second_policy,
-    )
-    consumer = AlarmConsumer(second_config, consumer_epoch="second-epoch")
-    start(state.engine, consumer)
-    service = IngestionService(
-        state.engine, alarm_consumer=consumer, trend_clock_policy=consumer.config.clock_policy
-    )
-    ingest(state, capture(1, seconds=0))
-    body = capture(1, seconds=0).body.model_dump(mode="python")
-    body.update(source_id="second", gateway_id="second-gateway", batch_id="second-batch")
-    body = BatchBody.model_validate(body)
-    service.ingest(
-        GatewayBatch(body=body, content_sha256=batch_digest(body)),
-        authenticated_gateway_id="second-gateway",
-        authenticated_source_id="second",
-        authenticated_stream_id="stream",
-        now=AT + timedelta(seconds=0.1),
-    )
-    with state.engine.begin() as db:
-        broad = read_daily_report(db, LINE_ID, date(2026, 10, 25), now=AT + timedelta(seconds=3))
-        exact = read_daily_report(
-            db,
-            LINE_ID,
-            date(2026, 10, 25),
-            now=AT + timedelta(seconds=3),
-            scope={"source_id": "source", "stream_id": "stream"},
-        )
-        timeline = read_execution_timeline(
-            db, "run", LINE_ID, "source", "stream", now=AT + timedelta(seconds=3)
-        )
-    assert broad["durations_seconds"]["running"] == 0
-    assert exact["durations_seconds"]["running"] == 3
-    assert timeline["durations_seconds"]["running"] == 3
-    assert timeline["segments"][0]["source_id"] == "source"
-
-
-def test_clock_reversal_stays_unknown_after_apparent_recovery_and_day_clip(state):
-    stopped = {"Line.State": 3, "Sealer.State": 3, "Sealer.RunFeedback": False}
-    for seq, seconds in ((1, 2), (2, 1), (3, 4)):
-        ingest(state, capture(seq, seconds=seconds, values=stopped))
-    with state.engine.begin() as db:
-        timeline = read_execution_timeline(
-            db, "run", LINE_ID, "source", "stream", now=AT + timedelta(seconds=5)
-        )
-    assert timeline["durations_seconds"]["stopped"] == 0
-    assert any(s.get("unknown_reason") == "TIME_UNKNOWN" for s in timeline["segments"])
-    # Clip far beyond the bad samples: old reversal in this epoch still applies.
-    ingest(state, capture(4, seconds=54000, values=stopped))
-    with state.engine.begin() as db:
-        daily = read_daily_report(
-            db, LINE_ID, date(2026, 10, 26), now=AT + timedelta(hours=15, seconds=3)
-        )
-    assert daily["durations_seconds"]["stopped"] == 0
-    assert daily["durations_seconds"]["unknown"] == 3
-
-
-@pytest.mark.parametrize("monotonic,event_only", [(999.0, False), (1000.0, False), (999.0, True)])
-def test_monotonic_clock_reversal_invalidates_later_utc_captures(state, monotonic, event_only):
-    ingest(state, capture(1, seconds=0))
-    body = capture(2, seconds=1).body.model_dump(mode="python")
-    body["capture_time"]["monotonic_seconds"] = monotonic
-    if event_only:
-        body["samples"] = []
-        body["events"] = [
-            dict(
-                kind="STATE_CHANGED",
-                event_id="event-only-clock",
-                seq=1,
-                equipment_id="Line",
-                execution_id="run",
-                source_id="source",
-                stream_id="stream",
-                occurred_at=AT + timedelta(seconds=1),
-                payload=dict(previous_state="READY", state="RUNNING", control_version=1),
-            )
-        ]
-    body = BatchBody.model_validate(body)
-    ingest(state, GatewayBatch(body=body, content_sha256=batch_digest(body)))
-    ingest(state, capture(3, seconds=2))
-    with state.engine.begin() as db:
-        value = read_execution_timeline(
-            db, "run", LINE_ID, "source", "stream", now=AT + timedelta(seconds=3)
-        )
-    assert value["durations_seconds"] == dict(running=1, stopped=0, unknown=2, total=3)
-    assert value["segments"][-1]["unknown_reason"] == "TIME_UNKNOWN"
-
-
-def test_digital_only_reversal_breaks_prior_execution_coverage(state):
-    ingest(state, capture(1, seconds=0))
-    body = capture(2, seconds=1).body.model_dump(mode="python")
-    body["capture_time"]["monotonic_seconds"] = 999.0
-    body["samples"] = [s for s in body["samples"] if s["tag_id"] == "Line.State"]
-    body = BatchBody.model_validate(body)
-    ingest(state, GatewayBatch(body=body, content_sha256=batch_digest(body)))
-    with state.engine.begin() as db:
-        value = read_execution_timeline(
-            db, "run", LINE_ID, "source", "stream", now=AT + timedelta(seconds=3)
-        )
-    assert value["durations_seconds"] == dict(running=1, stopped=0, unknown=2, total=3)
-    assert value["segments"][-1]["unknown_reason"] == "TIME_UNKNOWN"
-
-
-def test_changed_active_execution_cuts_off_prior_owner_immediately(state):
-    ingest(state, capture(1, seconds=0))
-    ingest(state, capture(2, seconds=1, values={"Line.ActiveExecutionId": "other"}))
-    with state.engine.begin() as db:
-        value = read_execution_timeline(
-            db, "run", LINE_ID, "source", "stream", now=AT + timedelta(seconds=3)
-        )
-    assert value["durations_seconds"] == dict(running=1, stopped=0, unknown=2, total=3)
-    assert value["segments"][-1]["unknown_reason"] == "NO_EVIDENCE"
-    assert value["segments"][-1]["execution_id"] is None
-    assert value["segments"][-1]["observed_execution_id"] == "other"
-
-
-def test_sample_less_batch_reporting_link_failure_is_communication_lost(state):
-    ingest(state, capture(1, seconds=0))
-    body = capture(2, seconds=1, communication_age=5).body.model_dump(mode="python")
-    # Event-only capture: no samples to judge, but the link block reports ALARM.
-    body["samples"] = []
-    body["events"] = [
-        dict(
-            kind="PRODUCTION_GOOD",
-            event_id="event-link",
-            seq=1,
-            equipment_id="Outfeed",
-            execution_id="run",
-            source_id="source",
-            stream_id="stream",
-            occurred_at=body["captured_at"],
-            payload=dict(quantity=1, counter_epoch="epoch"),
-        )
-    ]
-    body = BatchBody.model_validate(body)
-    ingest(state, GatewayBatch(body=body, content_sha256=batch_digest(body)))
-    with state.engine.begin() as db:
-        value = read_execution_timeline(
-            db, "run", LINE_ID, "source", "stream", now=AT + timedelta(seconds=3)
-        )
-    assert value["durations_seconds"] == dict(running=1, stopped=0, unknown=2, total=3)
-    assert value["segments"][-1]["unknown_reason"] == "COMMUNICATION_LOST"
 
 
 async def test_timeline_query_route_carries_execution_ids_with_slashes(state):

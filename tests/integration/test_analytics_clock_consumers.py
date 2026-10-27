@@ -11,7 +11,7 @@ from apps.api.capture_clock import SameHostClockPolicy
 from apps.api.database import migration_config
 from apps.api.ingestion import IngestionService
 from apps.api.measured_clock import issue_probe
-from apps.api.reports import read_daily_report, read_execution_timeline
+from apps.api.reports import read_daily_report
 from apps.api.spc import OFFSETS
 from apps.api.spc_http import SPCQuery, read_spc
 from apps.api.trend_history import TrendRetention, cleanup_trends, read_trends
@@ -116,12 +116,7 @@ def measured_capture(service, seq, at, *, identity="run-a", value=150.0, events=
     return body
 
 
-def report(service, *, now):
-    with service.engine.begin() as db:
-        return read_execution_timeline(db, "run-a", **SCOPE, now=now)
-
-
-def test_same_host_reports_and_trends_share_good_durable_proof_after_raw_cleanup(migrated):
+def test_same_host_trends_keep_good_durable_proof_after_raw_cleanup(migrated):
     configured = SameHostClockPolicy(
         gateway_id="gateway-1",
         source_id=SCOPE["source_id"],
@@ -149,10 +144,9 @@ def test_same_host_reports_and_trends_share_good_durable_proof_after_raw_cleanup
         cleanup_trends(db, now=AT + timedelta(hours=7), retention=TrendRetention(raw_days=0.25))
         assert db.execute(text("SELECT count(*) FROM analog_history_raw")).scalar_one() == 0
         assert db.execute(text("SELECT count(*) FROM capture_clock_evidence")).scalar_one() == 1
-    assert report(service, now=AT + timedelta(seconds=2))["durations_seconds"]["running"] == 2
 
 
-def test_measured_gateway_skew_projects_report_but_not_plc_production_dates(migrated):
+def test_measured_gateway_skew_never_moves_plc_production_dates(migrated):
     service = setup_service(migrated, measured=True)
     midnight = AT.replace(hour=15)
     event = dict(
@@ -175,8 +169,6 @@ def test_measured_gateway_skew_projects_report_but_not_plc_production_dates(migr
             db, SCOPE["line_id"], AT.date() + timedelta(days=1), now=midnight + timedelta(seconds=5)
         )
         original = db.execute(text("SELECT body FROM ingest_batches")).scalar_one()
-    assert before["durations_seconds"]["running"] == 1
-    assert after["durations_seconds"]["running"] == 2
     assert before["totals"]["good"] == "0" and after["totals"]["good"] == "7"
     assert original == body.model_dump(mode="json")
 
@@ -241,7 +233,7 @@ def test_projected_spc_foreign_execution_is_never_attributed(migrated):
     assert result["excluded"]["reasons"]["MISSING"] == 1
 
 
-def test_schema17_legacy_raw_spc_and_report_unknown_fallback(engine):
+def test_schema17_legacy_raw_spc_fallback(engine):
     with engine.connect() as db:
         command.upgrade(migration_config(db), "0017_guest_viewer")
     service = setup_service(engine, clock_policy=policy())
@@ -257,7 +249,6 @@ def test_schema17_legacy_raw_spc_and_report_unknown_fallback(engine):
             db, SPCQuery(**SCOPE, execution_id="run-a", tag=TAG), now=AT + timedelta(minutes=1)
         )
     assert len(result["subgroups"]) == 1
-    assert report(service, now=AT + timedelta(minutes=1))["durations_seconds"]["running"] == 0
 
 
 def test_explicit_unknown_never_borrows_good_legacy_alarm_assessment(migrated):

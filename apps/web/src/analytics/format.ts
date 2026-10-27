@@ -78,7 +78,7 @@ export const provisionalLabels: Record<string, string> = {
 }
 
 export const unknownReasonLabels: Record<string, string> = {
-  COMMUNICATION_LOST: '통신 단절', TIME_UNKNOWN: '시간 품질 불명', NO_EVIDENCE: '근거 없음', RETENTION_EXPIRED: '보존 기간 지남',
+  COMMUNICATION_LOST: '통신 단절', TIME_UNKNOWN: '시간 품질 불명', NO_EVIDENCE: '근거 없음', RETENTION_EXPIRED: '보존 기간 지남', NO_DATA: '수신 없음 (설비 꺼짐)',
 }
 
 export const tagLabels: Record<string, string> = {

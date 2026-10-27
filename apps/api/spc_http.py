@@ -9,15 +9,118 @@ from sqlalchemy import text
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import JSONResponse
 
+from apps.api.capture_clock import capture_frontier_table
 from apps.api.execution_read import ExecutionLookup, ExecutionNotFound
+from apps.api.ingest_retention import retention_available
 from apps.api.minute_aggregation import ANALOG_UNITS, RawObservation, aggregate_minutes
-from apps.api.reports import (
-    _clock_reversal_cutoffs,
-    canonical_clock_available,
-    clock_binding_sql,
-    execution_state_bounds,
-)
+from apps.api.reports import execution_state_bounds
 from apps.api.spc import SPCSlot, calculate_spc
+
+
+def canonical_clock_available(db):
+    """Old analytical schemas remain readable without querying absent columns."""
+    return db.execute(
+        text("SELECT to_regclass('public.capture_clock_evidence') IS NOT NULL")
+    ).scalar_one()
+
+
+def clock_binding_sql(batch, proof, line, *, epoch=None, captured=None):
+    """SQL prefilter only; the shared pure clock reader remains authoritative.
+
+    ``epoch``/``captured`` may name values already extracted from the same body.
+    """
+    epoch = epoch or f"{batch}.body->'capture_time'->>'clock_epoch'"
+    captured = captured or f"({batch}.body->>'captured_at')::timestamptz"
+    return f"""{proof}.gateway_id={batch}.gateway_id AND {proof}.batch_id={batch}.batch_id
+      AND {proof}.line_id={line} AND {proof}.source_id={batch}.source_id
+      AND {proof}.stream_id={batch}.stream_id
+      AND {proof}.capture_generation={batch}.capture_generation
+      AND {proof}.capture_seq={batch}.capture_seq
+      AND {proof}.batch_sha256={batch}.content_sha256
+      AND {proof}.clock_epoch={epoch}
+      AND {proof}.original_capture_utc={captured}"""
+
+
+def _clock_reversal_cutoffs(db, line_id, scope):
+    # Compact receipts retain chronology after original ingest evidence expires.
+    # Scan sequence history before clipping a report day: a later timestamp or
+    # receipt cannot repair a clock epoch once its chronology has reversed.
+    params = {"line": line_id}
+    where = "s.line_id=:line"
+    if scope:
+        params.update(source=scope["source_id"], stream=scope["stream_id"])
+        where += " AND b.source_id=:source AND b.stream_id=:stream"
+    receipt_history = retention_available(db)
+    capture_table = capture_frontier_table(db, alias="b")
+    capture_from = capture_table if capture_table.startswith("(") else f"{capture_table} b"
+    epoch = "b.clock_epoch" if receipt_history else "b.body->'capture_time'->>'clock_epoch'"
+    captured = "b.captured_at" if receipt_history else "(b.body->>'captured_at')::timestamptz"
+    monotonic = (
+        "b.monotonic_seconds"
+        if receipt_history
+        else "(b.body->'capture_time'->>'monotonic_seconds')::double precision"
+    )
+    rows = db.execute(
+        text(
+            f"""
+        WITH captures AS (
+          SELECT b.source_id,b.stream_id,b.gateway_id,b.capture_generation,b.capture_seq,
+            {epoch} AS epoch, {captured} AS at, {monotonic} AS mono
+          FROM {capture_from} JOIN source_streams s USING(source_id,stream_id)
+          WHERE """
+            + where
+            + f""" AND {epoch} IS NOT NULL
+        ), ordered AS (
+          SELECT *,max(at) OVER history AS previous_at,
+                   max(mono) OVER history AS previous_mono
+          FROM captures WINDOW history AS (
+            PARTITION BY source_id,stream_id,gateway_id,capture_generation,epoch
+            ORDER BY capture_seq ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)
+        ) SELECT source_id,stream_id,gateway_id,capture_generation,epoch,
+                 min(capture_seq) AS cutoff
+          FROM ordered WHERE at<previous_at OR mono<=previous_mono
+          GROUP BY source_id,stream_id,gateway_id,capture_generation,epoch
+    """
+        ),
+        params,
+    ).mappings()
+    cutoffs = {
+        (
+            r["source_id"],
+            r["stream_id"],
+            r["gateway_id"],
+            int(r["capture_generation"]),
+            r["epoch"],
+        ): int(r["cutoff"])
+        for r in rows
+    }
+    # Compact endpoints cannot rediscover an internal reversal. The immutable
+    # registry is backfilled before compaction and remains authoritative after
+    # all individual receipts of an epoch have expired.
+    if receipt_history:
+        durable = db.execute(
+            text(
+                """SELECT b.source_id,b.stream_id,b.gateway_id,b.capture_generation,
+                b.clock_epoch AS epoch,b.reversal_seq AS cutoff
+                FROM analog_history_clock_state b
+                JOIN source_streams s USING(source_id,stream_id)
+                WHERE """
+                + where
+                + " AND b.reversal_seq IS NOT NULL"
+            ),
+            params,
+        ).mappings()
+        for row in durable:
+            key = (
+                row["source_id"],
+                row["stream_id"],
+                row["gateway_id"],
+                int(row["capture_generation"]),
+                row["epoch"],
+            )
+            cutoff = int(row["cutoff"])
+            cutoffs[key] = min(cutoffs.get(key, cutoff), cutoff)
+    return cutoffs
 
 
 class SPCQuery(ExecutionLookup):

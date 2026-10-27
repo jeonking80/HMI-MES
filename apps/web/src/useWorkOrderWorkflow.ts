@@ -45,7 +45,8 @@ export function useWorkOrderWorkflow(session: Session | null, onSessionInvalid: 
       const record = parseWorkflow(kind, post ? { intent, receipt: response } : response, intent.work_order_id, workflowIdentity(intent), initial.knownIntent ? intent : undefined, initial.expectedOrder)
       // A confirmed release needs no further action: close it and report it in place.
       if (kind === 'release') { guard.release(record.intent.work_order_id, 'workflow', workflowIdentity(record.intent)); setAttempt(null); setReleased(previous => ({ count: previous.count + 1, id: record.intent.work_order_id })); onReleased?.(record.intent.work_order_id); return }
-      setAttempt({ ...initial, intent: record.intent, knownIntent: true, phase: 'confirmed', record, message: '실행 연결 등록을 확인했습니다. 작업 불러오기의 PLC 결과를 별도로 확인해 주세요.' })
+      // A stored binding is the server's: the line status follows its load and settlement from here.
+      guard.release(record.intent.work_order_id, 'workflow', workflowIdentity(record.intent)); setAttempt(null)
     } catch (cause) {
       const status = cause instanceof MesHTTPError ? cause.status : 0
       const reason = conflictMessage(cause instanceof MesHTTPError ? cause.reasonCode : null)
@@ -55,7 +56,7 @@ export function useWorkOrderWorkflow(session: Session | null, onSessionInvalid: 
         try {
           const stored = parseWorkflow(kind, await mesRequest(workflowPath(kind, intent.work_order_id, workflowIdentity(intent)), controller.signal), intent.work_order_id, workflowIdentity(intent), intent, initial.expectedOrder)
           if (kind === 'release') { guard.release(stored.intent.work_order_id, 'workflow', workflowIdentity(stored.intent)); setAttempt(null); setReleased(previous => ({ count: previous.count + 1, id: stored.intent.work_order_id })); onReleased?.(stored.intent.work_order_id); return }
-          setAttempt({ ...tried, intent: stored.intent, knownIntent: true, phase: 'confirmed', record: stored, message: '원래 ID의 저장 기록을 확인했습니다.' })
+          guard.release(stored.intent.work_order_id, 'workflow', workflowIdentity(stored.intent)); setAttempt(null)
         } catch (lookup) {
           const missing = lookup instanceof MesHTTPError && lookup.status === 404
           setAttempt({ ...tried, phase: missing ? 'rejected' : 'conflict', message: missing ? (reason ? `${reason} (저장된 요청은 없습니다.)` : notStored(kind)) : '원래 ID의 요청이 충돌했습니다. 원래 기록을 조회하고 내용을 확인해 주세요.' })

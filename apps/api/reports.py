@@ -1,28 +1,24 @@
-"""Passive report calculations over original scoped capture and execution evidence.
+"""Report calculations from the PLC's own records.
 
-Coverage is bounded by the existing three-second freshness threshold. Neither an
-old state event nor a late receipt establishes continuous communication.
+Line state comes from the PLC's STATE_CHANGED events and quantities from its
+production events. A time with no capture received for more than GAP_SECONDS
+(plant off, link down) is UNKNOWN rather than any state.
 """
 
 from __future__ import annotations
 
-import heapq
-import json
-import threading
-from collections import OrderedDict
 from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import text
 
-from apps.api.capture_clock import capture_frontier_table
-from apps.api.ingest_retention import retention_available
 from apps.api.minute_aggregation import seoul_day_bounds
-from apps.api.retention_provenance import expiry_windows, provenance
 from contracts.tags.validate import load_contract
 
 STATES = load_contract()["enums"]["EquipmentState"]
 REASONS = ("MATERIAL_WAIT", "EQUIPMENT", "CHANGEOVER", "PLANNED", "UNCLASSIFIED")
-FRESHNESS_SECONDS = 3
+# Captures arrive about once a second; a longer silence means nothing was observed.
+GAP_SECONDS = 10
+HOLD_SECONDS = 3
 
 
 class ReportNotFound(LookupError):
@@ -49,123 +45,108 @@ def evaluate_segments(segments):
     return totals, stopped
 
 
-def build_timeline(start, end, evidence):
-    """Partition coverage; conflicting owners/states remain UNKNOWN, never double count.
+def _scope_sql(alias, scope, params):
+    where = "s.line_id=:line"
+    if scope:
+        params.update(source=scope["source_id"], stream=scope["stream_id"])
+        where += f" AND {alias}.source_id=:source AND {alias}.stream_id=:stream"
+    return where
 
-    Evidence entries contain from/to, class/state/fault, reason and provenance.
-    Adjacent pieces merge only when their entire evidence identity agrees.
-    """
+
+def _coverage(db, line_id, start, end, scope):
+    """Intervals with captures; a silence over GAP_SECONDS splits them."""
+    params = {"line": line_id, "start": start - timedelta(seconds=HOLD_SECONDS), "end": end}
+    where = _scope_sql("r", scope, params)
+    rows = db.execute(
+        text(
+            "WITH r AS (SELECT r.captured_at AS at FROM ingest_receipts r "
+            "JOIN source_streams s USING(source_id,stream_id) WHERE "
+            + where
+            # Sample captures carry capture time (schema 1.2); event-only batches observe
+            # nothing about the line between events.
+            + " AND r.clock_epoch IS NOT NULL AND r.captured_at>=:start AND r.captured_at<:end), "
+            "o AS (SELECT at, CASE WHEN lag(at) OVER (ORDER BY at) IS NULL "
+            f"OR at-lag(at) OVER (ORDER BY at)>interval '{GAP_SECONDS} seconds' "
+            "THEN 1 ELSE 0 END AS starts FROM r), "
+            "g AS (SELECT at, sum(starts) OVER (ORDER BY at) AS island FROM o) "
+            "SELECT min(at) AS first, max(at) AS last FROM g GROUP BY island ORDER BY 1"
+        ),
+        params,
+    ).all()
+    hold = timedelta(seconds=HOLD_SECONDS)
+    return [
+        (max(start, first), min(end, last + hold)) for first, last in rows if last + hold > start
+    ]
+
+
+def _state_changes(db, line_id, start, end, scope):
+    """The Line state in force at ``start`` and every PLC state change until ``end``."""
+    params = {"line": line_id, "start": start, "end": end}
+    where = _scope_sql("p", scope, params)
+    select = (
+        "SELECT (e.body->>'occurred_at')::timestamptz AS at,e.body->'payload'->>'state' AS state,"
+        "e.execution_id,p.source_id,p.stream_id FROM equipment_state_events e "
+        "JOIN production_executions p USING(execution_id) "
+        "JOIN source_streams s ON (s.source_id,s.stream_id)=(p.source_id,p.stream_id) "
+        "WHERE " + where + " AND e.kind='STATE_CHANGED' AND e.body->>'equipment_id'='Line' "
+    )
+    order = " ORDER BY (e.body->>'occurred_at')::timestamptz,(e.body->>'seq')::numeric"
+    before = (
+        db.execute(
+            text(
+                select
+                + "AND (e.body->>'occurred_at')::timestamptz<:start"
+                + order
+                + " DESC LIMIT 1"
+            ),
+            params,
+        )
+        .mappings()
+        .first()
+    )
+    during = (
+        db.execute(
+            text(
+                select
+                + "AND (e.body->>'occurred_at')::timestamptz>=:start "
+                + "AND (e.body->>'occurred_at')::timestamptz<:end"
+                + order
+            ),
+            params,
+        )
+        .mappings()
+        .all()
+    )
+    return ([dict(before)] if before else []) + [dict(row) for row in during]
+
+
+def state_timeline(db, line_id, start, end, *, scope=None):
+    """Segments of the Line state between ``start`` and ``end`` from PLC events."""
     end = max(start, end)
-    boundaries = {start, end}
-    relevant = [e for e in evidence if e["from"] < end and e["to"] > start]
-    for row in relevant:
-        boundaries.update((max(start, row["from"]), min(end, row["to"])))
-    points, result = sorted(boundaries), []
-    additions = sorted(enumerate(relevant), key=lambda pair: pair[1]["from"])
-    pointer = 0
-    heaps = {}
-    gap_rows = []
-    receipt_fences = []
-    expired_rows = []
+    covered = _coverage(db, line_id, start, end, scope)
+    changes = _state_changes(db, line_id, start, end, scope)
+    points = {start, end}
+    points.update(c["at"] for c in changes if start < c["at"] < end)
+    for left, right in covered:
+        points.update((left, right))
+    points = sorted(point for point in points if start <= point <= end)
+    result = []
+    index, current = 0, None
     for left, right in zip(points, points[1:], strict=False):
-        while pointer < len(additions) and additions[pointer][1]["from"] <= left:
-            index, entry = additions[pointer]
-            if entry.get("retention_expired"):
-                expired_rows.append(entry)
-            elif entry.get("sequence_gap"):
-                gap_rows.append(entry)
-            elif entry.get("receipt_fence"):
-                receipt_fences.append(entry)
-            else:
-                key = (entry.get("source_id"), entry.get("stream_id"))
-                observed = entry.get("observed_at", entry["from"]).timestamp()
-                generation, sequence = entry.get("capture_order", (0, observed))
-                heapq.heappush(heaps.setdefault(key, []), (-generation, -sequence, -index, index))
-            pointer += 1
-        covering = []
-        for heap in heaps.values():
-            while heap and relevant[heap[0][3]]["to"] <= left:
-                heapq.heappop(heap)
-            if heap:
-                covering.append(relevant[heap[0][3]])
-        gap_rows = [entry for entry in gap_rows if entry["to"] > left]
-        # An unlocated loss can only cut coverage at its API receipt. It remains
-        # a barrier until newer, truly known same-stream capture evidence starts
-        # at/after that fence; late older captures cannot restore coverage.
-        receipt_fences = [
-            fence
-            for fence in receipt_fences
-            if fence["to"] > left
-            and not any(
-                entry["class"] != "UNKNOWN"
-                and (entry.get("source_id"), entry.get("stream_id"))
-                == (fence.get("source_id"), fence.get("stream_id"))
-                and entry.get("capture_order", (0, 0)) > fence["capture_order"]
-                and entry["from"] >= fence["from"]
-                for entry in covering
-            )
-        ]
-        expired_rows = [entry for entry in expired_rows if entry["to"] > left]
-        covering += gap_rows + receipt_fences + expired_rows
-        known = [e for e in covering if e["class"] != "UNKNOWN"]
-        unknown = [e for e in covering if e["class"] == "UNKNOWN"]
-        identities = {
-            (
-                e.get("source_id"),
-                e.get("stream_id"),
-                e.get("execution_id"),
-                e["state"],
-                e.get("fault_code"),
-            )
-            for e in known
-        }
-        chosen = None
-        if unknown:
-            chosen = next(
-                (e for e in unknown if e.get("unknown_reason") == "RETENTION_EXPIRED"),
-                next(
-                    (e for e in unknown if e.get("unknown_reason") == "COMMUNICATION_LOST"),
-                    unknown[0],
-                ),
-            )
-        elif len(identities) == 1:
-            chosen = known[-1]
-        segment = {
-            "from": iso(left),
-            "to": iso(right),
-            "class": "UNKNOWN",
-            "state": None,
-            "fault_code": None,
-            "stop_reason": None,
-            "unknown_reason": "NO_EVIDENCE",
-        }
-        if not chosen and covering:
-            segment["evidence_scopes"] = [
-                {key: entry.get(key) for key in ("source_id", "stream_id", "execution_id")}
-                for entry in covering
-            ]
-        if chosen:
+        while index < len(changes) and changes[index]["at"] <= left:
+            current = changes[index]
+            index += 1
+        seen = any(a <= left and right <= b for a, b in covered)
+        segment = {"from": iso(left), "to": iso(right), "fault_code": None, "stop_reason": None}
+        if not seen:
+            segment.update({"class": "UNKNOWN", "state": None, "unknown_reason": "NO_DATA"})
+        else:
+            state = current["state"] if current else "STOPPED"
             segment.update(
-                {
-                    k: v
-                    for k, v in chosen.items()
-                    if k
-                    not in {
-                        "from",
-                        "to",
-                        "sequence_gap",
-                        "observed_at",
-                        "capture_order",
-                        "receipt_fence",
-                    }
-                }
+                {"class": "RUNNING" if state == "RUNNING" else "STOPPED", "state": state}
             )
-        if expired_rows:
-            segment.update(
-                provenance([entry for row in expired_rows for entry in row["retention_expired"]])
-            )
-        if segment["class"] != "UNKNOWN":
-            segment.pop("unknown_reason", None)
+            if current:
+                segment.update({k: current[k] for k in ("execution_id", "source_id", "stream_id")})
         if result and {k: v for k, v in result[-1].items() if k not in {"from", "to"}} == {
             k: v for k, v in segment.items() if k not in {"from", "to"}
         }:
@@ -173,649 +154,6 @@ def build_timeline(start, end, evidence):
         else:
             result.append(segment)
     return result
-
-
-def canonical_clock_available(db):
-    """Old analytical schemas remain readable without querying absent columns."""
-    return db.execute(
-        text("SELECT to_regclass('public.capture_clock_evidence') IS NOT NULL")
-    ).scalar_one()
-
-
-def clock_binding_sql(batch, proof, line, *, epoch=None, captured=None):
-    """SQL prefilter only; the shared pure clock reader remains authoritative.
-
-    ``epoch``/``captured`` may name values already extracted from the same body.
-    """
-    epoch = epoch or f"{batch}.body->'capture_time'->>'clock_epoch'"
-    captured = captured or f"({batch}.body->>'captured_at')::timestamptz"
-    return f"""{proof}.gateway_id={batch}.gateway_id AND {proof}.batch_id={batch}.batch_id
-      AND {proof}.line_id={line} AND {proof}.source_id={batch}.source_id
-      AND {proof}.stream_id={batch}.stream_id
-      AND {proof}.capture_generation={batch}.capture_generation
-      AND {proof}.capture_seq={batch}.capture_seq
-      AND {proof}.batch_sha256={batch}.content_sha256
-      AND {proof}.clock_epoch={epoch}
-      AND {proof}.original_capture_utc={captured}"""
-
-
-def _clock_known(row):
-    body = row["body"]
-    raw = body.get("capture_time") or {}
-    for context in row["contexts"] or []:
-        assessment = (context or {}).get("clock_assessment") or {}
-        if (
-            assessment.get("batch_sha256") == row["content_sha256"]
-            and assessment.get("gateway_id") == row["gateway_id"]
-            and assessment.get("clock_epoch") == raw.get("clock_epoch")
-            and -2
-            <= assessment.get("offset_lower_seconds", -999)
-            <= assessment.get("offset_upper_seconds", 999)
-            <= 2
-        ):
-            return True
-    return False
-
-
-def _clock_reversal_cutoffs(db, line_id, scope):
-    # Compact receipts retain chronology after original ingest evidence expires.
-    # Scan sequence history before clipping a report day: a later timestamp or
-    # receipt cannot repair a clock epoch once its chronology has reversed.
-    params = {"line": line_id}
-    where = "s.line_id=:line"
-    if scope:
-        params.update(source=scope["source_id"], stream=scope["stream_id"])
-        where += " AND b.source_id=:source AND b.stream_id=:stream"
-    receipt_history = retention_available(db)
-    capture_table = capture_frontier_table(db, alias="b")
-    capture_from = capture_table if capture_table.startswith("(") else f"{capture_table} b"
-    epoch = "b.clock_epoch" if receipt_history else "b.body->'capture_time'->>'clock_epoch'"
-    captured = "b.captured_at" if receipt_history else "(b.body->>'captured_at')::timestamptz"
-    monotonic = (
-        "b.monotonic_seconds"
-        if receipt_history
-        else "(b.body->'capture_time'->>'monotonic_seconds')::double precision"
-    )
-    rows = db.execute(
-        text(
-            f"""
-        WITH captures AS (
-          SELECT b.source_id,b.stream_id,b.gateway_id,b.capture_generation,b.capture_seq,
-            {epoch} AS epoch, {captured} AS at, {monotonic} AS mono
-          FROM {capture_from} JOIN source_streams s USING(source_id,stream_id)
-          WHERE """
-            + where
-            + f""" AND {epoch} IS NOT NULL
-        ), ordered AS (
-          SELECT *,max(at) OVER history AS previous_at,
-                   max(mono) OVER history AS previous_mono
-          FROM captures WINDOW history AS (
-            PARTITION BY source_id,stream_id,gateway_id,capture_generation,epoch
-            ORDER BY capture_seq ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)
-        ) SELECT source_id,stream_id,gateway_id,capture_generation,epoch,
-                 min(capture_seq) AS cutoff
-          FROM ordered WHERE at<previous_at OR mono<=previous_mono
-          GROUP BY source_id,stream_id,gateway_id,capture_generation,epoch
-    """
-        ),
-        params,
-    ).mappings()
-    cutoffs = {
-        (
-            r["source_id"],
-            r["stream_id"],
-            r["gateway_id"],
-            int(r["capture_generation"]),
-            r["epoch"],
-        ): int(r["cutoff"])
-        for r in rows
-    }
-    # Compact endpoints cannot rediscover an internal reversal. The immutable
-    # registry is backfilled before compaction and remains authoritative after
-    # all individual receipts of an epoch have expired.
-    if receipt_history:
-        durable = db.execute(
-            text(
-                """SELECT b.source_id,b.stream_id,b.gateway_id,b.capture_generation,
-                b.clock_epoch AS epoch,b.reversal_seq AS cutoff
-                FROM analog_history_clock_state b
-                JOIN source_streams s USING(source_id,stream_id)
-                WHERE """
-                + where
-                + " AND b.reversal_seq IS NOT NULL"
-            ),
-            params,
-        ).mappings()
-        for row in durable:
-            key = (
-                row["source_id"],
-                row["stream_id"],
-                row["gateway_id"],
-                int(row["capture_generation"]),
-                row["epoch"],
-            )
-            cutoff = int(row["cutoff"])
-            cutoffs[key] = min(cutoffs.get(key, cutoff), cutoff)
-    return cutoffs
-
-
-def _report_capture_rows(db, line_id, windows, *, scope, reversals):
-    """Return the prefiltered capture rows of each ``(start, end)`` window, in order.
-
-    One statement serves several windows of the same scope: each row carries the
-    windows whose exact prefilter it satisfies, so every window receives the same
-    rows as a separate statement would, without rescanning the retained history.
-    """
-    params = {
-        "line": line_id,
-        "windows": json.dumps(
-            [
-                dict(
-                    idx=idx,
-                    start=(start - timedelta(seconds=3)).isoformat(),
-                    finish=end.isoformat(),
-                )
-                for idx, (start, end) in enumerate(windows)
-            ]
-        ),
-    }
-    window_start, window_end = "report_window.start", "report_window.finish"
-    canonical = canonical_clock_available(db)
-    # The filter below must inspect every retained capture of the scope (loss
-    # fences and invalidated coordinates have no lower time bound). Each
-    # ``b.body->...`` operator detoasts the full body again, so extract the
-    # read fields once per row; only selected rows project the body itself.
-    join = (
-        " CROSS JOIN LATERAL jsonb_to_record(b.body) AS report_doc("
-        "captured_at text,capture_time jsonb,samples jsonb,communication jsonb) "
-    )
-    epoch_sql = "report_doc.capture_time->>'clock_epoch'"
-    captured_sql = "(report_doc.captured_at)::timestamptz"
-    proof = "NULL::jsonb AS clock_evidence"
-    at_sql = captured_sql
-    if canonical:
-        join += (
-            " LEFT JOIN capture_clock_evidence clock ON "
-            "clock.gateway_id=b.gateway_id AND clock.batch_id=b.batch_id "
-        )
-        proof = "to_jsonb(clock) AS clock_evidence"
-        at_sql = (
-            "CASE WHEN "
-            + clock_binding_sql("b", "clock", "s.line_id", epoch=epoch_sql, captured=captured_sql)
-            + " AND clock.status='GOOD' THEN clock.canonical_api_utc ELSE "
-            + at_sql
-            + " END"
-        )
-    # Unknown-clock sample-less link failures need a receipt fence even when
-    # their untrusted claimed UTC falls outside the window. Keep prior fences
-    # across day boundaries; normal proof is required to clear them.
-    loss_sql = """jsonb_array_length(report_doc.samples)=0
-        AND jsonb_typeof(report_doc.communication)='object'
-        AND ((report_doc.communication->>'state') IS DISTINCT FROM 'GOOD'
-          OR (report_doc.communication->>'connected') IS DISTINCT FROM 'true')"""
-    # Preserve legacy heads without this registry, but on supported analytical
-    # heads overlay its cutoff from this statement's snapshot. A cached scan
-    # must not mask a reversal committed before the capture SELECT.
-    registry = db.execute(
-        text("SELECT to_regclass('public.analog_history_clock_state') IS NOT NULL")
-    ).scalar_one()
-    if registry:
-        join += f""" LEFT JOIN public.analog_history_clock_state clock_registry
-          ON clock_registry.source_id=b.source_id AND clock_registry.stream_id=b.stream_id
-          AND clock_registry.gateway_id=b.gateway_id
-          AND clock_registry.capture_generation=b.capture_generation
-          AND clock_registry.clock_epoch={epoch_sql} """
-        proof += ",clock_registry.reversal_seq AS durable_reversal_seq"
-    else:
-        proof += ",NULL::numeric AS durable_reversal_seq"
-    where = (
-        f"(({at_sql}>={window_start} AND {at_sql}<{window_end})"
-        f" OR (b.stored_at<{window_end} AND {loss_sql}))"
-    )
-    if canonical:
-        params["reversal_keys"] = json.dumps(
-            [
-                dict(
-                    source=key[0],
-                    stream=key[1],
-                    gateway=key[2],
-                    generation=key[3],
-                    epoch=key[4],
-                    cutoff=value,
-                )
-                for key, value in reversals.items()
-            ]
-        )
-        cached_invalid = f"""EXISTS (
-          SELECT 1 FROM jsonb_to_recordset(CAST(:reversal_keys AS jsonb))
-          cr(source text,stream text,gateway text,generation numeric,epoch text,cutoff numeric)
-          WHERE cr.source=b.source_id AND cr.stream=b.stream_id AND cr.gateway=b.gateway_id
-            AND cr.generation=b.capture_generation
-            AND cr.epoch={epoch_sql} AND b.capture_seq>=cr.cutoff)"""
-        invalid = cached_invalid
-        if registry:
-            invalid += " OR b.capture_seq>=clock_registry.reversal_seq"
-        # An invalidated accepted coordinate is an UNKNOWN barrier even when it
-        # precedes this window. Older late captures must not bypass it tomorrow.
-        barrier = (
-            clock_binding_sql("b", "clock", "s.line_id", epoch=epoch_sql, captured=captured_sql)
-            + f" AND clock.status='GOOD' AND clock.canonical_api_utc<{window_end} AND ("
-            + invalid
-            + ")"
-        )
-        where = "(" + where + " OR (" + barrier + "))"
-    scope_where = "s.line_id=:line"
-    if scope:
-        params.update(source=scope["source_id"], stream=scope["stream_id"])
-        scope_where += " AND s.source_id=:source AND s.stream_id=:stream"
-    # The legacy fallback needs only clock_assessment. Aggregate once per scope
-    # instead of probing and detoasting the entire decision history per capture.
-    # Keep original bodies intact: canonical evidence validates their full digest.
-    context_where = "cs.line_id=:line"
-    if scope:
-        context_where += " AND cs.source_id=:source AND cs.stream_id=:stream"
-    contexts = (
-        "WITH report_clock_contexts AS MATERIALIZED ("
-        "SELECT d.gateway_id,d.batch_id,"
-        "array_agg(jsonb_build_object('clock_assessment',"
-        "d.context->'clock_assessment')) AS contexts "
-        "FROM alarm_capture_decisions d JOIN source_streams cs "
-        "USING(source_id,stream_id) WHERE " + context_where + " GROUP BY d.gateway_id,d.batch_id),"
-        "report_windows AS (SELECT * FROM jsonb_to_recordset(CAST(:windows AS jsonb)) "
-        "AS report_window(idx integer,start timestamptz,finish timestamptz)) "
-    )
-    # Legacy rows have no canonical body-digest consumer. Keep their original
-    # nonempty-sample distinction and only the three tags this projection reads.
-    # Every row carrying durable evidence retains its complete original body,
-    # even UNKNOWN or invalidly bound evidence, for effective_capture_clock.
-    legacy_body = """jsonb_set(b.body,'{samples}',(
-        SELECT coalesce(jsonb_agg(sample ORDER BY ordinal),'[]'::jsonb)
-        FROM jsonb_array_elements(b.body->'samples') WITH ORDINALITY sample_rows(sample,ordinal)
-        WHERE ordinal=1 OR sample->>'tag_id' IN
-          ('Line.State','Line.ActiveExecutionId','Line.FaultCode')))"""
-    # Every row reads the small projection (the three tags reports use). A row with
-    # durable clock evidence is validated against its complete original body,
-    # loaded below only when this exact stored input has not been validated yet.
-    body_projection = legacy_body
-    rows = (
-        db.execute(
-            text(
-                contexts + "SELECT b.gateway_id,b.batch_id,b.source_id,b.stream_id,"
-                "b.capture_generation,b.capture_seq,b.content_sha256,"
-                + body_projection
-                + " AS body,md5(b.body::text) AS body_md5,b.stored_at,"
-                "s.conflicted,s.reconciliation_required," + proof + ","
-                "report_context.contexts,matched.report_windows FROM ingest_batches b "
-                "JOIN source_streams s USING(source_id,stream_id) "
-                "LEFT JOIN report_clock_contexts report_context "
-                "ON report_context.gateway_id=b.gateway_id "
-                "AND report_context.batch_id=b.batch_id "
-                + join
-                + " CROSS JOIN LATERAL (SELECT array_agg(report_window.idx) AS report_windows "
-                "FROM report_windows report_window WHERE "
-                + where
-                + ") matched WHERE "
-                + scope_where
-                + " AND matched.report_windows IS NOT NULL"
-                " ORDER BY b.capture_generation,b.capture_seq"
-            ),
-            params,
-        )
-        .mappings()
-        .all()
-    )
-    rows = [dict(row) for row in rows]
-    if canonical:
-        _attach_unvalidated_bodies(db, rows)
-    grouped = [[] for _ in windows]
-    for row in rows:
-        for idx in row["report_windows"]:
-            grouped[idx].append(row)
-    return grouped
-
-
-def _attach_unvalidated_bodies(db, rows):
-    """Load complete original bodies only for evidence rows without a memoized check."""
-    missing = []
-    for row in rows:
-        if row.get("clock_evidence") is None:
-            continue
-        with _CLOCK_MEMO_LOCK:
-            validated = _CLOCK_MEMO.get(_memo_key(row))
-        if validated is not None:
-            # Keep this report's own reference: a later eviction cannot unvalidate the row.
-            row["clock_validated"] = validated
-        else:
-            missing.append(row)
-    for offset in range(0, len(missing), 500):
-        chunk = missing[offset : offset + 500]
-        keys = json.dumps([{"g": row["gateway_id"], "b": row["batch_id"]} for row in chunk])
-        full = {
-            (item["gateway_id"], item["batch_id"]): item
-            for item in db.execute(
-                text(
-                    "SELECT b.gateway_id,b.batch_id,b.body,md5(b.body::text) AS body_md5 "
-                    "FROM jsonb_to_recordset(CAST(:keys AS jsonb)) AS k(g text,b text) "
-                    "JOIN ingest_batches b ON b.gateway_id=k.g AND b.batch_id=k.b"
-                ),
-                {"keys": keys},
-            ).mappings()
-        }
-        for row in chunk:
-            item = full.get((row["gateway_id"], row["batch_id"]))
-            # The same stored bytes the first read hashed; otherwise validate nothing
-            # here and let the evidence check fail closed on the projected body.
-            if item is not None and item["body_md5"] == row["body_md5"]:
-                row["clock_body"] = item["body"]
-
-
-_CLOCK_MEMO: OrderedDict[tuple, tuple] = OrderedDict()
-_CLOCK_MEMO_LIMIT = 60_000
-_CLOCK_MEMO_LOCK = threading.Lock()
-
-
-def _memo_key(row):
-    """Every input of the clock validation: stored body bytes (PostgreSQL md5 of
-    its text), recorded digest and the complete evidence row."""
-    evidence = row["clock_evidence"]
-    return (
-        row["gateway_id"],
-        row["batch_id"],
-        row["content_sha256"],
-        row["body_md5"],
-        tuple(sorted((name, repr(value)) for name, value in dict(evidence).items())),
-    )
-
-
-def _clock_decision(row, cutoff):
-    """effective_capture_clock for a report row, reusing a validation of the same bytes.
-
-    Pure memoization: a changed stored byte or evidence field is a new key and is
-    validated again against its complete original body.
-    """
-    from apps.api.capture_clock import apply_reversal_cutoff, validated_capture_clock
-
-    key = _memo_key(row)
-    validated = row.get("clock_validated")
-    if validated is None:
-        with _CLOCK_MEMO_LOCK:
-            validated = _CLOCK_MEMO.get(key)
-            if validated is not None:
-                _CLOCK_MEMO.move_to_end(key)
-    if validated is None:
-        # No complete body (it changed between reads) validates the projection,
-        # whose digest cannot match: the decision fails closed.
-        validated = validated_capture_clock(
-            row["clock_evidence"],
-            body=row.get("clock_body", row["body"]),
-            batch_sha256=row["content_sha256"],
-        )
-        if "clock_body" in row:
-            row["clock_validated"] = validated
-            with _CLOCK_MEMO_LOCK:
-                _CLOCK_MEMO[key] = validated
-                while len(_CLOCK_MEMO) > _CLOCK_MEMO_LIMIT:
-                    _CLOCK_MEMO.popitem(last=False)
-    return apply_reversal_cutoff(*validated, cutoff)
-
-
-def load_report_evidence(
-    db, line_id, start, end, *, scope=None, execution_id=None, reversals=None, capture_rows=None
-):
-    """Read retained capture evidence without changing ingestion or alarm decisions.
-
-    ``reversals`` lets a caller reuse one stream-wide clock history scan across
-    several reports of the same scope; it must come from ``_clock_reversal_cutoffs``.
-    ``capture_rows`` are this exact window's rows from ``_report_capture_rows``,
-    loaded with the same scope and ``reversals``.
-    """
-    if reversals is None:
-        reversals = _clock_reversal_cutoffs(db, line_id, scope)
-    if capture_rows is None:
-        capture_rows = _report_capture_rows(
-            db, line_id, [(start, end)], scope=scope, reversals=reversals
-        )[0]
-    rows = capture_rows
-    evidence = []
-    for row in rows:
-        body = row["body"]
-        at = timestamp(body["captured_at"])
-        key = (
-            row["source_id"],
-            row["stream_id"],
-            row["gateway_id"],
-            int(row["capture_generation"]),
-            (body.get("capture_time") or {}).get("clock_epoch"),
-        )
-        cutoff = reversals.get(key)
-        if row["durable_reversal_seq"] is not None:
-            cutoff = (
-                min(cutoff, int(row["durable_reversal_seq"]))
-                if cutoff is not None
-                else int(row["durable_reversal_seq"])
-            )
-        reversed_clock = cutoff is not None and int(row["capture_seq"]) >= cutoff
-        communication = body.get("communication") or {}
-        communication_lost = communication.get("state") != "GOOD" or not communication.get(
-            "connected"
-        )
-
-        known_clock = _clock_known(row)
-        invalidated_canonical = False
-        if row["clock_evidence"] is not None:
-            decision = _clock_decision(row, cutoff)
-            known_clock = decision.status == "GOOD" and row["clock_evidence"]["line_id"] == line_id
-            if known_clock:
-                at = decision.canonical_api_utc
-            elif decision.reason_code == "CLOCK_REVERSAL":
-                accepted = _clock_decision(row, None)
-                if accepted.status == "GOOD" and row["clock_evidence"]["line_id"] == line_id:
-                    # Invalidate the previously accepted coverage coordinate;
-                    # it cannot assert normal state or an occurrence time.
-                    at = accepted.canonical_api_utc
-                    invalidated_canonical = True
-        reported_lost = (
-            not body.get("samples") and body.get("communication") is not None and communication_lost
-        )
-        receipt_fence = reported_lost and (not known_clock or reversed_clock)
-        if receipt_fence:
-            # This is a safe upper bound for prior coverage, not a reconstructed
-            # gateway/PLC occurrence timestamp.
-            at = row["stored_at"]
-        if at >= end or (
-            not receipt_fence
-            and not invalidated_canonical
-            and at + timedelta(seconds=FRESHNESS_SECONDS) <= start
-        ):
-            continue
-        if invalidated_canonical and not receipt_fence:
-            evidence.append(
-                {
-                    "from": at,
-                    "to": end,
-                    "observed_at": at,
-                    "capture_order": (int(row["capture_generation"]), int(row["capture_seq"])),
-                    "receipt_fence": True,
-                    "unknown_time_basis": "INVALIDATED_CANONICAL_COVERAGE",
-                    "class": "UNKNOWN",
-                    "state": None,
-                    "fault_code": None,
-                    "stop_reason": None,
-                    "unknown_reason": "TIME_UNKNOWN",
-                    "source_id": row["source_id"],
-                    "stream_id": row["stream_id"],
-                    "execution_id": execution_id,
-                }
-            )
-            continue
-
-        if not body.get("samples"):
-            # A sample-less batch that reports a link failure is evidence of lost
-            # communication, never a gap to be bridged by the previous state. Event-only
-            # batches without a communication block (schema 1.0) say nothing about it.
-            if reported_lost or reversed_clock:
-                evidence.append(
-                    {
-                        "from": at,
-                        "to": end if receipt_fence else at + timedelta(seconds=FRESHNESS_SECONDS),
-                        **(
-                            {"receipt_fence": True, "unknown_time_basis": "API_RECEIPT_FENCE"}
-                            if receipt_fence
-                            else {}
-                        ),
-                        "observed_at": at,
-                        "capture_order": (int(row["capture_generation"]), int(row["capture_seq"])),
-                        "class": "UNKNOWN",
-                        "state": None,
-                        "fault_code": None,
-                        "stop_reason": None,
-                        "unknown_reason": "COMMUNICATION_LOST" if reported_lost else "TIME_UNKNOWN",
-                        "source_id": row["source_id"],
-                        "stream_id": row["stream_id"],
-                        "execution_id": execution_id,
-                    }
-                )
-            continue
-        samples = {s["tag_id"]: s for s in body.get("samples", [])}
-        active_sample = samples.get("Line.ActiveExecutionId", {})
-        active = active_sample.get("reading", {}).get("value")
-        if active_sample.get("status_code", 2**31) >> 30:
-            active = None
-        if execution_id and active != execution_id:
-            # A capture for another execution (or absent ownership tag) cuts off
-            # earlier ownership evidence. Clock continuity is stream-wide, even
-            # when a digital-only capture omits ActiveExecutionId.
-            evidence.append(
-                {
-                    "from": at,
-                    "to": at + timedelta(seconds=FRESHNESS_SECONDS),
-                    "observed_at": at,
-                    "capture_order": (int(row["capture_generation"]), int(row["capture_seq"])),
-                    "class": "UNKNOWN",
-                    "state": None,
-                    "fault_code": None,
-                    "stop_reason": None,
-                    "unknown_reason": "TIME_UNKNOWN" if reversed_clock else "NO_EVIDENCE",
-                    "source_id": row["source_id"],
-                    "stream_id": row["stream_id"],
-                    "execution_id": None,
-                    "observed_execution_id": active,
-                }
-            )
-            continue
-        state_sample = samples.get("Line.State", {})
-        state = STATES.get(str(state_sample.get("reading", {}).get("value")))
-        reason = None
-        if communication_lost:
-            reason = "COMMUNICATION_LOST"
-        elif (
-            not known_clock
-            or reversed_clock
-            or (
-                state_sample.get("acquired_at")
-                and timestamp(state_sample["acquired_at"]) != timestamp(body["captured_at"])
-            )
-        ):
-            reason = "TIME_UNKNOWN"
-        elif row["conflicted"] or not state or state_sample.get("status_code", 2**31) >> 30:
-            reason = "NO_EVIDENCE"
-        fault_sample = samples.get("Line.FaultCode", {})
-        evidence.append(
-            {
-                "from": at,
-                "observed_at": at,
-                "capture_order": (int(row["capture_generation"]), int(row["capture_seq"])),
-                "to": at + timedelta(seconds=FRESHNESS_SECONDS),
-                "class": "UNKNOWN" if reason else "RUNNING" if state == "RUNNING" else "STOPPED",
-                "state": None if reason else state,
-                "fault_code": None
-                if reason
-                else fault_sample.get("reading", {}).get("value") or None,
-                "stop_reason": None,
-                **({"unknown_reason": reason} if reason else {}),
-                "source_id": row["source_id"],
-                "stream_id": row["stream_id"],
-                "execution_id": active or None,
-            }
-        )
-    for entry in list(evidence):
-        if entry["to"] < end:
-            evidence.append(
-                {
-                    **entry,
-                    "from": entry["to"],
-                    "to": end,
-                    "class": "UNKNOWN",
-                    "state": None,
-                    "fault_code": None,
-                    "unknown_reason": "COMMUNICATION_LOST",
-                }
-            )
-    # A permanent sequence gap has no wall-time bounds. Conservatively cover the
-    # interval from preceding event until the next known event after the gap.
-    gaps = db.execute(
-        text("""SELECT g.*,s.line_id FROM stream_gaps g
-        JOIN source_streams s USING(source_id,stream_id) WHERE s.line_id=:line"""),
-        {"line": line_id},
-    ).mappings()
-    for gap in gaps:
-        if scope and (gap["source_id"], gap["stream_id"]) != (
-            scope["source_id"],
-            scope["stream_id"],
-        ):
-            continue
-        bounds = (
-            db.execute(
-                text("""SELECT
-          max((body->>'occurred_at')::timestamptz) FILTER (WHERE seq<:lo) AS before,
-          min((body->>'occurred_at')::timestamptz) FILTER (WHERE seq>:hi) AS after
-          FROM event_inbox WHERE source_id=:source AND stream_id=:stream"""),
-                {
-                    "lo": gap["from_seq"],
-                    "hi": gap["through_seq"],
-                    "source": gap["source_id"],
-                    "stream": gap["stream_id"],
-                },
-            )
-            .mappings()
-            .one()
-        )
-        evidence.append(
-            {
-                "from": bounds["before"] or start,
-                "to": bounds["after"] or end,
-                "class": "UNKNOWN",
-                "state": None,
-                "fault_code": None,
-                "stop_reason": None,
-                "unknown_reason": "COMMUNICATION_LOST",
-                "sequence_gap": True,
-                "source_id": gap["source_id"],
-                "stream_id": gap["stream_id"],
-            }
-        )
-    for left, right, entry in expiry_windows(
-        db,
-        scope={"line_id": line_id, **(scope or {})},
-        start=start,
-        end=end,
-        tail=timedelta(seconds=FRESHNESS_SECONDS),
-    ):
-        evidence.append(
-            {
-                "from": left,
-                "to": right,
-                "class": "UNKNOWN",
-                "state": None,
-                "fault_code": None,
-                "stop_reason": None,
-                "unknown_reason": "RETENTION_EXPIRED",
-                "source_id": entry["source_id"],
-                "stream_id": entry["stream_id"],
-                **provenance([entry]),
-            }
-        )
-    return evidence
 
 
 def _execution(db, execution_id, line_id, scope=None):
@@ -873,55 +211,22 @@ def execution_state_bounds(db, execution_id):
     return started, ended
 
 
-def segment_provenance(segments):
-    ranges = []
-    for segment in segments:
-        for entry in segment.get("retention_expired", []):
-            if entry not in ranges:
-                ranges.append(entry)
-    return provenance(ranges)
-
-
 def _execution_window(row, ended, now):
     return row["registered_at"], min(ended or now, now)
 
 
 def read_execution_timeline(
-    db,
-    execution_id,
-    line_id,
-    source_id,
-    stream_id,
-    *,
-    now,
-    annotate=None,
-    reversals=None,
-    prefetched=None,
+    db, execution_id, line_id, source_id, stream_id, *, now, annotate=None, prefetched=None
 ):
-    """``prefetched`` is ``(execution row, ended, capture rows)`` already read in this
-    transaction for this exact scope by ``read_execution_reports``."""
+    """``prefetched`` is ``(execution row, ended)`` already read in this transaction."""
     scope = dict(line_id=line_id, source_id=source_id, stream_id=stream_id)
-    capture_rows = None
     if prefetched is None:
         row = _execution(db, execution_id, line_id, scope)
         _, ended = execution_state_bounds(db, execution_id)
     else:
-        row, ended, capture_rows = prefetched
+        row, ended = prefetched
     start, end = _execution_window(row, ended, now)
-    segments = build_timeline(
-        start,
-        end,
-        load_report_evidence(
-            db,
-            line_id,
-            start,
-            end,
-            scope=scope,
-            execution_id=execution_id,
-            reversals=reversals,
-            capture_rows=capture_rows,
-        ),
-    )
+    segments = state_timeline(db, line_id, start, end, scope=scope)
     if annotate:
         segments = annotate(db, segments, scope, now=now)
     durations, _ = evaluate_segments(segments)
@@ -930,7 +235,6 @@ def read_execution_timeline(
         "from": iso(start),
         "to": iso(max(start, end)),
         "segments": segments,
-        **segment_provenance(segments),
         "durations_seconds": durations,
         "check_ok": abs(durations["total"] - (max(start, end) - start).total_seconds()) < 1e-6,
     }
@@ -968,28 +272,9 @@ def read_execution_reports(db, line_id, start, end, *, now, limit=50, cursor=Non
         .all()
     )
     items = []
-    listed = []
-    streams = {}
     for execution_id in ids[:limit]:
         row = _execution(db, execution_id, line_id)
         started, ended = execution_state_bounds(db, execution_id)
-        listed.append((execution_id, row, started, ended))
-        streams.setdefault((row["source_id"], row["stream_id"]), []).append(len(listed) - 1)
-    # Clock and capture history are stream-wide: scan each once per stream, not
-    # once per execution. Every execution still receives its own window's rows.
-    reversal_cache = {}
-    capture_rows = [None] * len(listed)
-    for stream, positions in streams.items():
-        scope = dict(line_id=line_id, source_id=stream[0], stream_id=stream[1])
-        reversal_cache[stream] = _clock_reversal_cutoffs(db, line_id, scope)
-        windows = [_execution_window(listed[p][1], listed[p][3], now) for p in positions]
-        loaded = _report_capture_rows(
-            db, line_id, windows, scope=scope, reversals=reversal_cache[stream]
-        )
-        for position, rows in zip(positions, loaded, strict=True):
-            capture_rows[position] = rows
-    for position, (execution_id, row, started, ended) in enumerate(listed):
-        stream = (row["source_id"], row["stream_id"])
         timeline = read_execution_timeline(
             db,
             execution_id,
@@ -998,8 +283,7 @@ def read_execution_reports(db, line_id, start, end, *, now, limit=50, cursor=Non
             row["stream_id"],
             now=now,
             annotate=annotate,
-            reversals=reversal_cache[stream],
-            prefetched=(row, ended, capture_rows[position]),
+            prefetched=(row, ended),
         )
         status = row["settlement_status"] or "PENDING"
         totals = {k: str(int(row[k + "_quantity"] or 0)) for k in ("good", "reject", "scrap")}
@@ -1008,8 +292,6 @@ def read_execution_reports(db, line_id, start, end, *, now, limit=50, cursor=Non
         reasons = [] if status == "SETTLED" else ["EXECUTION_NOT_SETTLED"]
         if timeline["durations_seconds"]["unknown"]:
             reasons.append("UNKNOWN_TIME")
-        if timeline.get("retention_expired"):
-            reasons.append("RETENTION_EXPIRED")
         good, reject = int(totals["good"]), int(totals["reject"])
         items.append(
             {
@@ -1028,7 +310,6 @@ def read_execution_reports(db, line_id, start, end, *, now, limit=50, cursor=Non
                 "settlement_status": status,
                 "provisional": bool(reasons),
                 "provisional_reasons": reasons,
-                **segment_provenance(timeline["segments"]),
                 "durations_seconds": timeline["durations_seconds"],
                 "stopped_by_state": evaluate_segments(timeline["segments"])[1],
             }
@@ -1039,9 +320,7 @@ def read_execution_reports(db, line_id, start, end, *, now, limit=50, cursor=Non
 def read_daily_report(db, line_id, day: date, *, now, scope=None, annotate=None):
     start, day_end = seoul_day_bounds(day)
     end = max(start, min(day_end, now))
-    segments = build_timeline(
-        start, end, load_report_evidence(db, line_id, start, end, scope=scope)
-    )
+    segments = state_timeline(db, line_id, start, end, scope=scope)
     if annotate:
         segments = annotate(db, segments, {"line_id": line_id, **(scope or {})}, now=now)
     durations, _ = evaluate_segments(segments)
@@ -1107,8 +386,6 @@ def read_daily_report(db, line_id, day: date, *, now, scope=None, annotate=None)
         reasons.append("DAY_NOT_FINISHED")
     if durations["unknown"]:
         reasons.append("UNKNOWN_TIME")
-    if any(segment.get("retention_expired") for segment in segments):
-        reasons.append("RETENTION_EXPIRED")
     if executions:
         statuses = db.execute(
             text(
@@ -1136,7 +413,6 @@ def read_daily_report(db, line_id, day: date, *, now, scope=None, annotate=None)
     return {
         "date": day.isoformat(),
         "timezone": "Asia/Seoul",
-        **segment_provenance(segments),
         "from": iso(start),
         "to": iso(end),
         "durations_seconds": durations,

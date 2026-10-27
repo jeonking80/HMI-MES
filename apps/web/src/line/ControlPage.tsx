@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
 import type { Session } from '../auth'
 import { terminal } from '../commands'
 import type { TrackedCommand } from '../commands'
-import LoadTracker from '../LoadTracker'
 import type { WorkOrder } from '../mesApi'
 import { readOverview } from '../orders/orderApi'
 import { screenUInt64 } from '../screenState'
@@ -24,7 +23,7 @@ import './line.css'
 /* The serverless API serves few requests at once; the 1 s screen poll must not queue behind a burst
    of side reads, or the line data turns stale. Periods are spread so their beats rarely meet. */
 const POLL_POWER_MS = 9000
-const POLL_RUN_MS = 4000
+const POLL_RUN_MS = 3000
 const POLL_ORDERS_MS = 13000
 
 interface Props {
@@ -88,35 +87,35 @@ function usePowerState(onSessionInvalid: () => void) {
   return { power, state, managed, reload: load, setPower: accept, switching: failed ? null : kind, elapsed }
 }
 
-function useActiveRun(source: Source, executionId: string | null, onSessionInvalid: () => void): ActiveRun | null | undefined {
-  const [run, setRun] = useState<ActiveRun | null | undefined>(undefined)
+interface LineStatus { run: ActiveRun | null; unresolved: { command_id: string; kind: string; status: string } | null }
+
+/** The server's single answer for the cycle: the job loaded last, its settlement and any open command. */
+function useLineStatus(source: Source, onSessionInvalid: () => void): LineStatus | undefined {
+  const [status, setStatus] = useState<{ key: string; value: LineStatus } | undefined>(undefined)
+  const key = `${source.line_id}|${source.source_id}|${source.stream_id}`
   useEffect(() => {
-    if (!executionId) return
     const controller = new AbortController()
-    const tick = () => fetch(`/api/v1/execution-record?${new URLSearchParams({ execution_id: executionId, line_id: source.line_id, source_id: source.source_id, stream_id: source.stream_id })}`, { credentials: 'same-origin', cache: 'no-store', signal: controller.signal }).then(async response => {
-      if (response.status === 401 || response.status === 403) { onSessionInvalid(); return }
-      if (!response.ok) { setRun(undefined); return }
-      const raw = await response.json() as {
-        execution?: { execution_id?: string; work_order_id?: string; registered_at?: string; target_quantity?: number | null }
-        binding?: { intent?: { auto_end_at_target?: boolean; start_when_ready?: boolean; actor?: string } } | null
-        settlement?: { status?: ActiveRun['settlement']; summary?: { good_quantity?: string; reject_quantity?: string; end_reason?: string; ended_at?: string | null } | null }
-      }
-      if (raw.execution?.execution_id !== executionId || typeof raw.execution.work_order_id !== 'string' || !raw.settlement?.status) { setRun(undefined); return }
-      const summary = raw.settlement.summary
-      setRun({
-        executionId, workOrderId: raw.execution.work_order_id, registeredAt: raw.execution.registered_at ?? '', target: raw.execution.target_quantity ?? null,
-        autoEnd: typeof raw.binding?.intent?.auto_end_at_target === 'boolean' ? raw.binding.intent.auto_end_at_target : null,
-        startWhenReady: typeof raw.binding?.intent?.start_when_ready === 'boolean' ? raw.binding.intent.start_when_ready : null,
-        loadedBy: raw.binding?.intent?.actor ?? null, settlement: raw.settlement.status,
-        summary: summary ? { good: summary.good_quantity ?? '—', reject: summary.reject_quantity ?? '—', endReason: summary.end_reason ?? null, endedAt: summary.ended_at ?? null } : null,
-      })
-    }).catch(() => { if (!controller.signal.aborted) setRun(undefined) })
+    let busy = false
+    const tick = async () => {
+      if (busy) return
+      busy = true
+      try {
+        const response = await fetch(`/api/v1/line-status?${new URLSearchParams({ line_id: source.line_id, source_id: source.source_id, stream_id: source.stream_id })}`, { credentials: 'same-origin', cache: 'no-store', signal: controller.signal })
+        if (response.status === 401) { onSessionInvalid(); return }
+        if (!response.ok) return
+        const raw = await response.json() as { execution: null | { execution_id: string; work_order_id: string; bound_at: string; bound_by: string; target_quantity: number | null; auto_end: boolean | null; start_when_ready: boolean | null; settlement: ActiveRun['settlement']; good_quantity: number | null; reject_quantity: number | null; end_reason: string | null; ended_at: string | null }; unresolved_command: LineStatus['unresolved'] }
+        const e = raw.execution
+        if (!controller.signal.aborted) setStatus({ key, value: { unresolved: raw.unresolved_command ?? null, run: e ? {
+          executionId: e.execution_id, workOrderId: e.work_order_id, registeredAt: e.bound_at, target: e.target_quantity, autoEnd: e.auto_end, startWhenReady: e.start_when_ready, loadedBy: e.bound_by, settlement: e.settlement,
+          summary: e.settlement === 'PENDING' ? null : { good: e.good_quantity === null ? '—' : String(e.good_quantity), reject: e.reject_quantity === null ? '—' : String(e.reject_quantity), endReason: e.end_reason, endedAt: e.ended_at },
+        } : null } })
+      } catch { /* the next poll retries; the step stays unknown meanwhile */ } finally { busy = false }
+    }
     void tick()
     const timer = window.setInterval(() => void tick(), POLL_RUN_MS)
     return () => { controller.abort(); window.clearInterval(timer) }
-  }, [executionId, source.line_id, source.source_id, source.stream_id, onSessionInvalid])
-  // A record of an earlier execution is not this one; until it arrives the run is unknown.
-  return executionId ? (run?.executionId === executionId ? run : undefined) : null
+  }, [key, source.line_id, source.source_id, source.stream_id, onSessionInvalid])
+  return status?.key === key ? status.value : undefined
 }
 
 /** Which step the line is in, from live tags, the host power report and the stored execution. */
@@ -127,8 +126,7 @@ function stepOf(live: LiveLine, powerState: string | null, run: ActiveRun | null
   if (powerState !== 'RUNNING' && powerState !== 'NOT_MANAGED') return { current: 1, fault, unknown: powerState === null || powerState === 'UNKNOWN' }
   const made = production(live.known)
   const produced = (made.good ?? 0) + (made.reject ?? 0) > 0
-  // While the record of the live execution is still loading, keep following the line state instead of jumping back.
-  if (run === null || (run && run.settlement !== 'PENDING') || (run === undefined && !live.executionId)) return { current: 2, fault, unknown }
+  if (run === null || (run && run.settlement !== 'PENDING')) return { current: 2, fault, unknown }
   if ([2, 3].includes(state)) return { current: 4, fault, unknown }
   if (state === 4 || (produced && [0, 1].includes(state))) return { current: 5, fault, unknown }
   return { current: produced ? 4 : 3, fault, unknown }
@@ -156,24 +154,13 @@ function LiveControl({ live, source, session, onSessionInvalid, workflow, tracke
   const known = live.known
   const made = production(known)
   const power = usePowerState(onSessionInvalid)
-  const run = useActiveRun(source, live.executionId, onSessionInvalid)
+  const lineStatus = useLineStatus(source, onSessionInvalid)
+  const run = lineStatus === undefined ? undefined : lineStatus.run
   // With the plant powered off the real reason is the power, not stale tag quality.
   const powerOff = power.managed && power.state !== null && power.state !== 'RUNNING'
   const blockedReason = powerOff ? `${powerLabels[power.state ?? ''] ?? '설비 전원 상태 확인 필요'} · ① 전원에서 켜 주세요.` : live.blockedReason
   const cmd = useLineCommands({ source, session, blockedReason, newIntentBlocked: newIntentBlocked(workflow, live.controlValues), values: live.controlValues, tracked, setTracked, onSessionInvalid })
   const step = stepOf(live, power.state, run)
-  // The confirmed load of a settled run is finished business: close it so the next load is not blocked.
-  const attempt = workflow.attempt
-  const boundExecution = attempt?.kind === 'bind' && attempt.phase === 'confirmed' && attempt.record && 'execution_id' in attempt.record.receipt ? attempt.record.receipt.execution_id : null
-  const archiveTried = useRef<string | null>(null)
-  const [archiveNote, setArchiveNote] = useState<{ execution: string; text: string } | null>(null)
-  const runSettled = !!run && run.executionId === boundExecution && run.settlement !== 'PENDING'
-  useEffect(() => {
-    if (!boundExecution || !runSettled || archiveTried.current === boundExecution) return
-    archiveTried.current = boundExecution
-    workflow.archiveExecution().catch(cause => setArchiveNote({ execution: boundExecution, text: cause instanceof Error && cause.message && !/request was not confirmed/.test(cause.message) ? cause.message : '정산 기록을 확인하지 못했습니다.' }))
-  }, [boundExecution, runSettled, workflow])
-  const retryArchive = () => { setArchiveNote(null); archiveTried.current = null; if (boundExecution) workflow.archiveExecution().catch(cause => setArchiveNote({ execution: boundExecution, text: cause instanceof Error ? cause.message : '정산 기록을 확인하지 못했습니다.' })) }
   // A picked step stays open only while the line is still in the step it was picked from.
   const [picked, setPicked] = useState<{ step: Step; from: Step } | null>(null)
   const open = picked && picked.from === step.current ? picked.step : null
@@ -213,10 +200,9 @@ function LiveControl({ live, source, session, onSessionInvalid, workflow, tracke
       <section className="lc-card cs-panel" aria-labelledby="step-panel-heading" data-current={shown === step.current}>
         <div className="cs-panel-head"><h3 id="step-panel-heading">{labels[shown]}</h3><span>{shown === step.current ? '지금 단계 · 할 수 있는 것' : stateOfStep(shown) === 'done' ? '지난 단계 · 결과' : '다음 단계 · 이렇게 되면 넘어옵니다'}{open !== null && <> · <button type="button" className="lc-link" onClick={() => setOpen(null)}>지금 단계로</button></>}</span></div>
         {step.fault && <FaultBox live={live} cmd={cmd} />}
-        {archiveNote && archiveNote.execution === boundExecution && <div className="cs-fault" role="alert"><strong>직전 작업 기록을 닫지 못했습니다</strong><span>{archiveNote.text}</span><div><button type="button" className="lc-button" onClick={retryArchive}>다시 확인</button></div></div>}
         {shown === 1 && <PowerStep session={session} power={power} onSessionInvalid={onSessionInvalid} producing={step.current >= 3 && step.current <= 5} />}
         {shown === 2 && (step.current <= 2
-          ? <JobStep live={live} source={source} session={session} workflow={workflow} tracked={tracked} selectedOrder={selectedOrder} onSelectOrder={onSelectOrder} onSessionInvalid={onSessionInvalid} onOpenOrders={onOpenOrders} powerOn={step.current === 2} previousSettled={!run || run.settlement !== 'PENDING'} />
+          ? <JobStep live={live} source={source} session={session} workflow={workflow} tracked={tracked} selectedOrder={selectedOrder} onSelectOrder={onSelectOrder} onSessionInvalid={onSessionInvalid} onOpenOrders={onOpenOrders} powerOn={step.current === 2} lineStatus={lineStatus} />
           : <Facts rows={[['불러온 작업지시', run?.workOrderId ?? '불명'], ['불러온 시각', run ? new Date(run.registeredAt).toLocaleString('ko-KR') : '—'], ['처리자', run?.loadedBy ?? '—'], ['목표 도달 시 자동 종료', run?.autoEnd === null || run === undefined ? '불명' : run?.autoEnd ? '예' : '아니요'], ['예열 후 자동 시작', run?.startWhenReady === null || run === undefined ? '불명' : run?.startWhenReady ? '예' : '아니요']]}
               note="생산 중인 작업은 바꿀 수 없습니다. 다음 작업은 작업지시의 대기열에 예약하면, 이 작업이 정산된 뒤 자동으로 연결됩니다." action={<button type="button" className="lc-button" onClick={onOpenOrders}>다음 작업 예약 →</button>} />)}
         {shown === 3 && (step.current < 3 ? <Pending text="작업을 불러오면 실링 예열이 시작됩니다." />
@@ -305,7 +291,7 @@ function PowerStep({ session, power, onSessionInvalid, producing }: { session: S
 }
 
 /** Pick a released order not yet run and load it (LOAD_JOB through the work-order workflow). */
-function JobStep({ live, source, session, workflow, tracked, selectedOrder, onSelectOrder, onSessionInvalid, onOpenOrders, powerOn, previousSettled }: { live: LiveLine; source: Source; session: Session; workflow: WorkOrderWorkflow; tracked: TrackedCommand | null; selectedOrder: WorkOrder | null; onSelectOrder: (order: WorkOrder | null) => void; onSessionInvalid: () => void; onOpenOrders: () => void; powerOn: boolean; previousSettled: boolean }) {
+function JobStep({ live, source, session, workflow, tracked, selectedOrder, onSelectOrder, onSessionInvalid, onOpenOrders, powerOn, lineStatus }: { live: LiveLine; source: Source; session: Session; workflow: WorkOrderWorkflow; tracked: TrackedCommand | null; selectedOrder: WorkOrder | null; onSelectOrder: (order: WorkOrder | null) => void; onSessionInvalid: () => void; onOpenOrders: () => void; powerOn: boolean; lineStatus: LineStatus | undefined }) {
   const [orders, setOrders] = useState<WorkOrder[] | null>(null)
   const [revision, setRevision] = useState(0)
   const [confirmation, setConfirmation] = useState<(BindBody & { order_id: string; epoch: string }) | null>(null)
@@ -345,8 +331,9 @@ function JobStep({ live, source, session, workflow, tracked, selectedOrder, onSe
     ['원격 제어 모드', live.known('Line.ControlMode') === null ? null : live.known('Line.ControlMode') === 1],
     ['라인 정지 · 재공 0개', live.known('Line.State') === null ? null : values['Line.State'] === 0 && values['Line.WipCount'] === 0],
     ['데이터 정상 수집', live.blockedReason === ''],
-    ['직전 작업 정산 완료', previousSettled],
-    ['직전 요청 정리', !(workflow.attempt || (tracked && !(terminal(tracked.result) || tracked.phase === 'REJECTED')))],
+    ['직전 작업 정산 완료', lineStatus === undefined ? null : !lineStatus.run || lineStatus.run.settlement !== 'PENDING'],
+    // The server knows every stored command; only a request this screen has not heard back about adds to it.
+    ['직전 요청 정리', lineStatus === undefined ? null : !lineStatus.unresolved && !workflow.attempt && !(tracked && !(terminal(tracked.result) || tracked.phase === 'REJECTED'))],
   ]
   const reason = !allowed ? '이 계정은 작업을 불러올 권한이 없습니다.' : session.must_change_password ? '비밀번호를 먼저 변경해 주세요.'
     : checks.find(([, ok]) => ok !== true) ? `${checks.find(([, ok]) => ok !== true)![0]} 조건을 확인해야 합니다.`
@@ -382,7 +369,7 @@ function JobStep({ live, source, session, workflow, tracked, selectedOrder, onSe
       </div>}
     {reason && <p id="binding-reason" className="lc-reason">{reason}</p>}
     </>}
-    <LoadTracker source={source} workflow={workflow} onSessionInvalid={onSessionInvalid} />
+    {lineStatus?.unresolved && <p className="lc-hint" role="status">{lineStatus.unresolved.kind === 'LOAD_JOB' ? '작업 불러오기를 PLC가 처리하고 있습니다.' : '앞선 명령을 PLC가 처리하고 있습니다.'} ({lineStatus.unresolved.status})</p>}
   </div>
 }
 
