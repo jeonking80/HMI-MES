@@ -155,7 +155,9 @@ function JobCard({ live, source, session, workflow, tracked, selectedOrder, onSe
   const [revision, setRevision] = useState(0)
   const [confirmation, setConfirmation] = useState<(BindBody & { order_id: string; epoch: string }) | null>(null)
   const [autoEnd, setAutoEnd] = useState(true)
-  const [startWhenReady, setStartWhenReady] = useState(true)
+  // Starting on readiness needs operate permission; a production manager loads and an operator starts.
+  const canAutoStart = session.roles.includes('operator')
+  const [startWhenReady, setStartWhenReady] = useState(canAutoStart)
   useEffect(() => {
     const controller = new AbortController()
     mesRequest(`${mesPaths.order}?limit=50`, controller.signal).then(value => {
@@ -189,13 +191,14 @@ function JobCard({ live, source, session, workflow, tracked, selectedOrder, onSe
     {reason && order && <p id="binding-reason" className="lc-reason">{reason}</p>}
     <div className="lc-checks">
       <label><input id="binding-auto-end" type="checkbox" checked={autoEnd} onChange={event => setAutoEnd(event.target.checked)} /> 목표 도달 시 자동 종료</label>
-      <label><input id="binding-start-when-ready" type="checkbox" checked={startWhenReady} onChange={event => setStartWhenReady(event.target.checked)} /> 준비되면 자동 시작</label>
+      {canAutoStart && <label><input id="binding-start-when-ready" type="checkbox" checked={startWhenReady} onChange={event => setStartWhenReady(event.target.checked)} /> 준비되면 자동 시작</label>}
     </div>
+    {!canAutoStart && <p className="lc-hint">자동 시작은 운전원 권한이 필요합니다. 불러온 뒤 운전원이 "시작"을 누릅니다.</p>}
     {confirmation && <div className="lc-confirm" role="group" aria-label="작업 불러오기 확인">
       <strong>{order?.id}를 라인에 불러올까요?</strong>
-      <span>공정 설정과 목표 수량을 PLC로 보냅니다.{startWhenReady ? ' 예열이 끝나면 자동으로 운전을 시작합니다.' : ''}</span>
+      <span>공정 설정과 목표 수량을 PLC로 보냅니다.{canAutoStart && startWhenReady ? ' 예열이 끝나면 자동으로 운전을 시작합니다.' : ''}</span>
       {changed && <span className="lc-reason">확인하는 동안 라인·작업지시·제어 버전이 바뀌었습니다. 취소 후 다시 확인해 주세요.</span>}
-      <div><button id="binding-submit" type="button" className="lc-button primary" disabled={!!reason || !!changed} onClick={() => { if (!reason && !changed && order) { void workflow.submit('bind', { command_id: confirmation.command_id, line_id: confirmation.line_id, source_id: confirmation.source_id, stream_id: confirmation.stream_id, expected_work_order_version: confirmation.expected_work_order_version, expected_control_version: confirmation.expected_control_version, auto_end_at_target: autoEnd, start_when_ready: startWhenReady, work_order_id: confirmation.order_id, actor: session.login }, order); setConfirmation(null) } }}>불러오기 요청</button>
+      <div><button id="binding-submit" type="button" className="lc-button primary" disabled={!!reason || !!changed} onClick={() => { if (!reason && !changed && order) { void workflow.submit('bind', { command_id: confirmation.command_id, line_id: confirmation.line_id, source_id: confirmation.source_id, stream_id: confirmation.stream_id, expected_work_order_version: confirmation.expected_work_order_version, expected_control_version: confirmation.expected_control_version, auto_end_at_target: autoEnd, start_when_ready: canAutoStart && startWhenReady, work_order_id: confirmation.order_id, actor: session.login }, order); setConfirmation(null) } }}>불러오기 요청</button>
         <button id="binding-cancel-confirm" type="button" className="lc-button" onClick={() => setConfirmation(null)}>취소</button></div>
     </div>}
     <LoadTracker source={source} workflow={workflow} onSessionInvalid={onSessionInvalid} />
