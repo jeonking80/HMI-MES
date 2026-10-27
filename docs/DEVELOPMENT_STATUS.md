@@ -532,6 +532,13 @@ M1의 주요 독립 운전·권한·실제 생산 경로는 확인했지만, 원
 - 검증: web typecheck·lint·`test:screen` 100 통과·build(폴링 빌드 설정 동일). 공개 API에 중계한 로컬 빌드로 생산관리 계정 기준 실데이터 화면(LIVE·PLC 통신 정상·공정도 값·인터록·온도 추이·제어 창·운전 제어·탭·알람)을 캡처로 확인했다. 운전 명령 전송·작업 불러오기·생산 1회는 이 변경 뒤 아직 실행하지 않았다(운전원 권한 계정으로 확인 필요).
 - 남은 일: `scripts/check-operable-system.py`·`execution_browser_checks.py`·`line_alarm_browser_checks.py`·`check-app-a-browser.py`는 이전 화면 배치(라인 모니터링 안의 연결·명령 칸)를 전제로 하므로 화면 이동 경로 갱신이 필요하다. 갱신 전 결과는 통과로 보지 않는다.
 
+### 수집 영구 정체 수정 — 지워진 시각 프로브 (2026-10-27)
+
+- 증상: 04:31 UTC 이후 전송이 완전히 멈춰 화면이 “수집 지연”이 되고 작업 불러오기가 막혔다. 게이트웨이 맨 앞 배치(capture_seq 4933)가 `409 batch conflicts with stored content`로 21회 이상 거절되고 뒤 229개가 대기했다.
+- 원인: 전송이 잠깐 60초 넘게 밀리자 서버가 만료된 시각 프로브를 정리(삭제)했고, 늦게 온 배치는 “알 수 없는 프로브”로 `MeasuredClockConflict` → 409가 되었다. 설계상 60초 초과 측정은 시각 UNKNOWN(`MEASURED_EVIDENCE_STALE`)으로 받아야 하는데, 정리 후에는 영구 충돌로 바뀌어 게이트웨이가 그 배치에서 영원히 멈췄다.
+- 수정: `apps/api/measured_clock.py`에서 프로브 행이 없으면 충돌 대신 `MEASURED_PROBE_UNAVAILABLE`(시각 UNKNOWN)로 받아들인다. 확인할 수 없는 nonce로는 아무 시각도 인정하지 않으므로 불명을 정상으로 바꾸지 않는다. 다른 배치에 이미 쓰인 nonce·다른 범위·변조된 프로브는 여전히 409다.
+- 검증: 신규 통합 시험(프로브 삭제 후 제출 → 200·UNKNOWN·재시도 동일 영수증) 포함 `test_measured_clock`·`test_measured_clock_math`·`test_ingest_retention`·`test_internal_api`·`test_clock_runtime_grants` 통과, ruff 통과.
+
 ## 남은 요구사항 — 게이트웨이 장기 보관
 
 기존 무기한 로컬 보존 기준과15차7일/prefix 규칙은 사용자 승인16차 C안으로 변경됐다: 기본2시간(max_age 이상) 경과한 서버 확정 미참조 원장은 위치와 관계없이 삭제 구간 증거를 남겨 정리한다. 유실 근거·EVICTED·참조 원장은 유지하며 그 뒤의 적격 ACK도 정리한다. schema v3는 남은 원장+삭제 구간으로1..head를 정확히 검증한다.2시간 원장 약6.8MB는 평균 계획값이고 추가 주기·예외·유실 근거 증가까지 무한 고정 용량을 보장하지 않는다. 별도 서버 보관·재조회 B안(CX-27 §3)은 미구현이다.
