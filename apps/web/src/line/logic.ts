@@ -43,7 +43,7 @@ export function usePower(): { state: string | null; until: string | null } {
       setPower({ state: typeof body.reported_state === 'string' ? body.reported_state : null, until: typeof body.run_until === 'string' ? body.run_until : null })
     }).catch(() => undefined)
     void tick()
-    const timer = window.setInterval(() => void tick(), 5000)
+    const timer = window.setInterval(() => void tick(), 9000)
     return () => { controller.abort(); window.clearInterval(timer) }
   }, [])
   return power
