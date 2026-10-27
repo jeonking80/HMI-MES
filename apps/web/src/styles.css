@@ -254,6 +254,7 @@ input:disabled { background:#f1f4f7; }
 .rc-params strong { font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:1.8rem; }
 .rc-params small { font-family:var(--font-sans); font-size:.85rem; color:#5f7186; }
 .rc-next { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; padding-top:14px; border-top:1px solid #e4eaf0; }
+.item-search { font:inherit; min-height:40px; padding:0 12px; border-radius:10px; border:1px solid #c4cfdb; }
 .wo-board { display:flex; flex-direction:column; gap:14px; }
 .wo-filters { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
 .wo-filters [role='tab'] { font:inherit; font-size:.88rem; padding:7px 14px; border-radius:999px; border:1px solid #dce3ed; background:#fff; cursor:pointer; }
