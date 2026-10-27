@@ -1,4 +1,4 @@
-"""Authenticated work-order revision (cancel-and-replace), overview and history."""
+"""Authenticated in-place work-order edit, overview and history."""
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -6,9 +6,9 @@ from pydantic import TypeAdapter, ValidationError
 from starlette.concurrency import run_in_threadpool
 
 from apps.api.auth import AuthorizationError, UserAuth
-from apps.api.work_order_revise import (
-    RevisionIntent,
-    revise_work_order,
+from apps.api.work_order_edit import (
+    EditIntent,
+    edit_work_order,
     work_order_history,
     work_order_overview,
 )
@@ -16,12 +16,12 @@ from apps.api.work_orders import RegistrationConflict, RegistrationNotFound, Wor
 from contracts.models import Identifier
 
 
-def mount_work_order_revise_routes(app: FastAPI, auth: UserAuth, *, session_cookie="hmi_session"):
+def mount_work_order_edit_routes(app: FastAPI, auth: UserAuth, *, session_cookie="hmi_session"):
     async def mapped(operation):
         try:
             return await run_in_threadpool(operation)
         except RegistrationConflict as error:
-            raise HTTPException(409, f"work-order revision conflict: {error}") from None
+            raise HTTPException(409, f"work-order edit conflict: {error}") from None
         except RegistrationNotFound:
             raise HTTPException(404, "work order not found") from None
         except WorkOrdersUnavailable:
@@ -35,8 +35,8 @@ def mount_work_order_revise_routes(app: FastAPI, auth: UserAuth, *, session_cook
         except ValidationError:
             raise HTTPException(422, f"invalid {name}") from None
 
-    @app.post("/api/v1/work-order-actions/revise")
-    async def revise(request: Request):
+    @app.post("/api/v1/work-order-actions/edit")
+    async def edit(request: Request):
         work_order_id = query(request, "work_order_id")
         if (
             request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
@@ -47,14 +47,14 @@ def mount_work_order_revise_routes(app: FastAPI, auth: UserAuth, *, session_cook
             len(request.headers.getlist("origin")) != 1
             or len(request.headers.getlist("x-csrf-token")) != 1
         ):
-            raise AuthorizationError("revision mutation protection required")
+            raise AuthorizationError("edit mutation protection required")
         raw = await request.body()
         if len(raw) > 16_384:
-            raise HTTPException(413, "revision request too large")
+            raise HTTPException(413, "edit request too large")
         try:
-            definition = RevisionIntent.model_validate_json(raw)
+            definition = EditIntent.model_validate_json(raw)
         except ValidationError:
-            raise HTTPException(422, "invalid revision intent") from None
+            raise HTTPException(422, "invalid edit intent") from None
 
         def write():
             with auth.authorized_transaction(
@@ -63,7 +63,7 @@ def mount_work_order_revise_routes(app: FastAPI, auth: UserAuth, *, session_cook
                 csrf_token=request.headers.get("x-csrf-token"),
                 origin=request.headers.get("origin"),
             ) as tx:
-                return revise_work_order(
+                return edit_work_order(
                     tx.connection,
                     work_order_id,
                     definition,

@@ -1,11 +1,12 @@
-"""Work-order revision as cancel-and-replace, plus read-only order overview and history.
+"""In-place edit of unbound work orders, plus read-only order overview and history.
 
-A released order is never edited in place: queue and PLC evidence keep pointing at the
-original content. A revision cancels the unbound original and registers a new order in
-one transaction. The link is the cancellation ID ``REVISE-<new id>``, which stays in the
-original cancellation receipt, so no extra schema is needed.
+Content goes to the PLC only when an order is bound to an execution, so an unbound
+order (DRAFT or RELEASED, not queued) is edited in place. Every edit increments the row
+version, so a bind or queue entry prepared from older content is refused, and the
+before/after values stay in the MES audit trail. Bound orders are records and never change.
 """
 
+import json
 from collections.abc import Callable
 from datetime import date, datetime
 from typing import Annotated
@@ -14,58 +15,90 @@ from pydantic import BeforeValidator, Field, TypeAdapter
 from sqlalchemy import Connection, text
 
 from apps.api.auth import Principal
-from apps.api.work_order_cancel import CancellationIntent, cancel_work_order
-from apps.api.work_order_workflow import ReleaseIntent, _workflow_ready, release_work_order
+from apps.api.work_order_workflow import _event, _order_lock, _version, _workflow_ready
 from apps.api.work_orders import (
     RegistrationConflict,
     RegistrationNotFound,
-    WorkOrderDefinition,
+    WorkOrdersUnavailable,
     _date,
-    register_work_order,
+    _lock,
 )
 from contracts.conflict_codes import ConflictReason
-from contracts.models import ContractModel, Identifier, PositiveUInt64
+from contracts.models import ContractModel, Identifier, PositiveUInt64, UTCTimestamp
 
-REVISE_PREFIX = "REVISE-"
+EDIT_REVISIONS = frozenset({"0025_mes_edit_audit"})
 _ID = TypeAdapter(Identifier)
+_FIELDS = ("recipe_version_id", "target_quantity", "planned_date")
 
 
-class RevisionIntent(ContractModel):
-    new_work_order_id: Identifier
+class EditIntent(ContractModel):
+    edit_id: Identifier
+    expected_row_version: PositiveUInt64
     recipe_version_id: Identifier
     target_quantity: Annotated[int, Field(strict=True, gt=0, le=2**32 - 1)]
     planned_date: Annotated[date, BeforeValidator(_date)]
-    expected_row_version: PositiveUInt64
-    release_id: Identifier
 
 
-def _cancellation_id(new_id: str) -> str:
-    value = REVISE_PREFIX + new_id
-    if len(value) > 128:
-        raise RegistrationConflict("Revised work-order ID is too long")
-    return value
+def _content(row) -> dict:
+    return {
+        "recipe_version_id": row["recipe_version_id"],
+        "target_quantity": int(row["target_quantity"]),
+        "planned_date": row["planned_date"].isoformat(),
+    }
 
 
-def revise_work_order(
+def edit_work_order(
     db: Connection,
     identity: str,
-    definition: RevisionIntent,
+    definition: EditIntent,
     *,
     principal: Principal,
     clock: Callable[[], datetime],
 ) -> dict:
     identity = _ID.validate_python(identity)
-    definition = RevisionIntent.model_validate_json(definition.model_dump_json())
+    definition = EditIntent.model_validate_json(definition.model_dump_json())
     _workflow_ready(db, principal, "production_manage")
-    if definition.new_work_order_id == identity:
-        raise RegistrationConflict("Revision requires a new work-order ID")
-    original = (
-        db.execute(text("SELECT * FROM work_orders WHERE id=:id"), {"id": identity})
+    if db.execute(text("SELECT version_num FROM alembic_version")).scalar_one() not in (
+        EDIT_REVISIONS
+    ):
+        raise WorkOrdersUnavailable("Edit audit schema required")
+    after = {
+        "recipe_version_id": definition.recipe_version_id,
+        "target_quantity": definition.target_quantity,
+        "planned_date": definition.planned_date.isoformat(),
+    }
+    _lock(db, json.dumps(["mes-edit", identity, definition.edit_id], separators=(",", ":")))
+    previous = db.execute(
+        text(
+            "SELECT evidence FROM mes_management_audit WHERE action='EDIT_WORK_ORDER' "
+            "AND work_order_id=:id AND evidence->>'edit_id'=:edit"
+        ),
+        {"id": identity, "edit": definition.edit_id},
+    ).scalar_one_or_none()
+    if previous is not None:
+        # Exact replay of an applied edit returns its original receipt.
+        if previous["after"] != after or previous["expected_row_version"] != str(
+            definition.expected_row_version
+        ):
+            raise RegistrationConflict("Edit identity belongs to another intent")
+        return previous
+    _order_lock(db, identity)
+    order = (
+        db.execute(text("SELECT * FROM work_orders WHERE id=:id FOR UPDATE"), {"id": identity})
         .mappings()
-        .first()
+        .one()
     )
-    if original is None:
-        raise RegistrationNotFound("Work order not found")
+    if (
+        order["status"] not in {"DRAFT", "RELEASED"}
+        or db.execute(
+            text("SELECT 1 FROM work_order_execution_links WHERE work_order_id=:id"),
+            {"id": identity},
+        ).first()
+    ):
+        raise RegistrationConflict(
+            "Only unbound work orders can be edited",
+            reason_code=ConflictReason.STATE_NOT_ALLOWED,
+        )
     if db.execute(
         text("SELECT 1 FROM line_queue_entries WHERE work_order_id=:id AND state='WAITING'"),
         {"id": identity},
@@ -74,52 +107,49 @@ def revise_work_order(
             "Queued work order must leave the queue first",
             reason_code=ConflictReason.STATE_NOT_ALLOWED,
         )
-    released = (
-        db.execute(
-            text("SELECT 1 FROM work_order_releases WHERE work_order_id=:id"), {"id": identity}
-        ).first()
-        is not None
-    )
-    now = clock()
-    # Cancellation is idempotent by its ID and refuses bound or changed orders.
-    cancellation = cancel_work_order(
-        db,
-        identity,
-        CancellationIntent(
-            cancellation_id=_cancellation_id(definition.new_work_order_id),
-            expected_row_version=definition.expected_row_version,
-        ),
-        principal=principal,
-        clock=lambda: now,
-    )
-    order = register_work_order(
-        db,
-        WorkOrderDefinition(
-            id=definition.new_work_order_id,
-            item_id=original["item_id"],
-            line_id=original["line_id"],
-            recipe_version_id=definition.recipe_version_id,
-            target_quantity=definition.target_quantity,
-            planned_date=definition.planned_date,
-        ),
-        actor=principal.login,
-        now=now,
-    )
-    release = None
-    if released:
-        release = release_work_order(
-            db,
-            order.id,
-            ReleaseIntent(release_id=definition.release_id, expected_row_version=1),
-            principal=principal,
-            clock=lambda: now,
+    if int(order["row_version"]) != definition.expected_row_version:
+        raise RegistrationConflict(
+            "Edit requires the current work-order version",
+            reason_code=ConflictReason.WORK_ORDER_VERSION_CHANGED,
         )
-    return {
-        "original_work_order_id": identity,
-        "work_order_id": order.id,
-        "cancellation": cancellation,
-        "release": release,
+    recipe_item = db.execute(
+        text("SELECT item_id FROM recipe_versions WHERE id=:id"),
+        {"id": definition.recipe_version_id},
+    ).scalar_one_or_none()
+    if recipe_item is None:
+        raise RegistrationNotFound("Registered recipe version required")
+    if recipe_item != order["item_id"]:
+        raise RegistrationConflict("Recipe version belongs to another item")
+    before = _content(order)
+    if before == after:
+        raise RegistrationConflict("Edit changes nothing")
+    version = _version(order)
+    now = TypeAdapter(UTCTimestamp).validate_python(clock())
+    db.execute(
+        text(
+            "UPDATE work_orders SET recipe_version_id=:recipe,target_quantity=:target,"
+            "planned_date=:date,row_version=:version WHERE id=:id"
+        ),
+        {
+            "id": identity,
+            "recipe": definition.recipe_version_id,
+            "target": definition.target_quantity,
+            "date": definition.planned_date,
+            "version": version,
+        },
+    )
+    receipt = {
+        "edit_id": definition.edit_id,
+        "work_order_id": identity,
+        "edited_by": principal.login,
+        "edited_at": now.isoformat(),
+        "expected_row_version": str(definition.expected_row_version),
+        "row_version": str(version),
+        "before": before,
+        "after": after,
     }
+    _event(db, identity, principal.login, "EDIT_WORK_ORDER", now, receipt)
+    return receipt
 
 
 _OVERVIEW = """
@@ -127,7 +157,6 @@ SELECT w.id,w.item_id,w.line_id,w.recipe_version_id,w.target_quantity,w.planned_
  w.status,w.row_version,w.created_by,w.created_at,
  rel.released_at,rel.actor AS released_by,
  can.cancellation_id,can.cancelled_at,can.actor AS cancelled_by,
- rev.work_order_id AS revised_from,
  l.execution_id,l.source_id,l.stream_id,l.bound_at,l.bound_by,
  r.status AS settlement_status,r.final_summary,
  t.good_quantity,t.reject_quantity,
@@ -135,7 +164,6 @@ SELECT w.id,w.item_id,w.line_id,w.recipe_version_id,w.target_quantity,w.planned_
 FROM work_orders w
 LEFT JOIN work_order_releases rel ON rel.work_order_id=w.id
 LEFT JOIN work_order_cancellations can ON can.work_order_id=w.id
-LEFT JOIN work_order_cancellations rev ON rev.cancellation_id='REVISE-'||w.id
 LEFT JOIN work_order_execution_links l ON l.work_order_id=w.id
 LEFT JOIN run_reconciliations r ON r.execution_id=l.execution_id
 LEFT JOIN execution_totals t ON t.execution_id=l.execution_id
@@ -157,7 +185,6 @@ def _count(value):
 
 
 def _summary(row) -> dict:
-    cancellation = row["cancellation_id"]
     final = row["final_summary"] or {}
     return {
         "id": row["id"],
@@ -175,10 +202,6 @@ def _summary(row) -> dict:
         "released_by": row["released_by"],
         "cancelled_at": row["cancelled_at"].isoformat() if row["cancelled_at"] else None,
         "cancelled_by": row["cancelled_by"],
-        "revised_to": cancellation[len(REVISE_PREFIX) :]
-        if cancellation and cancellation.startswith(REVISE_PREFIX)
-        else None,
-        "revised_from": row["revised_from"],
         "queue_position": row["queue_position"],
         "execution": None
         if row["execution_id"] is None
@@ -215,6 +238,15 @@ def work_order_overview(db: Connection, *, line_id: str, principal: Principal) -
     return {"items": [_summary(row) for row in rows]}
 
 
+def _changes(evidence) -> list[dict]:
+    before, after = evidence.get("before", {}), evidence.get("after", {})
+    return [
+        {"field": field, "before": before.get(field), "after": after.get(field)}
+        for field in _FIELDS
+        if before.get(field) != after.get(field)
+    ]
+
+
 def work_order_history(db: Connection, identity: str, *, principal: Principal) -> dict:
     identity = _ID.validate_python(identity)
     _workflow_ready(db, principal, "read")
@@ -224,7 +256,7 @@ def work_order_history(db: Connection, identity: str, *, principal: Principal) -
     events = (
         db.execute(
             text(
-                "SELECT action,actor,occurred_at FROM mes_management_audit "
+                "SELECT action,actor,occurred_at,evidence FROM mes_management_audit "
                 "WHERE work_order_id=:id ORDER BY occurred_at,id"
             ),
             {"id": identity},
@@ -239,6 +271,9 @@ def work_order_history(db: Connection, identity: str, *, principal: Principal) -
                 "action": event["action"],
                 "actor": event["actor"],
                 "occurred_at": event["occurred_at"].isoformat(),
+                "changes": _changes(event["evidence"])
+                if event["action"] == "EDIT_WORK_ORDER"
+                else None,
             }
             for event in events
         ],

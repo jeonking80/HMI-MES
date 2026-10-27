@@ -1,0 +1,13 @@
+[
+ "SELECT pg_catalog.pg_advisory_xact_lock(843001)",
+ "SET LOCAL search_path = pg_catalog, public, pg_temp",
+ "DO $$ BEGIN IF current_database() <> 'neondb' THEN RAISE EXCEPTION 'unexpected database'; END IF; IF (SELECT count(*) FROM public.alembic_version) <> 1 OR NOT EXISTS (SELECT 1 FROM public.alembic_version WHERE version_num='0024_ingest_retired_segments') THEN RAISE EXCEPTION 'unexpected schema revision or database'; END IF; IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='hmi_migrator') OR NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='hmi_app') THEN RAISE EXCEPTION 'dedicated roles required'; END IF; IF (SELECT nspowner FROM pg_namespace WHERE nspname='public') IS DISTINCT FROM 'hmi_migrator'::regrole::oid OR NOT EXISTS (SELECT 1 FROM pg_class WHERE oid=to_regclass('public.alembic_version') AND relowner='hmi_migrator'::regrole::oid AND relkind='r') THEN RAISE EXCEPTION 'dedicated migrator ownership required'; END IF; END $$",
+ "SET LOCAL ROLE hmi_migrator",
+ "SET LOCAL search_path = public, pg_temp",
+ "ALTER TABLE public.mes_management_audit DROP CONSTRAINT mes_management_audit_action_check",
+ "ALTER TABLE public.mes_management_audit DROP CONSTRAINT mes_management_audit_check",
+ "ALTER TABLE public.mes_management_audit ADD CONSTRAINT mes_management_audit_action_check CHECK (action IN ('REGISTER_RECIPE','ARCHIVE_RECIPE','REGISTER_WORK_ORDER','RELEASE_WORK_ORDER','BIND_EXECUTION','CANCEL_WORK_ORDER','EDIT_WORK_ORDER'))",
+ "ALTER TABLE public.mes_management_audit ADD CONSTRAINT mes_management_audit_check CHECK ((action IN ('REGISTER_RECIPE','ARCHIVE_RECIPE') AND recipe_version_id IS NOT NULL AND work_order_id IS NULL) OR (action IN ('REGISTER_WORK_ORDER','RELEASE_WORK_ORDER','BIND_EXECUTION','CANCEL_WORK_ORDER','EDIT_WORK_ORDER') AND work_order_id IS NOT NULL AND recipe_version_id IS NULL))",
+ "SET LOCAL search_path = pg_catalog, public, pg_temp",
+ "UPDATE public.alembic_version SET version_num='0025_mes_edit_audit' WHERE version_num='0024_ingest_retired_segments'"
+]

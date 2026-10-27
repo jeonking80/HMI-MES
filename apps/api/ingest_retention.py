@@ -18,7 +18,8 @@ from apps.api.database import SCHEMA_LOCK_ID
 RETENTION_REVISION = "0022_ingest_retention"
 COMPACTION_REVISION = "0023_ingest_compaction"
 SEGMENTS_REVISION = "0024_ingest_retired_segments"
-COMPACTION_REVISIONS = frozenset({COMPACTION_REVISION, SEGMENTS_REVISION})
+SEGMENTS_REVISIONS = frozenset({SEGMENTS_REVISION, "0025_mes_edit_audit"})
+COMPACTION_REVISIONS = frozenset({COMPACTION_REVISION}) | SEGMENTS_REVISIONS
 RETENTION_REVISIONS = COMPACTION_REVISIONS | {RETENTION_REVISION}
 _LOG = logging.getLogger(__name__)
 _MAINTENANCE_LOCK = threading.Lock()
@@ -88,7 +89,7 @@ def check_retention_expired(connection, body) -> None:
             SELECT 1 FROM public.ingest_retention_ranges
             WHERE gateway_id=:gateway AND capture_generation=:generation
                 AND :capture BETWEEN from_capture_seq AND through_capture_seq"""
-        if revision == SEGMENTS_REVISION:
+        if revision in SEGMENTS_REVISIONS:
             query += """ UNION ALL
                 SELECT 1 WHERE public.retired_ingest_batch_exists(:gateway,:batch)"""
         else:
