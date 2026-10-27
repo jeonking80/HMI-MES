@@ -336,6 +336,8 @@ function JobStep({ live, source, session, workflow, tracked, selectedOrder, onSe
       </div>
       <ul className="cs-checks" aria-label="불러오기 조건">{checks.map(([label, ok]) => <li key={label} data-ok={ok === true ? 'yes' : ok === null ? 'unknown' : 'no'}>{ok === true ? '✓' : ok === null ? '?' : '✗'} {label}</li>)}</ul>
     </div>
+    {/* Nothing to load: the empty card above is the only action, no dead button. */}
+    {!(orders !== null && orders.length === 0 && !confirmation) && <>
     <div className="lc-checks">
       <label><input id="binding-auto-end" type="checkbox" checked={autoEnd} onChange={event => setAutoEnd(event.target.checked)} /> 목표 도달 시 자동 종료</label>
       {canAutoStart ? <label><input id="binding-start-when-ready" type="checkbox" checked={startWhenReady} onChange={event => setStartWhenReady(event.target.checked)} /> 예열 끝나면 자동 시작</label> : <span className="lc-hint">자동 시작은 작업자 권한이 필요합니다. 불러온 뒤 작업자가 시작합니다.</span>}
@@ -349,6 +351,7 @@ function JobStep({ live, source, session, workflow, tracked, selectedOrder, onSe
           <button id="binding-cancel-confirm" type="button" className="lc-button" onClick={() => setConfirmation(null)}>취소</button></div>
       </div>}
     {reason && <p id="binding-reason" className="lc-reason">{reason}</p>}
+    </>}
     <LoadTracker source={source} workflow={workflow} onSessionInvalid={onSessionInvalid} />
   </div>
 }
