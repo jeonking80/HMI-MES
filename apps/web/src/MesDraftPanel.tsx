@@ -75,6 +75,7 @@ const planningTabs: DraftsTab[] = ['recipes', 'items']
 export default function MesDraftPanel({ session, onSessionInvalid, workflow, cancellation, onSelectOrder, tab, onTab, onOpenControl, onOpenReports }: { onOpenControl: () => void; onOpenReports: () => void; tab: DraftsTab; onTab: (tab: DraftsTab) => void; session: Session; onSessionInvalid: () => void; workflow: WorkOrderWorkflow; cancellation: CancellationWorkflow; onSelectOrder: (order: WorkOrder) => void }) {
   const [chosenCancelOrder, setCancelOrder] = useState<WorkOrder | null>(null)
   const [orderFormOpen, setOrderFormOpen] = useState(false)
+  const [focusOrder, setFocusOrder] = useState<string | null>(null)
   const cancelOrder = cancellation.preparedOrder ?? chosenCancelOrder
   const cancelHeading = useRef<HTMLHeadingElement>(null)
   useEffect(() => { if (cancelOrder) cancelHeading.current?.focus() }, [cancelOrder])
@@ -213,6 +214,11 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
       void workflow.submit('release', { work_order_id: order.id, actor: session.login, release_id: crypto.randomUUID(), expected_row_version: order.row_version })
     }
     releaseAfterRegister.current = false
+    // A stored order closes the form and opens in the list, ready for the next one.
+    setAttempts(previous => ({ ...previous, order: null }))
+    setOrder(previous => ({ ...orderEmpty, line: previous.line, date: previous.date })); setOrderIdManual(false)
+    setOrderFormOpen(false)
+    setFocusOrder(order.id)
   }
   async function submit(kind: RegistrationKind, definition: Definition) {
     if (!canWrite || inFlight.current[kind] || locked(kind)) return
@@ -336,7 +342,7 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
       <h3 id="mes-orders-heading" className="sr-only">작업지시</h3>
       {cancelOrder && <div id="cancellation-confirmation" className="message caution" role="group" aria-labelledby="cancellation-confirm-heading"><h3 id="cancellation-confirm-heading" ref={cancelHeading} tabIndex={-1}>작업지시를 취소하시겠습니까?</h3><p>설비에 연결되지 않은 작업만 취소할 수 있습니다. 이미 설비에 연결되었거나 조회 후 내용이 변경된 작업은 취소할 수 없습니다.</p><p>라인 {lines?.find(line => line.id === cancelOrder.line_id)?.name ?? cancelOrder.line_id}</p><p>{cancelOrder.id} · {cancelOrder.item_id} · {cancelOrder.recipe_version_id} · 목표 {cancelOrder.target_quantity.toLocaleString('ko-KR')}개</p><p>취소 후 작성 중 상태로 되돌리지 않습니다. 설비 정지·작업 종료·연결된 실행 취소는 이 요청에 포함되지 않습니다.</p><button id="cancellation-submit" type="button" className="button danger" disabled={cancellation.blocked(cancelOrder.id)} onClick={() => { if (!cancellation.blocked(cancelOrder.id)) { void cancellation.submit(cancelOrder); setCancelOrder(null) } }}>작업지시 취소 요청</button><button id="cancellation-close-confirm" type="button" className="button secondary" onClick={closeCancellation}>확인 닫기</button></div>}
       {releaseOrder && <div id="release-confirmation" className="message caution" role="group" aria-label="작업지시 배포 확인"><p>작업지시 {releaseOrder.id}의 품목·공정 설정·목표 수량을 배포하시겠습니까? 배포 후 작성 중 상태로 되돌리는 기능은 제공하지 않습니다. 설비 운전은 시작되지 않습니다.</p><button id="release-submit" type="button" className="button primary" disabled={!!workflow.attempt || workflow.orderBlocked(releaseOrder.id)} onClick={() => { if (!workflow.attempt && !workflow.orderBlocked(releaseOrder.id)) { void workflow.submit('release', { work_order_id: releaseOrder.id, actor: session.login, release_id: crypto.randomUUID(), expected_row_version: releaseOrder.row_version }); setReleaseOrder(null) } }}>작업지시 배포 요청</button><button type="button" className="button secondary" onClick={() => setReleaseOrder(null)}>확인 닫기</button></div>}
-      <OrderBoard session={session} lines={lines} recipes={orderRecipeChoices} canWrite={canWrite} canBind={session.roles.some(role => ['operator', 'production_manager'].includes(role))} refreshKey={`${cancellation.ledger?.receipt?.cancellation_id ?? ''}|${workflow.released.count}|${choiceRevision}`} onSessionInvalid={onSessionInvalid} onRelease={setReleaseOrder} onCancel={setCancelOrder} onBind={onSelectOrder} onOpenControl={onOpenControl} onReports={onOpenReports} onNew={() => { setOrderFormOpen(true); reveal('mes-order-editor', 'mes-order-line') }} creating={orderFormOpen && canWrite} onCloseCreate={() => setOrderFormOpen(false)} createPanel={<div className="rc-card" id="mes-order-editor"><h3>새 작업지시</h3><p className="form-help">작업지시 ID는 예정일 기준으로 자동으로 붙습니다. "작성 중으로 저장"하면 배포 전까지 수정할 수 있습니다.</p>
+      <OrderBoard session={session} lines={lines} recipes={orderRecipeChoices} canWrite={canWrite} canBind={session.roles.some(role => ['operator', 'production_manager'].includes(role))} refreshKey={`${cancellation.ledger?.receipt?.cancellation_id ?? ''}|${workflow.released.count}|${choiceRevision}`} onSessionInvalid={onSessionInvalid} onRelease={setReleaseOrder} onCancel={setCancelOrder} onBind={onSelectOrder} onOpenControl={onOpenControl} onReports={onOpenReports} onNew={() => { setOrderFormOpen(true); reveal('mes-order-editor', 'mes-order-line') }} focusId={focusOrder} creating={orderFormOpen && canWrite} onCloseCreate={() => setOrderFormOpen(false)} createPanel={<div className="rc-card" id="mes-order-editor"><h3>새 작업지시</h3><p className="form-help">작업지시 ID는 예정일 기준으로 자동으로 붙습니다. "작성 중으로 저장"하면 배포 전까지 수정할 수 있습니다.</p>
         {validation.order && <p className="message error" role="alert">{validation.order}</p>}
         <form id="mes-order-form" onSubmit={submitOrder}><fieldset disabled={locked('order')}><legend className="sr-only">작성 중 작업지시 등록 내용</legend><div className="mes-form-grid">
           <div><span className="field-label">작업지시 ID (자동)</span><p id="mes-order-id" className="item-auto-id">{orderId}</p></div>

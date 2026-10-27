@@ -27,16 +27,19 @@ function progressOf(order: OrderSummary) {
   return '배포 전'
 }
 
-export default function OrderBoard({ session, lines, recipes, canWrite, canBind, refreshKey, onSessionInvalid, onRelease, onCancel, onBind, onOpenControl, onReports, onNew, isBlocked, creating, onCloseCreate, createPanel }: {
+export default function OrderBoard({ session, lines, recipes, canWrite, canBind, refreshKey, onSessionInvalid, onRelease, onCancel, onBind, onOpenControl, onReports, onNew, isBlocked, creating, onCloseCreate, createPanel, focusId = null }: {
   session: Session; lines: LineChoice[] | null; recipes: RecipeVersion[]; canWrite: boolean; canBind: boolean; refreshKey: string
   onSessionInvalid: () => void; onRelease: (order: WorkOrder) => void; onCancel: (order: WorkOrder) => void; onBind: (order: WorkOrder) => void
-  onOpenControl: () => void; onReports: () => void; onNew: () => void; isBlocked: (id: string) => boolean
+  onOpenControl: () => void; onReports: () => void; onNew: () => void; isBlocked: (id: string) => boolean; focusId?: string | null
   creating: boolean; onCloseCreate: () => void; createPanel: ReactNode
 }) {
   const [items, setItems] = useState<OrderSummary[] | null>(null)
   const [error, setError] = useState('')
   const [filter, setFilter] = useState<Filter>('WAITING')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // An order just registered elsewhere on this page is shown at once.
+  const [seenFocus, setSeenFocus] = useState<string | null>(null)
+  if (focusId && focusId !== seenFocus) { setSeenFocus(focusId); setSelectedId(focusId) }
   const [tick, setTick] = useState(0)
   const [history, setHistory] = useState<{ id: string; events: OrderEvent[] } | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
