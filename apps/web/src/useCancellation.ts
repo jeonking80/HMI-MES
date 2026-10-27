@@ -7,7 +7,7 @@ import type { CancellationIntent, CancellationLedger, CancellationReference, Can
 import type { WorkOrderMutationGuard } from './workOrderMutationGuard'
 
 /** App-owned memory. A lookup may verify an intent but can never authorize a POST retry. */
-export function useCancellation(session: Session | null, onSessionInvalid: () => void, guard: WorkOrderMutationGuard, knownLinked: (order: string) => boolean, onPrepared: () => void) {
+export function useCancellation(session: Session | null, onSessionInvalid: () => void, guard: WorkOrderMutationGuard, knownLinked: (order: string) => boolean, onPrepared: () => void, onConfirmed?: (workOrderId: string) => void) {
   const [ledger, setLedger] = useState<CancellationLedger | null>(null)
   const [history, setHistory] = useState<readonly CancellationLedger[]>([])
   const [busy, setBusy] = useState(false)
@@ -39,7 +39,7 @@ export function useCancellation(session: Session | null, onSessionInvalid: () =>
       const observation: CancellationObservation = { method: post ? 'POST' : 'GET', status: 200, outcome: 'HTTP', observed_at: new Date().toISOString() }
       const confirmed: CancellationLedger = freezeCancellation({ ...original, observations: [...original.observations, observation], reference: original.reference, intent: parsed.intent, receipt: parsed.receipt, phase: 'CONFIRMED' as const, message: '작업지시 취소 기록을 확인했습니다. 설비 정지·실행 종료·예약 해제를 수행한 것이 아닙니다.' })
       // Our own confirmed cancellation is done; keep it in the session history instead of an open ledger.
-      if (parsed.intent.actor === session.login) { setHistory(previous => Object.freeze([...previous, confirmed])); setLedger(null) } else setLedger(confirmed)
+      if (parsed.intent.actor === session.login) { setHistory(previous => Object.freeze([...previous, confirmed])); setLedger(null); onConfirmed?.(reference.work_order_id) } else setLedger(confirmed)
     } catch (cause) {
       const status = cause instanceof MesHTTPError ? cause.status : 0
       const confirmed = post && cause instanceof CancellationRejection && !controller.signal.aborted && generation === currentGeneration.current
