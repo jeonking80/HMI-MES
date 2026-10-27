@@ -51,6 +51,7 @@ const time = (value: string | null | undefined) => value ? new Date(value).toLoc
 
 function usePowerState(onSessionInvalid: () => void) {
   const [power, setPower] = useState<Power | null>(null)
+  const [seenAt, setSeenAt] = useState(0)
   const [managed, setManaged] = useState(true)
   const [error, setError] = useState(false)
   const load = useCallback(async (signal?: AbortSignal) => {
@@ -58,18 +59,33 @@ function usePowerState(onSessionInvalid: () => void) {
     if (response.status === 401 || response.status === 403) { onSessionInvalid(); return }
     if (response.status === 404) { setManaged(false); return }
     if (!response.ok) throw new Error('runtime control unavailable')
-    setPower(await response.json() as Power); setError(false)
+    setPower(await response.json() as Power); setSeenAt(Date.now()); setError(false)
   }, [onSessionInvalid])
+  const state = !managed ? 'NOT_MANAGED' : error ? 'UNKNOWN' : power ? (power.agent_online ? power.reported_state : 'UNKNOWN') : null
+  // A request the host has not finished yet: ON not yet RUNNING, or OFF not yet OFF.
+  // A start that fails is retried by the host, so an early ERROR is still "turning on".
+  const wantOn = power?.desired === 'ON'
+  const kind: 'starting' | 'stopping' | null = !power || !managed || state === 'UNKNOWN' ? null
+    : wantOn && ['OFF', 'STARTING', 'STOPPING', 'ERROR'].includes(state ?? '') ? 'starting'
+      : !wantOn && ['RUNNING', 'STARTING', 'STOPPING'].includes(state ?? '') ? 'stopping' : null
+  const [transition, setTransition] = useState<{ kind: 'starting' | 'stopping'; at: number } | null>(null)
+  if ((transition?.kind ?? null) !== kind) setTransition(kind ? { kind, at: seenAt } : null)
+  const [now, setNow] = useState(seenAt)
   useEffect(() => {
     const controller = new AbortController()
     const tick = () => { load(controller.signal).catch(() => { if (!controller.signal.aborted) setError(true) }) }
     tick()
-    // Side reads stay off the 1 s screen poll's beat: few, slow and staggered (see POLL_* below).
-    const timer = window.setInterval(tick, POLL_POWER_MS)
-    return () => { controller.abort(); window.clearInterval(timer) }
-  }, [load])
-  const state = !managed ? 'NOT_MANAGED' : error ? 'UNKNOWN' : power ? (power.agent_online ? power.reported_state : 'UNKNOWN') : null
-  return { power, state, managed, reload: load, setPower }
+    // Side reads stay off the 1 s screen poll's beat: few, slow and staggered (see POLL_* below);
+    // while the host is switching, follow it closely so the screen shows when it is done.
+    const timer = window.setInterval(tick, kind ? 2000 : POLL_POWER_MS)
+    const clock = kind ? window.setInterval(() => setNow(Date.now()), 1000) : undefined
+    return () => { controller.abort(); window.clearInterval(timer); if (clock) window.clearInterval(clock) }
+  }, [load, kind])
+  const elapsed = transition ? Math.max(0, Math.round((Math.max(now, seenAt) - transition.at) / 1000)) : 0
+  // Past the host's own retries an error is real, not a slow start.
+  const failed = kind === 'starting' && state === 'ERROR' && elapsed > 150
+  const accept = useCallback((value: Power) => { setPower(value); setSeenAt(Date.now()) }, [])
+  return { power, state, managed, reload: load, setPower: accept, switching: failed ? null : kind, elapsed }
 }
 
 function useActiveRun(source: Source, executionId: string | null, onSessionInvalid: () => void): ActiveRun | null | undefined {
@@ -163,7 +179,7 @@ function LiveControl({ live, source, session, onSessionInvalid, workflow, tracke
   const stateOfStep = (n: Step): StepState => n < step.current ? 'done' : n > step.current ? (n === 5 && step.current === 2 && run && run.settlement !== 'PENDING' ? 'done' : 'todo') : step.fault ? 'bad' : step.unknown ? 'unknown' : 'current'
   const speed = known('Sealer.ActualSpeed')
   const summaries: Record<Step, [string, string]> = {
-    1: [powerText[power.state ?? 'UNKNOWN'] ?? '확인 중', power.power?.desired === 'ON' && power.power.run_until ? `${time(power.power.run_until)} 자동 꺼짐` : '설비 호스트'],
+    1: [power.switching === 'starting' ? '켜는 중…' : power.switching === 'stopping' ? '끄는 중…' : powerText[power.state ?? 'UNKNOWN'] ?? '확인 중', power.power?.desired === 'ON' && power.power.run_until ? `${time(power.power.run_until)} 자동 꺼짐` : '설비 호스트'],
     2: step.current > 2 && run ? [`${run.workOrderId.replace(/^WO-\d{8}-/, 'WO-')} 불러옴`, `${time(run.registeredAt)}${run.loadedBy ? ` · ${run.loadedBy}` : ''}`] : ['작업을 불러오세요', '작업지시 선택'],
     3: step.current > 3 ? ['예열 완료', run?.startWhenReady ? '자동 시작' : '시작함'] : step.current === 3 ? [`${numberOr(known('Sealer.TemperaturePV'), 1)} / ${numberOr(known('Sealer.TemperatureSP'), 0)} ℃`, known('Sealer.Ready') === true ? '준비 완료' : '예열 중'] : ['대기', '작업을 불러오면 시작'],
     4: step.current >= 4 ? [`양품 ${made.good ?? '—'} / ${made.target ?? '—'}`, `불량 ${made.reject ?? '—'} · ${typeof speed === 'number' ? speed.toFixed(1) : '—'} m/min`] : ['대기', '예열 후 시작'],
@@ -266,19 +282,20 @@ function PowerStep({ session, power, onSessionInvalid, producing }: { session: S
       if (response.status === 401 || response.status === 403) { onSessionInvalid(); return }
       if (!response.ok) throw new Error('rejected')
       power.setPower(await response.json() as Power)
-      setMessage(action === 'start' ? (on ? '자동 꺼짐 시각을 60분 뒤로 늦췄습니다.' : '켜기 요청을 보냈습니다. 보통 30초~1분 걸립니다.') : '끄기 요청을 보냈습니다.')
+      setMessage(action === 'start' && on ? '자동 꺼짐 시각을 60분 뒤로 늦췄습니다.' : '')
     } catch { setMessage('요청 결과를 확인하지 못했습니다. 잠시 뒤 상태를 다시 확인해 주세요.') } finally { setBusy(false) }
   }
   const p = power.power
   const on = p?.desired === 'ON'
   const state = power.state ?? 'UNKNOWN'
   return <div id="runtime-power" className="cs-step" data-state={state}>
-    <Facts rows={[['상태', powerText[state] ?? state], ['자동 꺼짐', on && p?.run_until ? new Date(p.run_until).toLocaleTimeString('ko-KR') : '—'], ...(state === 'ERROR' && p?.reported_detail ? [['오류', p.reported_detail] as [string, string]] : [])]} />
-    <p id="runtime-power-state" className="sr-only" role="status">{powerText[state] ?? state}</p>
+    <Facts rows={[['상태', power.switching === 'starting' ? '켜는 중' : power.switching === 'stopping' ? '끄는 중' : powerText[state] ?? state], ['자동 꺼짐', on && p?.run_until ? new Date(p.run_until).toLocaleTimeString('ko-KR') : '—'], ...(state === 'ERROR' && !power.switching && p?.reported_detail ? [['오류', p.reported_detail] as [string, string]] : [])]} />
+    <p id="runtime-power-state" className="sr-only" role="status">{power.switching === 'starting' ? '켜는 중' : power.switching === 'stopping' ? '끄는 중' : powerText[state] ?? state}</p>
+    {(busy || power.switching) && <div className="cs-progress" role="status"><span className="cs-spinner" aria-hidden="true" /><span><strong>{busy ? '요청을 보내고 있습니다…' : power.switching === 'starting' ? '설비를 켜는 중입니다…' : '설비를 끄는 중입니다…'}</strong><small>{busy ? '' : `${power.elapsed}초 경과 · ${power.switching === 'starting' ? '보통 30초~1분 걸립니다' : '보통 10초 안팎 걸립니다'}${power.switching === 'starting' && state === 'ERROR' ? ' · 시작에 실패해 자동으로 다시 시도하고 있습니다' : ''}`}</small></span></div>}
     {canChange ? <div className="cs-actions">
-      {!on && <button id="runtime-power-start" type="button" className="lc-button primary big" disabled={busy} onClick={() => void change('start')}>설비 켜기<small>60분 뒤 자동으로 꺼집니다</small></button>}
-      {on && <button type="button" className="lc-button big" disabled={busy} onClick={() => void change('start')}>60분 연장<small>자동 꺼짐을 지금부터 60분 뒤로</small></button>}
-      {on && <button id="runtime-power-stop" type="button" className="lc-button danger big" disabled={busy || producing} title={producing ? '생산 중에는 끌 수 없습니다' : undefined} onClick={() => void change('stop')}>설비 끄기<small>{producing ? '생산 중에는 끌 수 없습니다. 먼저 작업을 종료하세요' : '시뮬레이터와 게이트웨이를 멈춥니다'}</small></button>}
+      {!on && <button id="runtime-power-start" type="button" className="lc-button primary big" disabled={busy || !!power.switching} onClick={() => void change('start')}>설비 켜기<small>60분 뒤 자동으로 꺼집니다</small></button>}
+      {on && <button type="button" className="lc-button big" disabled={busy || !!power.switching} onClick={() => void change('start')}>60분 연장<small>자동 꺼짐을 지금부터 60분 뒤로</small></button>}
+      {on && <button id="runtime-power-stop" type="button" className="lc-button danger big" disabled={busy || producing || !!power.switching} title={producing ? '생산 중에는 끌 수 없습니다' : undefined} onClick={() => void change('stop')}>설비 끄기<small>{producing ? '생산 중에는 끌 수 없습니다. 먼저 작업을 종료하세요' : '시뮬레이터와 게이트웨이를 멈춥니다'}</small></button>}
     </div> : <p className="lc-hint">설비 전원은 설비 관리자만 켜고 끌 수 있습니다.</p>}
     {message && <p className="lc-hint" role="status">{message}</p>}
   </div>

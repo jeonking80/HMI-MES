@@ -308,3 +308,11 @@
 .cs-result { padding-top:14px; border-top:1px solid #e4eaf0; }
 .cs-result h4 { margin:0 0 8px; font-size:.88rem; }
 @media (max-width: 980px) { .cs-bar ol { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+
+/* Power switching: a visible, moving "in progress" state instead of a silent wait. */
+.cs-progress { display:flex; align-items:center; gap:12px; padding:14px 16px; border-radius:12px; background:#eef5fb; color:#1f4766; }
+.cs-progress span:last-child { display:flex; flex-direction:column; gap:2px; }
+.cs-progress small { color:#5f7186; }
+.cs-spinner { flex:0 0 22px; width:22px; height:22px; border-radius:50%; border:3px solid #c7dbee; border-top-color:#215e91; animation:cs-spin .8s linear infinite; }
+@keyframes cs-spin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .cs-spinner { animation-duration:2.4s; } }
