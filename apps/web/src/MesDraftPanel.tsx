@@ -8,6 +8,7 @@ import type { CancellationWorkflow } from './useCancellation'
 import { conflictMessage } from './conflictReasons'
 import LineQueuePanel from './LineQueuePanel'
 import OrderBoard from './orders/OrderBoard'
+import ItemsPanel from './items/ItemsPanel'
 import { DEFAULT_PARAMETERS, DEFAULT_TARGET, knownItems, parameterProblem, recipeGroups, SPEED_RANGE, suggestOrderId, suggestRecipe, TEMPERATURE_RANGE, todayKst } from './mesAutofill'
 
 interface Attempt {
@@ -66,8 +67,9 @@ function useAll<T>(path: string, parse: (value: unknown) => Page<T>, refreshKey:
   return state
 }
 
-export type DraftsTab = 'recipes' | 'orders' | 'queue'
-const tabs: { id: DraftsTab; label: string }[] = [{ id: 'recipes', label: '공정 설정' }, { id: 'orders', label: '작업지시' }, { id: 'queue', label: '작업 대기열' }]
+export type DraftsTab = 'recipes' | 'items' | 'orders' | 'queue'
+const tabs: { id: DraftsTab; label: string }[] = [{ id: 'recipes', label: '공정 설정' }, { id: 'items', label: '품목' }, { id: 'orders', label: '작업지시' }, { id: 'queue', label: '작업 대기열' }]
+const planningTabs: DraftsTab[] = ['recipes', 'items']
 
 export default function MesDraftPanel({ session, onSessionInvalid, workflow, cancellation, onSelectOrder, tab, onTab, onOpenControl, onOpenReports }: { onOpenControl: () => void; onOpenReports: () => void; tab: DraftsTab; onTab: (tab: DraftsTab) => void; session: Session; onSessionInvalid: () => void; workflow: WorkOrderWorkflow; cancellation: CancellationWorkflow; onSelectOrder: (order: WorkOrder) => void }) {
   const [chosenCancelOrder, setCancelOrder] = useState<WorkOrder | null>(null)
@@ -327,7 +329,7 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
   const released = workflow.attempt?.kind === 'release' && workflow.attempt.phase === 'confirmed' ? workflow.attempt.intent.work_order_id : null
   return <section id="mes-drafts" className="mes-panel" aria-labelledby="mes-heading">
     <h2 id="mes-heading" className="sr-only">공정 설정 · 작업지시</h2>
-    {tab !== 'recipes' && <div className="mes-tabs" role="tablist" aria-label="작업지시 보기">{tabs.filter(item => item.id !== 'recipes').map(item => <button key={item.id} id={`mes-tab-${item.id}`} type="button" role="tab" aria-selected={tab === item.id} aria-controls={item.id === 'queue' ? 'mes-queue' : `mes-${item.id}`} onClick={() => onTab(item.id)}>{item.label}</button>)}</div>}
+    <div className="mes-tabs" role="tablist" aria-label={planningTabs.includes(tab) ? '공정 설정 보기' : '작업지시 보기'}>{tabs.filter(item => planningTabs.includes(item.id) === planningTabs.includes(tab)).map(item => <button key={item.id} id={`mes-tab-${item.id}`} type="button" role="tab" aria-selected={tab === item.id} aria-controls={item.id === 'queue' ? 'mes-queue' : `mes-${item.id}`} onClick={() => onTab(item.id)}>{item.label}</button>)}</div>
     {!canWrite && <p className="message caution">현재 계정은 등록된 내용을 조회할 수 있습니다. 공정 설정과 작업지시 등록은 생산 담당자가 진행합니다.</p>}
     <section id="mes-recipes" className="mes-card" aria-labelledby="mes-recipes-heading" hidden={tab !== 'recipes'}>
       <h3 id="mes-recipes-heading" className="sr-only">공정 설정</h3>
@@ -383,6 +385,7 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
         <AttemptResult kind="order" attempt={attempts.order} checking={checking.order} onLookup={() => void lookup('order')} onReset={() => reset('order')} />
       </details>}
     </section>
+    <section id="mes-items" className="mes-card" aria-label="품목" hidden={tab !== 'items'}><ItemsPanel session={session} canWrite={canWrite} items={masterItems} loaded={masterLoaded} recipes={allRecipes} orders={allOrders} onChanged={() => setChoiceRevision(value => value + 1)} onNewRecipe={item => { onTab('recipes'); resetRecipe(); chooseItem(item); setRecipeMode('edit'); reveal('mes-recipe-form', 'mes-recipe-temperature') }} /></section>
     <div id="mes-queue" hidden={tab !== 'queue'}><LineQueuePanel session={session} orders={allOrders} onSessionInvalid={onSessionInvalid} /></div>
   </section>
 }
