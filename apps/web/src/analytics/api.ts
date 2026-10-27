@@ -23,10 +23,17 @@ function list(value: unknown, limit = 20_000): unknown[] {
   need(Array.isArray(value) && value.length <= limit)
   return value as unknown[]
 }
-/** Mirrors contracts.models.Identifier: 1-128 characters, no whitespace, any script. */
-const identifier = (value: unknown): value is string => typeof value === 'string' && /^\S+$/u.test(value) && [...value].length <= 128
+/** Mirrors contracts.models.Identifier with the backend's (Python) whitespace set, not JS \s (same as screenState). */
+const backendWhitespace = new Set([9, 10, 11, 12, 13, 32, 133, 160, 5760, ...Array.from({ length: 11 }, (_, index) => 8192 + index), 8232, 8233, 8239, 8287, 12288])
+const identifier = (value: unknown): value is string => typeof value === 'string' && value.length >= 1 && [...value].length <= 128
+  && [...value].every(point => !backendWhitespace.has(point.codePointAt(0)!))
 export const isTime = (value: unknown): value is string => typeof value === 'string'
   && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|\+00:00)$(?![\s\S])/.test(value) && Number.isFinite(Date.parse(value))
+/** Microseconds since the epoch: the server keeps µs, Date.parse drops below 1 ms. */
+const micros = (value: string) => {
+  const fraction = /\.(\d+)/.exec(value)?.[1] ?? ''
+  return Date.parse(value.replace(/\.\d+/, '')) * 1000 + Number(fraction.padEnd(6, '0').slice(0, 6))
+}
 const nullableTime = (value: unknown): value is string | null => value === null || isTime(value)
 const date = (value: unknown): value is string => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$(?![\s\S])/.test(value)
 /** UInt64 quantities travel as decimal strings to keep full precision. */
@@ -215,11 +222,11 @@ export interface Timeline { execution_id: string; from: string; to: string; segm
 export function parseTimeline(value: unknown): Timeline {
   const root = record(value, ['execution_id', 'from', 'to', 'segments', 'durations_seconds', 'check_ok'])
   need(identifier(root.execution_id) && isTime(root.from) && isTime(root.to) && typeof root.check_ok === 'boolean')
-  let cursor = Date.parse(root.from)
-  const segments = list(root.segments, 5000).map(raw => {
+  let cursor = micros(root.from)
+  const segments = list(root.segments, 100_000).map(raw => {
     const segment = record(raw, ['from', 'to', 'class', 'state', 'fault_code', 'stop_reason'])
-    need(isTime(segment.from) && isTime(segment.to) && Date.parse(segment.from) >= cursor && Date.parse(segment.from) < Date.parse(segment.to))
-    cursor = Date.parse(segment.to)
+    need(isTime(segment.from) && isTime(segment.to) && micros(segment.from) >= cursor && micros(segment.from) < micros(segment.to))
+    cursor = micros(segment.to)
     need(['RUNNING', 'STOPPED', 'UNKNOWN'].includes(segment.class as string))
     need(segment.state === null || identifier(segment.state))
     need(segment.fault_code === null || count(segment.fault_code))
@@ -238,7 +245,7 @@ export function parseTimeline(value: unknown): Timeline {
       fault_code: segment.fault_code as number | null, stop_reason: reason, unknown_reason: unknownReason as string | null,
     }
   })
-  need(cursor <= Date.parse(root.to))
+  need(cursor <= micros(root.to))
   return { execution_id: root.execution_id, from: root.from, to: root.to, segments, durations_seconds: durations(root.durations_seconds), check_ok: root.check_ok }
 }
 
@@ -256,7 +263,7 @@ export function parseDailyReport(value: unknown): DailyReport {
   const stopped = record(root.stopped_by_reason, [])
   need(Object.entries(stopped).every(([key, amount]) => identifier(key) && seconds(amount)))
   need(count(root.unacknowledged_alarms) && typeof root.provisional === 'boolean')
-  const executions = list(root.executions, 1000).map(item => { need(identifier(item)); return item as string })
+  const executions = list(root.executions, 20_000).map(item => { need(identifier(item)); return item as string })
   return {
     date: root.date, from: root.from, to: root.to, durations_seconds: durations(root.durations_seconds),
     running_ratio: root.running_ratio, unknown_ratio: root.unknown_ratio, stopped_by_reason: stopped as Record<string, number>,

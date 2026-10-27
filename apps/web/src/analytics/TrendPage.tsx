@@ -4,7 +4,7 @@ import type { PointQuality, Trend, TrendSeries } from './api'
 import { Legend, TimeSeriesChart } from './charts'
 import { SERIES_COLORS } from './scale'
 import type { ChartSeries } from './charts'
-import { alignedEnd, analogTags, clock, dateTime, focusWindow, MISSING, tagLabels } from './format'
+import { alignedEnd, analogTags, clock, dateTime, focusWindow, MISSING, tagLabels, secondClock } from './format'
 import { useResource, useSources } from './hooks'
 import type { Source } from './hooks'
 import { Card, ChartOrTable, EmptyState, PageNotice, RefreshStatus, ScopePicker } from './ui'
@@ -149,7 +149,7 @@ export default function TrendPage({ scope, onScope, onSessionInvalid }: { scope:
             table={<table className="data-table">
               <thead><tr><th scope="col">시각</th>{series.map(item => <th key={item.tag_id} scope="col">{tagLabels[item.tag_id]} ({unit})</th>)}<th scope="col">품질</th></tr></thead>
               <tbody>{series[0].points.map((point, index) => <tr key={point.t}>
-                <th scope="row">{clock(point.t)}</th>
+                <th scope="row">{Date.parse(data.to) - Date.parse(data.from) > 86_400_000 ? dateTime(point.t) : data.resolution === 'second' ? secondClock(point.t) : clock(point.t)}</th>
                 {series.map(item => <td key={item.tag_id}>{item.points[index]?.value ?? MISSING}</td>)}
                 <td>{series.map(item => qualityLabels[item.points[index]?.quality ?? 'MISSING']).join(' / ')}</td>
               </tr>)}</tbody>

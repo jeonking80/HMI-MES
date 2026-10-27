@@ -5,7 +5,7 @@ import type { DowntimeReasonBody, ExecutionReport, Segment } from './api'
 import { Legend, ShareBar, StackedBars, StateTimeline } from './charts'
 import { SERIES_COLORS } from './scale'
 import type { TimelineSegment } from './charts'
-import { clock, dateTime, duration, hourLabel, lineStateLabels, percent, quantity, seoulToday, settlementLabels, unknownReasonLabels } from './format'
+import { clock, dateTime, duration, hourLabel, lineStateLabels, percent, quantity, seoulToday, settlementLabels, unknownReasonLabels, secondClock } from './format'
 import { useResource, useSources } from './hooks'
 import type { Source } from './hooks'
 import { Badge, Card, ChartOrTable, EmptyState, KpiTile, PageNotice, ProvisionalBadge, RefreshStatus, ScopePicker } from './ui'
@@ -17,6 +17,7 @@ function daysAgo(day: string, days: number) {
   date.setUTCDate(date.getUTCDate() - days)
   return date.toISOString().slice(0, 10)
 }
+const MAX_RANGE_DAYS = 93
 /** Seoul calendar day [start, end) as UTC instants. */
 function seoulRange(fromDay: string, toDay: string) {
   const start = new Date(`${fromDay}T00:00:00+09:00`)
@@ -57,15 +58,16 @@ function ExecutionReports({ session, scope, onScope, onSessionInvalid }: Props) 
   const [fromDay, setFromDay] = useState(daysAgo(today, 6))
   const [toDay, setToDay] = useState(today)
   const [selected, setSelected] = useState<ExecutionReport | null>(null)
-  const range = seoulRange(fromDay, toDay)
+  // The server accepts at most 93 days per query; clamp a typed start date to that window.
+  const range = seoulRange(fromDay < daysAgo(toDay, MAX_RANGE_DAYS - 1) ? daysAgo(toDay, MAX_RANGE_DAYS - 1) : fromDay, toDay)
   const params = scope ? { line_id: scope.line_id, from: range.from, to: range.to } : null
   const reports = useResource(params ? query('/api/v1/reports/executions', { ...params, limit: '50' }) : null, parseExecutionReports, onSessionInvalid)
   const items = reports.data?.items ?? []
   return <>
     <div className="filter-row">
       <ScopePicker id="report-scope" sources={sources.data} value={scope} onChange={value => { onScope(value); setSelected(null) }} />
-      <div className="filter-field"><label className="filter-label" htmlFor="report-from">시작일</label><input id="report-from" type="date" value={fromDay} max={toDay} onChange={event => { if (event.target.value) { setFromDay(event.target.value); setSelected(null) } }} /></div>
-      <div className="filter-field"><label className="filter-label" htmlFor="report-to">종료일</label><input id="report-to" type="date" value={toDay} min={fromDay} max={today} onChange={event => { if (event.target.value) { setToDay(event.target.value); setSelected(null) } }} /></div>
+      <div className="filter-field"><label className="filter-label" htmlFor="report-from">시작일</label><input id="report-from" type="date" value={fromDay} min={daysAgo(toDay, MAX_RANGE_DAYS - 1)} max={toDay} onChange={event => { if (event.target.value) { setFromDay(event.target.value); setSelected(null) } }} /></div>
+      <div className="filter-field"><label className="filter-label" htmlFor="report-to">종료일</label><input id="report-to" type="date" value={toDay} min={fromDay} max={today} onChange={event => { if (event.target.value) { setToDay(event.target.value); if (fromDay < daysAgo(event.target.value, MAX_RANGE_DAYS - 1)) setFromDay(daysAgo(event.target.value, MAX_RANGE_DAYS - 1)); setSelected(null) } }} /></div>
       <RefreshStatus loading={reports.loading} updatedAt={reports.updatedAt} onRefresh={reports.refresh} />
       {params && <a className="button secondary compact download" href={query('/api/v1/reports/executions.csv', params)} download>CSV 내려받기</a>}
     </div>
@@ -122,7 +124,7 @@ function ExecutionDetail({ report, scope: selectedScope, session, onSessionInval
       <div className="table-scroll"><table className="data-table">
         <thead><tr><th scope="col">구간</th><th scope="col">분류</th><th scope="col">길이</th><th scope="col">정지 사유</th></tr></thead>
         <tbody>{data.segments.filter(item => item.class !== 'RUNNING').map(item => <tr key={item.from} className={segmentKey === item.from ? 'is-selected' : ''}>
-          <th scope="row">{clock(item.from)} ~ {clock(item.to)}</th>
+          <th scope="row">{secondClock(item.from)} ~ {secondClock(item.to)}</th>
           <td>{segmentLabel(item)}</td>
           <td>{duration((Date.parse(item.to) - Date.parse(item.from)) / 1000)}</td>
           <td>{item.class === 'STOPPED'
@@ -163,7 +165,7 @@ function StopReasonEditor({ segment, report, scope, session, canAnnotate, onSave
     setPending(body)
     void submit(body)
   }}>
-    <h3>정지 사유 · {clock(segment.from)} ~ {clock(segment.to)}</h3>
+    <h3>정지 사유 · {secondClock(segment.from)} ~ {secondClock(segment.to)}</h3>
     {segment.stop_reason && <p className="card-note">현재: {reasonLabel(segment.stop_reason.code)} · {segment.stop_reason.recorded_by} · {dateTime(segment.stop_reason.recorded_at)}</p>}
     <fieldset disabled={!canAnnotate || busy}>
       <div className="reason-options" role="radiogroup" aria-label="정지 사유">

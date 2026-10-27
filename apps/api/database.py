@@ -36,6 +36,7 @@ SUPPORTED_AUTH_REVISIONS = frozenset(
         "0023_ingest_compaction",
         "0024_ingest_retired_segments",
         "0025_mes_edit_audit",
+        "0026_queue_reenroll",
     }
 )
 SUPPORTED_INGESTION_REVISIONS = SUPPORTED_AUTH_REVISIONS | {"0002_ingestion"}
@@ -63,6 +64,7 @@ SUPPORTED_COMMAND_REVISIONS = frozenset(
         "0023_ingest_compaction",
         "0024_ingest_retired_segments",
         "0025_mes_edit_audit",
+        "0026_queue_reenroll",
     }
 )
 SUPPORTED_SETTLEMENT_REVISIONS = frozenset(
@@ -87,6 +89,7 @@ SUPPORTED_SETTLEMENT_REVISIONS = frozenset(
         "0023_ingest_compaction",
         "0024_ingest_retired_segments",
         "0025_mes_edit_audit",
+        "0026_queue_reenroll",
     }
 )
 SUPPORTED_WORKFLOW_REVISIONS = frozenset(
@@ -108,6 +111,7 @@ SUPPORTED_WORKFLOW_REVISIONS = frozenset(
         "0023_ingest_compaction",
         "0024_ingest_retired_segments",
         "0025_mes_edit_audit",
+        "0026_queue_reenroll",
     }
 )
 SUPPORTED_ALARM_REVISIONS = frozenset(
@@ -128,6 +132,7 @@ SUPPORTED_ALARM_REVISIONS = frozenset(
         "0023_ingest_compaction",
         "0024_ingest_retired_segments",
         "0025_mes_edit_audit",
+        "0026_queue_reenroll",
     }
 )
 SUPPORTED_ALARM_CAPTURE_REVISIONS = frozenset(
@@ -147,6 +152,7 @@ SUPPORTED_ALARM_CAPTURE_REVISIONS = frozenset(
         "0023_ingest_compaction",
         "0024_ingest_retired_segments",
         "0025_mes_edit_audit",
+        "0026_queue_reenroll",
     }
 )
 SUPPORTED_REGISTRATION_REVISIONS = SUPPORTED_WORKFLOW_REVISIONS | {"0008_work_orders"}
@@ -165,6 +171,7 @@ SUPPORTED_CANCELLATION_REVISIONS = frozenset(
         "0023_ingest_compaction",
         "0024_ingest_retired_segments",
         "0025_mes_edit_audit",
+        "0026_queue_reenroll",
     }
 )
 # Every new mixed-coordinator mutation requires this explicit feature barrier.
@@ -182,6 +189,7 @@ SUPPORTED_MIXED_ALARM_REVISIONS = frozenset(
         "0023_ingest_compaction",
         "0024_ingest_retired_segments",
         "0025_mes_edit_audit",
+        "0026_queue_reenroll",
     }
 )
 SUPPORTED_AUTO_REGISTRATION_REVISIONS = frozenset(
@@ -193,6 +201,7 @@ SUPPORTED_AUTO_REGISTRATION_REVISIONS = frozenset(
         "0023_ingest_compaction",
         "0024_ingest_retired_segments",
         "0025_mes_edit_audit",
+        "0026_queue_reenroll",
     }
 )
 SUPPORTED_LINE_QUEUE_REVISIONS = frozenset(
@@ -203,6 +212,7 @@ SUPPORTED_LINE_QUEUE_REVISIONS = frozenset(
         "0023_ingest_compaction",
         "0024_ingest_retired_segments",
         "0025_mes_edit_audit",
+        "0026_queue_reenroll",
     }
 )
 SUPPORTED_ITEM_REVISIONS = frozenset(
@@ -212,6 +222,7 @@ SUPPORTED_ITEM_REVISIONS = frozenset(
         "0023_ingest_compaction",
         "0024_ingest_retired_segments",
         "0025_mes_edit_audit",
+        "0026_queue_reenroll",
     }
 )
 SCHEMA_LOCK_ID = 843001

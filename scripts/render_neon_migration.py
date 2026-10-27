@@ -324,6 +324,22 @@ def mes_edit_statements():
     ]
 
 
+def queue_reenroll_statements():
+    """Exact 0025 -> 0026 queue re-enrollment statements (one active entry per order)."""
+    config = Config(str(ROOT / "alembic.ini"))
+    script = ScriptDirectory.from_config(config)
+    module = script.get_revision("0026_queue_reenroll").module
+    preflight = item_statements()[:5]
+    preflight[2] = preflight[2].replace("0020_line_queue", "0025_mes_edit_audit")
+    return [
+        *preflight,
+        *module.upgrade_statements(),
+        "SET LOCAL search_path = pg_catalog, public, pg_temp",
+        "UPDATE public.alembic_version SET version_num='0026_queue_reenroll' "
+        "WHERE version_num='0025_mes_edit_audit'",
+    ]
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -348,6 +364,7 @@ def main(argv=None):
             "retention-segments-upgrade",
             "retention-segments-grants",
             "mes-edit-upgrade",
+            "queue-reenroll-upgrade",
         ),
     )
     target = parser.parse_args(argv).target
@@ -369,6 +386,7 @@ def main(argv=None):
         "retention-segments-upgrade": retention_segments_statements,
         "retention-segments-grants": retention_segments_grant_statements,
         "mes-edit-upgrade": mes_edit_statements,
+        "queue-reenroll-upgrade": queue_reenroll_statements,
     }[target]
     json.dump(renderer(), sys.stdout, ensure_ascii=False, indent=1)
 

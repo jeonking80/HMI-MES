@@ -3,6 +3,8 @@ import type { Session } from './auth'
 import { conflictMessage, reasonCodeOf } from './conflictReasons'
 import { MesHTTPError, mesRequest, validId } from './mesApi'
 import type { WorkOrder } from './mesApi'
+import { readOverview } from './orders/orderApi'
+import type { OrderSummary } from './orders/orderApi'
 
 interface QueueEntry { entry_id: string; position: number; work_order_id: string; state: 'WAITING' | 'BOUND' | 'REMOVED'; expected_row_version: string }
 interface Queue { line_id: string; revision: string; auto_advance: boolean; source_id: string | null; stream_id: string | null; blocked_reason: string | null; entries: QueueEntry[] }
@@ -56,7 +58,7 @@ function queueNotice(reason: string): { wait: boolean; text: string } {
 }
 
 /** CX-36 line queue: released orders wait in order and the server binds the next one after settlement. */
-export default function LineQueuePanel({ session, orders, onSessionInvalid }: { session: Session; orders: readonly WorkOrder[]; onSessionInvalid: () => void }) {
+export default function LineQueuePanel({ session, orders, active = true, onSessionInvalid }: { session: Session; orders: readonly WorkOrder[]; active?: boolean; onSessionInvalid: () => void }) {
   const canWrite = session.roles.includes('production_manager') && !session.must_change_password
   const [source, setSource] = useState<Source | null>(null)
   const [queue, setQueue] = useState<Queue | null>(null)
@@ -66,7 +68,13 @@ export default function LineQueuePanel({ session, orders, onSessionInvalid }: { 
   const [unsupported, setUnsupported] = useState(false)
   const [saving, setSaving] = useState(false)
   const [revision, setRevision] = useState(0)
+  // Candidates come from the live order overview (phase), not the registration status,
+  // which stays RELEASED after an order has run.
+  const [overview, setOverview] = useState<OrderSummary[] | null>(null)
   const reload = useCallback(() => { setDraft(null); setAutoAdvance(null); setRevision(value => value + 1) }, [])
+  // Opening the tab reads the queue and candidates again (orders change on other screens).
+  const [seenActive, setSeenActive] = useState(active)
+  if (active !== seenActive) { setSeenActive(active); if (active) { setDraft(null); setAutoAdvance(null); setRevision(value => value + 1) } }
 
   useEffect(() => {
     const controller = new AbortController()
@@ -76,6 +84,7 @@ export default function LineQueuePanel({ session, orders, onSessionInvalid }: { 
       if (!first) return
       setSource(first)
       setQueue(parseQueue(await mesRequest(`/api/v1/lines/${encodeURIComponent(first.line_id)}/queue`, controller.signal)))
+      setOverview(await readOverview(first.line_id, controller.signal))
     })().catch(cause => {
       if (controller.signal.aborted) return
       if (cause instanceof MesHTTPError && (cause.status === 401 || cause.status === 403)) { onSessionInvalid(); return }
@@ -90,13 +99,13 @@ export default function LineQueuePanel({ session, orders, onSessionInvalid }: { 
   const list = draft ?? waiting
   const auto = autoAdvance ?? queue?.auto_advance ?? false
   const queued = new Set(queue?.entries.filter(entry => entry.state !== 'REMOVED').map(entry => entry.work_order_id) ?? [])
-  const candidates = orders.filter(order => order.status === 'RELEASED' && !queued.has(order.id) && !list.includes(order.id) && order.line_id === source?.line_id)
+  const candidates = (overview ?? []).filter(order => order.phase === 'WAITING' && !queued.has(order.id) && !list.includes(order.id) && order.line_id === source?.line_id)
   const changed = draft !== null || autoAdvance !== null
   const move = (index: number, step: number) => setDraft(() => { const next = [...list]; const [item] = next.splice(index, 1); next.splice(index + step, 0, item); return next })
 
   async function save() {
     if (!queue || !source || saving) return
-    const versions = new Map(orders.map(order => [order.id, order.row_version]))
+    const versions = new Map([...orders, ...(overview ?? [])].map(order => [order.id, order.row_version]))
     const existing = new Map(queue.entries.map(entry => [entry.work_order_id, entry.expected_row_version]))
     const entries = list.map(id => ({ work_order_id: id, expected_row_version: existing.get(id) ?? versions.get(id) ?? '' }))
     if (entries.some(entry => !entry.expected_row_version)) { setMessage('작업지시 목록을 새로 조회한 뒤 다시 저장해 주세요.'); return }
@@ -106,6 +115,7 @@ export default function LineQueuePanel({ session, orders, onSessionInvalid }: { 
         request_id: crypto.randomUUID(), expected_revision: queue.revision, source_id: source.source_id, stream_id: source.stream_id, auto_advance: auto, entries,
       })))
       setDraft(null); setAutoAdvance(null); setMessage('대기열을 저장했습니다.')
+      setRevision(value => value + 1)
     } catch (cause) {
       if (cause instanceof MesHTTPError && (cause.status === 401 || cause.status === 403)) { onSessionInvalid(); return }
       setMessage(cause instanceof MesHTTPError && cause.status === 409 ? conflictMessage(cause.reasonCode) ?? '대기열이 그사이 바뀌었거나 넣을 수 없는 작업지시가 있습니다. 새로 조회한 뒤 다시 저장해 주세요.' : '대기열 저장 결과를 확인하지 못했습니다. 새로 조회해 주세요.')

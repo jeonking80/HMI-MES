@@ -114,6 +114,19 @@ def cancel_work_order(
             "Bound execution cancellation is not implemented",
             reason_code=ConflictReason.WORK_ORDER_ALREADY_BOUND,
         )
+    # A queued order would stay at the queue head and stop auto-advance; leave the queue first.
+    queued = db.execute(text("SELECT to_regclass('public.line_queue_entries')")).scalar()
+    if (
+        queued is not None
+        and db.execute(
+            text("SELECT 1 FROM line_queue_entries WHERE work_order_id=:id AND state='WAITING'"),
+            {"id": identity},
+        ).first()
+    ):
+        raise RegistrationConflict(
+            "Queued work order must leave the queue first",
+            reason_code=ConflictReason.STATE_NOT_ALLOWED,
+        )
     if order["status"] not in {"DRAFT", "RELEASED"}:
         raise RegistrationConflict(
             "Cancellation requires the original unbound work-order version",

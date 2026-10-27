@@ -18,7 +18,7 @@ from apps.api.database import SCHEMA_LOCK_ID
 RETENTION_REVISION = "0022_ingest_retention"
 COMPACTION_REVISION = "0023_ingest_compaction"
 SEGMENTS_REVISION = "0024_ingest_retired_segments"
-SEGMENTS_REVISIONS = frozenset({SEGMENTS_REVISION, "0025_mes_edit_audit"})
+SEGMENTS_REVISIONS = frozenset({SEGMENTS_REVISION, "0025_mes_edit_audit", "0026_queue_reenroll"})
 COMPACTION_REVISIONS = frozenset({COMPACTION_REVISION}) | SEGMENTS_REVISIONS
 RETENTION_REVISIONS = COMPACTION_REVISIONS | {RETENTION_REVISION}
 _LOG = logging.getLogger(__name__)
@@ -167,6 +167,44 @@ def maybe_prune_ingest(engine, retention_hours=168, max_batches=200, max_candida
         return {"status": "failed", "error_class": type(error).__name__}
 
 
+_NEIGHBOUR = """SELECT c.{edge} FROM public.ingest_receipts r
+    JOIN public.capture_clock_evidence c ON c.gateway_id=r.gateway_id AND c.batch_id=r.batch_id
+    WHERE r.gateway_id=:gateway AND r.source_id=:source AND r.stream_id=:stream
+      AND r.capture_generation=:generation AND r.capture_seq {op} :seq
+      AND r.expired_at IS NULL AND c.status='GOOD'
+      AND NOT EXISTS (SELECT 1 FROM public.analog_history_clock_state cs
+        WHERE cs.gateway_id=r.gateway_id AND cs.source_id=r.source_id
+          AND cs.stream_id=r.stream_id AND cs.capture_generation=r.capture_generation
+          AND cs.clock_epoch=r.clock_epoch AND cs.reversal_seq IS NOT NULL
+          AND r.capture_seq>=cs.reversal_seq)
+    ORDER BY r.capture_seq {order} LIMIT 1"""
+
+
+def _sequence_bounds(connection, value) -> dict:
+    """Bound an unknown-time range by its surviving GOOD neighbours in capture order.
+
+    Capture sequence numbers follow acquisition order within one generation, so
+    every expired capture happened after the preceding surviving capture's real
+    time interval began and before the following one's interval ended. A side
+    without such a neighbour stays unbounded (the caller covers the query edge).
+    """
+    params = {
+        "gateway": value["gateway_id"],
+        "source": value["source_id"],
+        "stream": value["stream_id"],
+        "generation": value["capture_generation"],
+    }
+    lower = connection.execute(
+        sa.text(_NEIGHBOUR.format(edge="interval_lower_utc", op="<", order="DESC")),
+        {**params, "seq": value["from_capture_seq"]},
+    ).scalar_one_or_none()
+    upper = connection.execute(
+        sa.text(_NEIGHBOUR.format(edge="interval_upper_utc", op=">", order="ASC")),
+        {**params, "seq": value["through_capture_seq"]},
+    ).scalar_one_or_none()
+    return {"sequence_from": lower, "sequence_until": upper}
+
+
 def expired_coverage(
     connection, *, line_id, source_id, stream_id, from_time, to_time
 ) -> list[dict]:
@@ -208,6 +246,8 @@ def expired_coverage(
         # Late reversal evidence invalidates the old analytical envelope without
         # mutating the permanent expiry record. Unknown scope covers this query.
         value["time_unknown"] = value.pop("effective_time_unknown")
+        if value["time_unknown"]:
+            value.update(_sequence_bounds(connection, value))
         for key, item in value.items():
             if isinstance(item, datetime):
                 value[key] = item.astimezone(UTC).isoformat().replace("+00:00", "Z")

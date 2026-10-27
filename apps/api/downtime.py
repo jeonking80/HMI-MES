@@ -178,13 +178,6 @@ def annotate_report_segments(db, segments, scope, *, now=None):
             continue
         key = (execution, scope["line_id"], source_id, stream_id)
         if key not in cache:
-            try:
-                timeline = read_execution_timeline(db, *key, now=now, annotate=None)
-                canonical = {
-                    (s["from"], s["to"]) for s in timeline["segments"] if s["class"] == "STOPPED"
-                }
-            except ReportNotFound:
-                canonical = set()
             rows = (
                 db.execute(
                     text("""SELECT * FROM downtime_reason_history
@@ -200,6 +193,18 @@ def annotate_report_segments(db, segments, scope, *, now=None):
                 .mappings()
                 .all()
             )
+            # Only an execution with recorded reasons needs its verified original timeline.
+            canonical = set()
+            if rows:
+                try:
+                    timeline = read_execution_timeline(db, *key, now=now, annotate=None)
+                    canonical = {
+                        (s["from"], s["to"])
+                        for s in timeline["segments"]
+                        if s["class"] == "STOPPED"
+                    }
+                except ReportNotFound:
+                    pass
             cache[key] = [
                 r for r in rows if (_iso(r["segment_from"]), _iso(r["segment_to"])) in canonical
             ]

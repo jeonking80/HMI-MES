@@ -45,6 +45,8 @@ export default function App() {
   const [features, setFeatures] = useState(noFeatures)
   const [guestMode, setGuestMode] = useState(false)
   const inFlight = useRef(false)
+  const sessionRef = useRef<Session | null>(null)
+  useEffect(() => { sessionRef.current = session }, [session])
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const heading = useRef<HTMLHeadingElement>(null)
@@ -100,9 +102,11 @@ export default function App() {
   }, [session])
 
   const invalidateSession = useCallback(() => {
+    // Best effort: also end the server session so a "logged out" screen never leaves a live cookie.
+    if (sessionRef.current) void logout(sessionRef.current).catch(() => {})
     setSession(null)
     setChangingPassword(false)
-    setError('세션이 만료되었거나 조회 권한이 변경되었습니다. 다시 로그인해 주세요.')
+    setError('로그인 상태가 바뀌었습니다(세션 만료, 다른 탭에서 다시 로그인, 권한 변경 중 하나). 다시 로그인해 주세요.')
   }, [])
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null)
   const [controlZone, setControlZone] = useState<ZoneId | 'Line'>('Line')

@@ -17,7 +17,8 @@ def _time(value):
 
 
 def expiry_windows(connection, *, scope, start, end, tail=timedelta(seconds=1)):
-    """Known canonical bounds outrank original UTC; unknown time covers the query.
+    """Known canonical bounds outrank original UTC; unknown time covers the query
+    except where surviving GOOD captures on either side in capture order bound it.
 
     Ranges merge captures, so even canonical bounds describe an envelope rather
     than continuous deleted observations. Include the final observation's slot
@@ -35,7 +36,14 @@ def expiry_windows(connection, *, scope, start, end, tail=timedelta(seconds=1)):
     for entry in ranges:
         left, right = entry.get("analytical_from"), entry.get("analytical_until")
         if entry.get("time_unknown") or left is None or right is None:
-            left, right = start, end
+            # Unknown time is bounded only by surviving GOOD neighbours in capture order.
+            lower, upper = entry.get("sequence_from"), entry.get("sequence_until")
+            left = _time(lower) if lower is not None else start
+            right = _time(upper) + tail if upper is not None else end
+            if not left < right:
+                # Neighbour times that do not form an interval (e.g. a UTC step across a
+                # restart) prove nothing: keep the conservative query-wide coverage.
+                left, right = start, end
         else:
             left, right = _time(left), _time(right) + tail
         left, right = max(start, left), min(end, right)

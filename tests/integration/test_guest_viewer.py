@@ -135,9 +135,17 @@ def test_guest_distributed_ip_bounds_and_concurrent_global_cap(guest):
             return False
 
     with ThreadPoolExecutor(max_workers=12) as pool:
-        assert sum(pool.map(admit, range(60))) == 45
+        # A full pool evicts the oldest guest sessions, so every new visitor is admitted
+        # while live guest sessions stay at the global cap.
+        assert sum(pool.map(admit, range(60))) == 60
     with auth.engine.connect() as db:
-        assert db.execute(sa.text("SELECT count(*) FROM auth_sessions")).scalar_one() == 50
+        assert db.execute(sa.text("SELECT count(*) FROM auth_sessions")).scalar_one() == 65
+        assert (
+            db.execute(
+                sa.text("SELECT count(*) FROM auth_sessions WHERE revoked_at IS NULL")
+            ).scalar_one()
+            == 50
+        )
     now[0] += timedelta(minutes=30)
     assert issue_guest(other, origin=ORIGIN, peer="192.0.2.9").principal.login == "guest-viewer"
 

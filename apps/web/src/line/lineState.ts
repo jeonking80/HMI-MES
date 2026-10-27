@@ -10,7 +10,7 @@ export type Heartbeat = 'UNKNOWN' | 'GOOD' | 'DELAYED' | 'ALARM'
 export const stateLabels: Record<string, string> = { STOPPED: '정지', READY: '준비', RUNNING: '운전 중', PAUSED: '일시 정지', STOPPING: '정지 중', FAULT: '고장', ESTOP: '비상 정지', RECOVERY_REQUIRED: '복구 필요', UNKNOWN: '불명' }
 export const stateTones: Record<string, Tone> = { RUNNING: 'good', READY: 'neutral', STOPPED: 'neutral', PAUSED: 'warn', STOPPING: 'warn', FAULT: 'bad', ESTOP: 'bad', RECOVERY_REQUIRED: 'bad' }
 export const healthLabels: Record<string, string> = { NEVER_OBSERVED: '수집 이력 없음', STALE: '수집 지연', DEGRADED: '품질 저하', CAPTURE_FRESH: '정상 수집' }
-export const heartbeatLabels: Record<Heartbeat, string> = { UNKNOWN: '확인 불가', GOOD: '정상', DELAYED: '지연', ALARM: '통신 경보' }
+export const heartbeatLabels: Record<Heartbeat, string> = { UNKNOWN: '확인 불가', GOOD: '정상', DELAYED: '지연', ALARM: '경보' }
 export const heartbeatTags = new Set(['Line.Heartbeat', 'Infeed.LinkHeartbeat', 'Sealer.LinkHeartbeat', 'Outfeed.LinkHeartbeat'])
 
 export interface LiveLine {

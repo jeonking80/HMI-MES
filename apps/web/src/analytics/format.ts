@@ -47,8 +47,9 @@ export function clock(value: string | number): string {
   return Number.isFinite(parsed) ? timeFormat.format(parsed) : MISSING
 }
 
-export function secondClock(value: number): string {
-  return Number.isFinite(value) ? secondFormat.format(value) : MISSING
+export function secondClock(value: string | number): string {
+  const parsed = typeof value === 'number' ? value : Date.parse(value)
+  return Number.isFinite(parsed) ? secondFormat.format(parsed) : MISSING
 }
 
 export function hourLabel(value: string): string {
@@ -73,11 +74,11 @@ export const settlementLabels: Record<string, string> = {
 export const provisionalLabels: Record<string, string> = {
   DAY_NOT_FINISHED: '하루가 끝나지 않음', NOT_SETTLED: '실적 정산 전', EXECUTION_NOT_SETTLED: '실적 정산 전',
   TIME_UNKNOWN: '시간 품질 불명', UNKNOWN_TIME: '불명 시간 포함',
-  COMMUNICATION_LOST: '통신 단절 구간 포함', RECEIVED_EVENTS: '수신 사건 기준',
+  COMMUNICATION_LOST: '통신 단절 구간 포함', RECEIVED_EVENTS: '수신 사건 기준', RETENTION_EXPIRED: '보존 기간 지난 구간 포함',
 }
 
 export const unknownReasonLabels: Record<string, string> = {
-  COMMUNICATION_LOST: '통신 단절', TIME_UNKNOWN: '시간 품질 불명', NO_EVIDENCE: '근거 없음',
+  COMMUNICATION_LOST: '통신 단절', TIME_UNKNOWN: '시간 품질 불명', NO_EVIDENCE: '근거 없음', RETENTION_EXPIRED: '보존 기간 지남',
 }
 
 export const tagLabels: Record<string, string> = {

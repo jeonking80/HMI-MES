@@ -27,6 +27,8 @@ export function useLineCommands({ source, session, blockedReason, newIntentBlock
   const [polling, setPolling] = useState(false)
   const postController = useRef<AbortController | null>(null)
   const submitting = useRef(false)
+  // Command ID typed into the lookup box (never sent from this screen), until a record is found.
+  const lookupOnly = useRef<string | null>(null)
   const operator = session.roles.includes('operator')
   const producer = session.roles.includes('production_manager')
   const scoped = tracked !== null && sameScope(tracked.scope, source)
@@ -39,7 +41,7 @@ export function useLineCommands({ source, session, blockedReason, newIntentBlock
   const activeExecution = typeof values['Line.ActiveExecutionId'] === 'string' && values['Line.ActiveExecutionId'] ? values['Line.ActiveExecutionId'] as string : null
   const [baseline, setBaseline] = useState<{ execution: string; temperature: number; speed: number; recipe: string } | null>(null)
   useEffect(() => {
-    if (!activeExecution || !operator) return
+    if (!activeExecution || !producer) return
     const controller = new AbortController()
     const query = new URLSearchParams({ execution_id: activeExecution, line_id: source.line_id, source_id: source.source_id, stream_id: source.stream_id })
     void commandHTTP(`/api/v1/execution-record?${query}`, controller.signal).then(value => {
@@ -48,7 +50,7 @@ export function useLineCommands({ source, session, blockedReason, newIntentBlock
       if (typeof temperature === 'number' && typeof speed === 'number' && typeof execution?.recipe_version === 'string') setBaseline({ execution: activeExecution, temperature, speed, recipe: execution.recipe_version })
     }).catch(() => {})
     return () => controller.abort()
-  }, [activeExecution, operator, source.line_id, source.source_id, source.stream_id])
+  }, [activeExecution, producer, source.line_id, source.source_id, source.stream_id])
   const speedBase = baseline && baseline.execution === activeExecution ? baseline : null
   const speedRange = speedBase ? { min: Math.max(1, Math.ceil(speedBase.speed * 0.8 * 10) / 10), max: Math.min(60, Math.floor(speedBase.speed * 1.2 * 10) / 10) } : null
   const speedProblem = (input: string) => {
@@ -71,12 +73,20 @@ export function useLineCommands({ source, session, blockedReason, newIntentBlock
         const result = parseResult(response.result, commandId!)
         const request = response.request as CommandRequest
         if (request?.command_id !== commandId || typeof request.requested_by !== 'string' || !request.command?.kind) throw new Error('Unconfirmed original request')
+        if (lookupOnly.current === commandId) lookupOnly.current = null
         setTracked(previous => previous && previous.commandId === commandId ? { ...previous, result, request, phase: 'TRACKING', message: '' } : previous)
         setLookupMessage('')
         if (terminal(result)) { setPolling(false); return }
       } catch (cause) {
         if (controller.signal.aborted) return
         if (cause instanceof CommandHTTPError && (cause.status === 401 || cause.status === 403)) { onSessionInvalid(); return }
+        // A hand-typed ID this screen never sent: no stored record means nothing to wait for.
+        if (cause instanceof CommandHTTPError && cause.status === 404 && lookupOnly.current === commandId) {
+          setTracked(previous => previous && previous.commandId === commandId && previous.request === null
+            ? { ...previous, phase: 'REJECTED', message: '현재 라인에 이 ID의 명령 기록이 없습니다. 이 화면에서 보낸 요청이 아니므로 닫을 수 있습니다.' } : previous)
+          setPolling(false)
+          return
+        }
         const message = cause instanceof CommandHTTPError && cause.status === 404
           ? '현재 범위에서 원래 ID의 저장 기록을 확인하지 못했습니다. 미실행으로 단정할 수 없습니다.'
           : '명령 조회 결과를 확인할 수 없습니다. 원래 ID를 유지하며 새 명령을 보내지 않습니다.'
@@ -93,7 +103,8 @@ export function useLineCommands({ source, session, blockedReason, newIntentBlock
 
   function disabledReason(kind: CommandKind): string {
     if (session.must_change_password) return '초기 비밀번호를 변경해 주세요.'
-    if ((kind === 'END_RUN' ? !operator && !producer : !operator)) return '이 명령을 요청할 역할이 없습니다.'
+    // Speed changes need parameters_manage (production_manager, CX-35); END_RUN either role.
+    if (kind === 'SET_PARAMETERS' ? !producer : kind === 'END_RUN' ? !operator && !producer : !operator) return '이 명령을 요청할 역할이 없습니다.'
     if (['START', 'RESET_FAULT'].includes(kind) && newIntentBlocked) return newIntentBlocked
     // A terminal result is final; only an open or unknown request blocks the next command.
     if (tracked && !finished) return '기존 명령의 결과를 확인한 뒤 다음 요청을 준비해 주세요.'
@@ -138,7 +149,11 @@ export function useLineCommands({ source, session, blockedReason, newIntentBlock
       setTracked(previous => previous && previous.commandId === request.command_id ? { ...previous, result, phase: 'TRACKING' } : previous)
     } catch (cause) {
       // An interrupted POST can have committed. Keep its original ID even after navigation.
+      // 401/403 are decided before anything is stored: close this request so it never blocks the next one.
       if (cause instanceof CommandHTTPError && (cause.status === 401 || cause.status === 403)) {
+        setTracked(previous => previous && previous.commandId === request.command_id ? {
+          ...previous, phase: 'REJECTED', message: cause.status === 401 ? '로그인이 만료되어 요청이 거절됐습니다. 서버에 저장되지 않았습니다.' : '권한이 없거나 보안 확인에 실패해 요청이 거절됐습니다. 서버에 저장되지 않았습니다.',
+        } : previous)
         if (!controller.signal.aborted) onSessionInvalid()
         return
       }
@@ -164,6 +179,7 @@ export function useLineCommands({ source, session, blockedReason, newIntentBlock
   }
   function lookupId(id: string) {
     if (tracked || !identifier(id)) return
+    lookupOnly.current = id
     setTracked({ commandId: id, scope: source, request: null, counterEpoch: null, result: null, phase: 'TRACKING', message: '' })
     setLookupMessage('')
   }
@@ -176,7 +192,7 @@ export function useLineCommands({ source, session, blockedReason, newIntentBlock
     && result.evidence.execution_id === values['Line.ActiveExecutionId']
   return {
     operator, producer, kinds, disabledReason, submit, askEnd, confirmEnd, cancelEnd: () => setConfirmEnd(null), endConfirmationReason,
-    speedBase, speedRange, speedProblem, setSpeed, canSetSpeed: operator && [2, 3].includes(Number(state)),
+    speedBase, speedRange, speedProblem, setSpeed, canSetSpeed: producer && [2, 3].includes(Number(state)),
     tracked, scoped, posting, finished, polling, lookupMessage, lookupAgain, lookupId, acknowledge, result, feedbackMatches,
     controlVersion: uint64String(values['Line.ControlVersion']) ? String(values['Line.ControlVersion']) : undefined,
   }

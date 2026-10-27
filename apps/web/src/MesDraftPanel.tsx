@@ -20,7 +20,8 @@ interface Attempt {
 interface LineChoice { id: string; name: string }
 const recipeEmpty = { id: '', family: '', version: '', item: '', temperature: String(DEFAULT_PARAMETERS.temperature_c), speed: String(DEFAULT_PARAMETERS.speed_m_per_min) }
 const orderEmpty = { id: '', line: '', target: String(DEFAULT_TARGET), date: '' }
-const CHOICE_PAGES = 10
+// Full choice lists (ID suggestions, queue candidates): 100 per page, up to 2000 rows.
+const CHOICE_PAGES = 20
 const displayTime = (value: string) => new Date(value).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false })
 
 function usePage<T>(path: string, parse: (value: unknown) => Page<T>, onSessionInvalid: () => void, refreshKey = '') {
@@ -54,7 +55,7 @@ function useAll<T>(path: string, parse: (value: unknown) => Page<T>, refreshKey:
       const collected: T[] = []
       let cursor: string | null = null
       for (let page = 0; page < CHOICE_PAGES; page += 1) {
-        const query = new URLSearchParams({ limit: '20', ...(cursor ? { after_id: cursor } : {}) })
+        const query = new URLSearchParams({ limit: '100', ...(cursor ? { after_id: cursor } : {}) })
         const value = parse(await mesRequest(`${path}?${query}`, controller.signal))
         collected.push(...value.items)
         cursor = value.next_cursor
@@ -96,17 +97,17 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
   const [baseGroup, setBaseGroup] = useState('')
   const [recipeMode, setRecipeMode] = useState<'view' | 'edit'>('view')
   const [viewRecipe, setViewRecipe] = useState<RecipeVersion | null>(null)
+  const [recipeNotice, setRecipeNotice] = useState('')
   const [orderIdManual, setOrderIdManual] = useState(false)
   const [choiceRevision, setChoiceRevision] = useState(0)
   const { items: allRecipes } = useAll(mesPaths.recipe, recipePage, `recipes-${choiceRevision}`)
   // A confirmed release changes an order to RELEASED, so the queue choices reload with it.
-  const releasedKey = workflow.attempt?.kind === 'release' && workflow.attempt.phase === 'confirmed' ? workflow.attempt.intent.work_order_id : ''
+  const releasedKey = String(workflow.released.count)
   const { items: allOrders } = useAll(mesPaths.order, orderPage, `orders-${choiceRevision}-${releasedKey}-${cancellation.ledger?.receipt?.cancellation_id ?? ''}`)
   const groups = recipeGroups(allRecipes)
   // Item master (CX-37); an empty list on a server without it keeps the earlier free-text behaviour.
   const { items: masterItems, loaded: masterLoaded } = useAll(itemsPath, itemPage, `items-${choiceRevision}`)
   const releaseAfterRegister = useRef(false)
-  const [moving, setMoving] = useState('')
   const [lines, setLines] = useState<LineChoice[] | null>(null)
   const [lineError, setLineError] = useState('')
   const [lineRevision, setLineRevision] = useState(0)
@@ -194,21 +195,18 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
     suggestFor(item.item_id, item.recipe_id, item)
     reveal('mes-recipe-form', 'mes-recipe-temperature')
   }
-  async function moveToBinding(id: string) {
-    setMoving(id)
-    try {
-      const stored = registrationFrom('order', await mesRequest(mesDetailPath('order', id), new AbortController().signal)) as WorkOrder
-      if (workflow.attempt?.kind === 'release' && workflow.attempt.phase === 'confirmed') workflow.acknowledgeRelease()
-      orders.refresh()
-      onSelectOrder(stored)
-    } catch (cause) {
-      if (cause instanceof MesHTTPError && (cause.status === 401 || cause.status === 403)) onSessionInvalid()
-    } finally { setMoving('') }
-  }
   const locked = (kind: RegistrationKind) => checking[kind] || ['sending', 'uncertain', 'conflict', 'confirmed'].includes(attempts[kind]?.phase ?? '')
   function confirmed(kind: RegistrationKind, stored: Registration) {
     setChoiceRevision(value => value + 1)
-    if (kind === 'recipe') { setSelectedRecipe(stored as RecipeVersion); recipes.refresh(); return }
+    if (kind === 'recipe') {
+      // A confirmed recipe opens in the detail view and the form unlocks for the next one.
+      const recipe = stored as RecipeVersion
+      setSelectedRecipe(recipe); setViewRecipe(recipe); recipes.refresh()
+      setAttempts(previous => ({ ...previous, recipe: null }))
+      setRecipeMode('view')
+      setRecipeNotice(`공정 설정 ${recipe.recipe_id} · ${recipe.version}을 등록했습니다.`)
+      return
+    }
     orders.refresh()
     const order = stored as WorkOrder
     if (releaseAfterRegister.current && order.status === 'DRAFT' && !workflow.attempt && !workflow.orderBlocked(order.id)) {
@@ -300,14 +298,13 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
   const shownRecipe = viewRecipe ?? recipes.page?.items[0] ?? null
   const recipeChoices = selectedRecipe && !choices.some(item => item.id === selectedRecipe.id) ? [selectedRecipe, ...choices] : choices
   const orderRecipeChoices = [...new Map([...recipeChoices, ...allRecipes].map(item => [item.id, item])).values()].sort((a, b) => b.created_at.localeCompare(a.created_at))
-  const released = workflow.attempt?.kind === 'release' && workflow.attempt.phase === 'confirmed' ? workflow.attempt.intent.work_order_id : null
   return <section id="mes-drafts" className="mes-panel" aria-labelledby="mes-heading">
     <h2 id="mes-heading" className="sr-only">공정 설정 · 작업지시</h2>
     <div className="mes-tabs" role="tablist" aria-label={planningTabs.includes(tab) ? '공정 설정 보기' : '작업지시 보기'}>{tabs.filter(item => planningTabs.includes(item.id) === planningTabs.includes(tab)).map(item => <button key={item.id} id={`mes-tab-${item.id}`} type="button" role="tab" aria-selected={tab === item.id} aria-controls={item.id === 'queue' ? 'mes-queue' : `mes-${item.id}`} onClick={() => onTab(item.id)}>{item.label}</button>)}</div>
     {!canWrite && <p className="message caution">현재 계정은 등록된 내용을 조회할 수 있습니다. 공정 설정과 작업지시 등록은 생산 담당자가 진행합니다.</p>}
     <section id="mes-recipes" className="mes-card" aria-labelledby="mes-recipes-heading" hidden={tab !== 'recipes'}>
       <h3 id="mes-recipes-heading" className="sr-only">공정 설정</h3>
-      <div className="pl-toolbar"><span className="pl-count">공정 설정 {recipes.page?.items.length ?? 0}개</span><span className="wo-spacer" />{canWrite && <button id="mes-recipe-new" type="button" className="button primary" disabled={locked('recipe')} onClick={() => { resetRecipe(); setRecipeMode('edit'); reveal('mes-recipe-form', 'mes-recipe-item') }}>+ 새 공정 설정</button>}</div>
+      <div className="pl-toolbar"><span className="pl-count">공정 설정 {recipes.page?.items.length ?? 0}개</span><span className="wo-spacer" />{canWrite && <button id="mes-recipe-new" type="button" className="button primary" disabled={locked('recipe')} onClick={() => { resetRecipe(); setRecipeMode('edit'); setRecipeNotice(''); reveal('mes-recipe-form', 'mes-recipe-item') }}>+ 새 공정 설정</button>}</div>
       <div className="rc-layout">
         <div className="rc-list">
           {recipes.error ? <p className="message error" role="alert">{recipes.error}</p> : !recipes.page ? <p role="status">공정 설정을 조회하고 있습니다.</p> : recipes.page.items.length === 0 ? <p className="mes-empty">등록된 공정 설정이 없습니다. "+ 새 공정 설정"으로 만드세요.</p>
@@ -324,9 +321,11 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
           <div><label htmlFor="mes-recipe-speed">설정 속도 (m/min)</label><input id="mes-recipe-speed" type="number" required min={SPEED_RANGE.min} max={SPEED_RANGE.max} step="any" value={recipe.speed} onChange={event => { setParamsManual(true); setRecipe(previous => ({ ...previous, speed: event.target.value })) }} /><p className="input-help">허용 범위 {SPEED_RANGE.min}~{SPEED_RANGE.max} m/min</p></div>
         </div>
         <div className="mes-form-actions"><button type="button" className="button secondary" onClick={() => setRecipeMode('view')}>취소</button><button id="mes-recipe-submit" className="button primary" type="submit">{baseGroup ? '새 버전으로 저장' : '공정 설정 등록'}</button></div></fieldset></form>
+        <AttemptResult kind="recipe" attempt={attempts.recipe} checking={checking.recipe} onLookup={() => void lookup('recipe')} onReset={() => reset('recipe')} />
           </div> : shownRecipe ? <div className="rc-card" id="mes-recipe-detail">
+            {recipeNotice && <p className="message success" role="status">{recipeNotice}</p>}
             <div className="rc-card-head"><div><h3>{shownRecipe.recipe_id} · {shownRecipe.version}</h3><p>{shownRecipe.item_id} · 등록 {shownRecipe.created_by} · {new Date(shownRecipe.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p></div>
-              {canWrite && <button type="button" className="button secondary" disabled={locked('recipe')} onClick={() => { editFrom(shownRecipe); setRecipeMode('edit') }} aria-label={`${shownRecipe.id} 값으로 새 버전 만들기`}>수정 → 새 버전</button>}</div>
+              {canWrite && <button type="button" className="button secondary" disabled={locked('recipe')} onClick={() => { editFrom(shownRecipe); setRecipeMode('edit'); setRecipeNotice('') }} aria-label={`${shownRecipe.id} 값으로 새 버전 만들기`}>수정 → 새 버전</button>}</div>
             <div className="rc-params"><div><span>실링 온도</span><strong>{shownRecipe.parameters.temperature_c}<small> ℃</small></strong></div><div><span>운전 속도</span><strong>{shownRecipe.parameters.speed_m_per_min}<small> m/min</small></strong></div></div>
             {canWrite && <div className="rc-next"><span>이 설정으로 생산하려면</span><button type="button" className="button primary" disabled={locked('order')} onClick={() => pickForOrder(shownRecipe)} aria-label={`${shownRecipe.id} 공정 설정을 작업지시에 사용`}>작업지시 만들기 →</button></div>}
           </div> : <div className="rc-card mes-empty">왼쪽에서 공정 설정을 고르세요.</div>}
@@ -335,10 +334,9 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
     </section>
     <section id="mes-orders" className="mes-card" aria-labelledby="mes-orders-heading" hidden={tab !== 'orders'}>
       <h3 id="mes-orders-heading" className="sr-only">작업지시</h3>
-      {released && <div id="mes-release-next" className="message success" role="status"><p>작업지시 {released} 배포를 확인했습니다. 다음 단계는 운전 제어에서 작업을 불러오는 것입니다.</p><button id="mes-release-bind" type="button" className="button primary" disabled={!!moving} onClick={() => void moveToBinding(released)}>{moving ? '이동 중…' : '운전 제어에서 불러오기'}</button></div>}
       {cancelOrder && <div id="cancellation-confirmation" className="message caution" role="group" aria-labelledby="cancellation-confirm-heading"><h3 id="cancellation-confirm-heading" ref={cancelHeading} tabIndex={-1}>작업지시를 취소하시겠습니까?</h3><p>설비에 연결되지 않은 작업만 취소할 수 있습니다. 이미 설비에 연결되었거나 조회 후 내용이 변경된 작업은 취소할 수 없습니다.</p><p>라인 {lines?.find(line => line.id === cancelOrder.line_id)?.name ?? cancelOrder.line_id}</p><p>{cancelOrder.id} · {cancelOrder.item_id} · {cancelOrder.recipe_version_id} · 목표 {cancelOrder.target_quantity.toLocaleString('ko-KR')}개</p><p>취소 후 작성 중 상태로 되돌리지 않습니다. 설비 정지·작업 종료·연결된 실행 취소는 이 요청에 포함되지 않습니다.</p><button id="cancellation-submit" type="button" className="button danger" disabled={cancellation.blocked(cancelOrder.id)} onClick={() => { if (!cancellation.blocked(cancelOrder.id)) { void cancellation.submit(cancelOrder); setCancelOrder(null) } }}>작업지시 취소 요청</button><button id="cancellation-close-confirm" type="button" className="button secondary" onClick={closeCancellation}>확인 닫기</button></div>}
       {releaseOrder && <div id="release-confirmation" className="message caution" role="group" aria-label="작업지시 배포 확인"><p>작업지시 {releaseOrder.id}의 품목·공정 설정·목표 수량을 배포하시겠습니까? 배포 후 작성 중 상태로 되돌리는 기능은 제공하지 않습니다. 설비 운전은 시작되지 않습니다.</p><button id="release-submit" type="button" className="button primary" disabled={!!workflow.attempt || workflow.orderBlocked(releaseOrder.id)} onClick={() => { if (!workflow.attempt && !workflow.orderBlocked(releaseOrder.id)) { void workflow.submit('release', { work_order_id: releaseOrder.id, actor: session.login, release_id: crypto.randomUUID(), expected_row_version: releaseOrder.row_version }); setReleaseOrder(null) } }}>작업지시 배포 요청</button><button type="button" className="button secondary" onClick={() => setReleaseOrder(null)}>확인 닫기</button></div>}
-      <OrderBoard session={session} lines={lines} recipes={orderRecipeChoices} canWrite={canWrite} canBind={session.roles.some(role => ['operator', 'production_manager'].includes(role))} refreshKey={`${cancellation.ledger?.receipt?.cancellation_id ?? ''}|${released ?? ''}|${choiceRevision}`} onSessionInvalid={onSessionInvalid} onRelease={setReleaseOrder} onCancel={setCancelOrder} onBind={onSelectOrder} onOpenControl={onOpenControl} onReports={onOpenReports} onNew={() => setOrderFormOpen(true)} creating={orderFormOpen && canWrite} onCloseCreate={() => setOrderFormOpen(false)} createPanel={<div className="rc-card" id="mes-order-editor"><h3>새 작업지시</h3><p className="form-help">작업지시 ID는 예정일 기준으로 자동으로 붙습니다. "작성 중으로 저장"하면 배포 전까지 수정할 수 있습니다.</p>
+      <OrderBoard session={session} lines={lines} recipes={orderRecipeChoices} canWrite={canWrite} canBind={session.roles.some(role => ['operator', 'production_manager'].includes(role))} refreshKey={`${cancellation.ledger?.receipt?.cancellation_id ?? ''}|${workflow.released.count}|${choiceRevision}`} onSessionInvalid={onSessionInvalid} onRelease={setReleaseOrder} onCancel={setCancelOrder} onBind={onSelectOrder} onOpenControl={onOpenControl} onReports={onOpenReports} onNew={() => { setOrderFormOpen(true); reveal('mes-order-editor', 'mes-order-line') }} creating={orderFormOpen && canWrite} onCloseCreate={() => setOrderFormOpen(false)} createPanel={<div className="rc-card" id="mes-order-editor"><h3>새 작업지시</h3><p className="form-help">작업지시 ID는 예정일 기준으로 자동으로 붙습니다. "작성 중으로 저장"하면 배포 전까지 수정할 수 있습니다.</p>
         {validation.order && <p className="message error" role="alert">{validation.order}</p>}
         <form id="mes-order-form" onSubmit={submitOrder}><fieldset disabled={locked('order')}><legend className="sr-only">작성 중 작업지시 등록 내용</legend><div className="mes-form-grid">
           <div><span className="field-label">작업지시 ID (자동)</span><p id="mes-order-id" className="item-auto-id">{orderId}</p></div>
@@ -349,20 +347,20 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
           <div><label htmlFor="mes-order-date">생산 예정일</label><input id="mes-order-date" type="date" required value={order.date} onChange={event => setOrder(previous => ({ ...previous, date: event.target.value }))} /></div>
         </div><div className="mes-form-actions"><button type="button" className="button secondary" onClick={() => setOrderFormOpen(false)}>취소</button><button id="mes-order-submit" className="button secondary" type="submit" disabled={!chosenRecipe || !lines?.some(line => line.id === order.line)}>작성 중으로 저장</button><button id="mes-order-submit-release" className="button primary" type="submit" disabled={!chosenRecipe || !lines?.some(line => line.id === order.line) || !!workflow.attempt}>등록하고 바로 배포</button></div></fieldset></form>
         {lineError && <button className="button secondary" type="button" onClick={() => setLineRevision(value => value + 1)}>라인 다시 조회</button>}
-        <AttemptResult kind="order" attempt={attempts.order} checking={checking.order} onLookup={() => void lookup('order')} onReset={() => reset('order')} /></div>} isBlocked={id => !!workflow.attempt || workflow.orderBlocked(id) || cancellation.blocked(id)} />
+        <AttemptResult kind="order" attempt={attempts.order} released={!!attempts.order?.stored && workflow.released.id === attempts.order.stored.id} checking={checking.order} onLookup={() => void lookup('order')} onReset={() => reset('order')} /></div>} isBlocked={id => !!workflow.attempt || workflow.orderBlocked(id) || cancellation.blocked(id)} />
     </section>
-    <section id="mes-items" className="mes-card" aria-label="품목" hidden={tab !== 'items'}><ItemsPanel session={session} canWrite={canWrite} items={masterItems} loaded={masterLoaded} recipes={allRecipes} orders={allOrders} onChanged={() => setChoiceRevision(value => value + 1)} onNewRecipe={item => { onTab('recipes'); resetRecipe(); chooseItem(item); setRecipeMode('edit'); reveal('mes-recipe-form', 'mes-recipe-temperature') }} /></section>
-    <div id="mes-queue" hidden={tab !== 'queue'}><LineQueuePanel session={session} orders={allOrders} onSessionInvalid={onSessionInvalid} /></div>
+    <section id="mes-items" className="mes-card" aria-label="품목" hidden={tab !== 'items'}><ItemsPanel session={session} canWrite={canWrite} onSessionInvalid={onSessionInvalid} items={masterItems} loaded={masterLoaded} recipes={allRecipes} orders={allOrders} onChanged={() => setChoiceRevision(value => value + 1)} onNewRecipe={item => { onTab('recipes'); resetRecipe(); chooseItem(item); setRecipeMode('edit'); setRecipeNotice(''); reveal('mes-recipe-form', 'mes-recipe-temperature') }} /></section>
+    <div id="mes-queue" hidden={tab !== 'queue'}><LineQueuePanel session={session} orders={allOrders} active={tab === 'queue'} onSessionInvalid={onSessionInvalid} /></div>
   </section>
 }
 
-function AttemptResult({ kind, attempt, checking, onLookup, onReset }: { kind: RegistrationKind; attempt: Attempt | null; checking: boolean; onLookup: () => void; onReset: () => void }) {
+function AttemptResult({ kind, attempt, released = false, checking, onLookup, onReset }: { kind: RegistrationKind; attempt: Attempt | null; released?: boolean; checking: boolean; onLookup: () => void; onReset: () => void }) {
   if (!attempt) return null
   const record = attempt.stored
   return <div id={`mes-${kind}-result`} className="mes-registration-result">
     <p id={`mes-${kind}-status`} data-state={attempt.phase} className={`message ${attempt.phase === 'confirmed' ? 'success' : attempt.phase === 'conflict' || attempt.phase === 'rejected' ? 'error' : 'caution'}`} role={attempt.phase === 'conflict' || attempt.phase === 'rejected' ? 'alert' : 'status'}>{attempt.message}</p>
     <p className="form-help">등록 ID: <strong id={`mes-${kind}-original-id`}>{attempt.definition.id}</strong></p>
-    {record && <dl className="mes-result-facts"><div><dt>저장된 품목</dt><dd>{record.item_id}</dd></div>{kind === 'recipe' ? <><div><dt>설정 그룹 · 버전</dt><dd>{(record as RecipeVersion).recipe_id} · {(record as RecipeVersion).version}</dd></div><div><dt>온도 · 속도</dt><dd>{(record as RecipeVersion).parameters.temperature_c} ℃ · {(record as RecipeVersion).parameters.speed_m_per_min} m/min</dd></div></> : <><div><dt>저장 상태</dt><dd>{(record as WorkOrder).status === 'DRAFT' ? '작성 중 (DRAFT)' : (record as WorkOrder).status === 'RELEASED' ? '배포됨 (RELEASED)' : '취소됨 (CANCELLED)'}</dd></div><div><dt>목표 양품 · 예정일</dt><dd>{(record as WorkOrder).target_quantity.toLocaleString('ko-KR')}개 · {(record as WorkOrder).planned_date}</dd></div></>}<div><dt>등록자 · 등록 시각</dt><dd>{record.created_by} · {displayTime(record.created_at)}</dd></div></dl>}
+    {record && <dl className="mes-result-facts"><div><dt>저장된 품목</dt><dd>{record.item_id}</dd></div>{kind === 'recipe' ? <><div><dt>설정 그룹 · 버전</dt><dd>{(record as RecipeVersion).recipe_id} · {(record as RecipeVersion).version}</dd></div><div><dt>온도 · 속도</dt><dd>{(record as RecipeVersion).parameters.temperature_c} ℃ · {(record as RecipeVersion).parameters.speed_m_per_min} m/min</dd></div></> : <><div><dt>저장 상태</dt><dd>{released ? '배포됨 (RELEASED)' : (record as WorkOrder).status === 'DRAFT' ? '작성 중 (DRAFT)' : (record as WorkOrder).status === 'RELEASED' ? '배포됨 (RELEASED)' : '취소됨 (CANCELLED)'}</dd></div><div><dt>목표 양품 · 예정일</dt><dd>{(record as WorkOrder).target_quantity.toLocaleString('ko-KR')}개 · {(record as WorkOrder).planned_date}</dd></div></>}<div><dt>등록자 · 등록 시각</dt><dd>{record.created_by} · {displayTime(record.created_at)}</dd></div></dl>}
     <div className="tracker-actions">{['uncertain', 'conflict'].includes(attempt.phase) && <button id={`mes-${kind}-lookup`} type="button" className="button secondary" disabled={checking} onClick={onLookup}>{checking ? '원래 등록 조회 중…' : '원래 ID로 등록 내용 조회'}</button>}{['confirmed', 'conflict', 'rejected'].includes(attempt.phase) && <button id={`mes-${kind}-reset`} type="button" className="button secondary" disabled={checking} onClick={onReset}>{attempt.phase === 'confirmed' ? '다른 등록 작성' : '입력 다시 검토'}</button>}</div>
   </div>
 }

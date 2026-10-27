@@ -155,7 +155,7 @@ export function TimeSeriesChart({ title, unit, from, to, series, height = 240, b
       </g>}
     </svg>
     {activeTime !== null && <div className="chart-tooltip" role="status" style={{ left: tooltipLeft, top: margin.top }}>
-      <strong>{clock(activeTime)}</strong>
+      <strong>{secondClock(activeTime)}</strong>
       {series.map(item => {
         const point = item.points.find(entry => entry.t === activeTime)
         return <div key={item.id} className="chart-tooltip-row">
@@ -262,18 +262,18 @@ export function StateTimeline({ from, to, segments, selected, onSelect }: { from
         const isSelected = selected === segment.key
         return <g key={segment.key} className={`timeline-segment ${segment.tone}${isSelected ? ' is-selected' : ''}${segment.selectable ? ' selectable' : ''}`}
           tabIndex={segment.selectable ? 0 : -1} role={segment.selectable ? 'button' : undefined} aria-pressed={segment.selectable ? isSelected : undefined}
-          aria-label={`${segment.label} ${clock(segment.from)}~${clock(segment.to)}${segment.detail ? ` ${segment.detail}` : ''}`}
+          aria-label={`${segment.label} ${secondClock(segment.from)}~${secondClock(segment.to)}${segment.detail ? ` ${segment.detail}` : ''}`}
           onMouseEnter={() => setActive(segment)} onFocus={() => setActive(segment)}
           onClick={() => segment.selectable && onSelect?.(segment.key)}
           onKeyDown={event => { if (segment.selectable && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onSelect?.(segment.key) } }}>
           <rect x={left} y={8} width={segmentWidth} height={34} rx={3} fill={segment.tone === 'unknown' ? `url(#unknown-${patternId})` : undefined} />
         </g>
       })}
-      {timeTicks(from, to, plotWidth).map(tick => <text key={tick} className="chart-tick" x={x(tick)} y={66} textAnchor="middle">{clock(tick)}</text>)}
+      {(() => { const ticks = timeTicks(from, to, plotWidth); return ticks.map(tick => <text key={tick} className="chart-tick" x={x(tick)} y={66} textAnchor="middle">{tickLabel(tick, ticks)}</text>) })()}
     </svg>
     {active && <div className="chart-tooltip" role="status" style={{ left: Math.min(Math.max(0, x(active.from)), width - 220), top: 46 }}>
       <strong>{active.label}</strong>
-      <div>{clock(active.from)} ~ {clock(active.to)}</div>
+      <div>{secondClock(active.from)} ~ {secondClock(active.to)}</div>
       {active.detail && <small>{active.detail}</small>}
     </div>}
   </div>

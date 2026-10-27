@@ -25,6 +25,7 @@ CLOCK_EVIDENCE_REVISIONS = frozenset(
         "0023_ingest_compaction",
         "0024_ingest_retired_segments",
         "0025_mes_edit_audit",
+        "0026_queue_reenroll",
     }
 )
 NORMALIZATION_VERSION = "api-interval-midpoint-v1"
@@ -65,6 +66,7 @@ def capture_frontier_table(connection, *, alias="capture_history", deduplicate=T
         "0023_ingest_compaction",
         "0024_ingest_retired_segments",
         "0025_mes_edit_audit",
+        "0026_queue_reenroll",
     }:
         union = "UNION" if deduplicate else "UNION ALL"
         return f"""(SELECT gateway_id,source_id,stream_id,capture_generation,capture_seq,
@@ -167,12 +169,54 @@ def effective_capture_clock(evidence, *, body, batch_sha256, reversal_seq=None):
     """
     if evidence is None:
         return None
+    decision, bound, capture_seq = validated_capture_clock(
+        evidence, body=body, batch_sha256=batch_sha256
+    )
+    return apply_reversal_cutoff(decision, bound, capture_seq, reversal_seq)
+
+
+def apply_reversal_cutoff(decision, bound, capture_seq, reversal_seq):
+    """The epoch cutoff of effective_capture_clock, for an already validated decision."""
+    if not bound or reversal_seq is None:
+        return decision
+    try:
+        reversed_clock = capture_seq >= int(reversal_seq)
+    except (TypeError, ValueError, OverflowError):
+        return CaptureClockDecision(
+            "UNKNOWN",
+            "EVIDENCE_INVALID",
+            None,
+            decision.original_capture_utc,
+            None,
+            None,
+            None,
+            None,
+            None,
+            decision.batch_sha256,
+        )
+    if reversed_clock:
+        return replace(
+            decision, status="UNKNOWN", reason_code="CLOCK_REVERSAL", canonical_api_utc=None
+        )
+    return decision
+
+
+def validated_capture_clock(evidence, *, body, batch_sha256):
+    """Return (decision, bound, capture_seq) before any reversal cutoff.
+
+    ``bound`` is False when the proof failed validation (the decision is then
+    final and no cutoff applies), exactly as in effective_capture_clock.
+    """
     body = BatchBody.model_validate(body)
     original = body.captured_at
 
     def invalid(reason):
-        return CaptureClockDecision(
-            "UNKNOWN", reason, None, original, None, None, None, None, None, batch_sha256
+        return (
+            CaptureClockDecision(
+                "UNKNOWN", reason, None, original, None, None, None, None, None, batch_sha256
+            ),
+            False,
+            body.capture_seq,
         )
 
     try:
@@ -250,11 +294,7 @@ def effective_capture_clock(evidence, *, body, batch_sha256, reversal_seq=None):
                 return invalid("EVIDENCE_INVALID")
         elif decision.status != "UNKNOWN" or canonical is not None:
             return invalid("EVIDENCE_INVALID")
-        if reversal_seq is not None and body.capture_seq >= int(reversal_seq):
-            return replace(
-                decision, status="UNKNOWN", reason_code="CLOCK_REVERSAL", canonical_api_utc=None
-            )
-        return decision
+        return decision, True, body.capture_seq
     except (KeyError, TypeError, ValueError, OverflowError):
         return invalid("EVIDENCE_INVALID")
 
@@ -456,6 +496,7 @@ def _fence_expired_reversal_minutes(connection, body, epoch, cutoff):
         "0023_ingest_compaction",
         "0024_ingest_retired_segments",
         "0025_mes_edit_audit",
+        "0026_queue_reenroll",
     }:
         return
     binding = dict(
@@ -471,6 +512,7 @@ def _fence_expired_reversal_minutes(connection, body, epoch, cutoff):
         "0023_ingest_compaction",
         "0024_ingest_retired_segments",
         "0025_mes_edit_audit",
+        "0026_queue_reenroll",
     }:
         compact = """ OR EXISTS(SELECT 1 FROM ingest_retention_ranges
         WHERE source_id=:source AND stream_id=:stream AND gateway_id=:gateway

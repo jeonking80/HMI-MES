@@ -1,7 +1,7 @@
 """Expired raw provenance coexists with retained minutes, execution totals and clocks."""
 
 from dataclasses import replace
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pytest
 import sqlalchemy as sa
@@ -212,3 +212,64 @@ def test_merged_compacted_epoch_endpoints_preserve_chronology_and_reversal(servi
             WHERE clock_epoch='clock-1'""")
         ).scalar_one()
     assert reversal == 4
+
+
+def test_unknown_clock_expiry_is_bounded_by_surviving_good_captures(service):
+    good = service.trend_clock_policy
+    service.trend_clock_policy = None
+    submit(service, batch(1, AT), now=OLD)
+    assert prune(service.engine)["deleted_count"] == 1
+    service.trend_clock_policy = good
+    submit(service, batch(2, AT + timedelta(seconds=30)), now=OLD)
+    result = read(service, "second")
+    entry = result["retention_expired"][0]
+    assert entry["time_unknown"] is True
+    assert entry["sequence_from"] is None and entry["sequence_until"] is not None
+
+    def at(point):
+        return datetime.fromisoformat(point["t"].replace("Z", "+00:00"))
+
+    points = result["series"][0]["points"]
+    expired = [at(p) for p in points if p["quality"] == "RETENTION_EXPIRED"]
+    # Capture 1 happened before GOOD capture 2: later seconds stay ordinary.
+    assert expired and max(expired) < AT + timedelta(seconds=33)
+    assert all(
+        p["quality"] != "RETENTION_EXPIRED" for p in points if at(p) > AT + timedelta(seconds=33)
+    )
+
+
+def test_inverted_neighbour_bounds_keep_conservative_query_coverage(monkeypatch):
+    from apps.api import retention_provenance
+
+    entry = {
+        "time_unknown": True,
+        "analytical_from": None,
+        "analytical_until": None,
+        "sequence_from": (AT + timedelta(minutes=5)).isoformat(),
+        "sequence_until": (AT + timedelta(minutes=1)).isoformat(),
+    }
+    monkeypatch.setattr(retention_provenance, "expired_coverage", lambda *a, **k: [entry])
+    end = AT + timedelta(minutes=10)
+    windows = retention_provenance.expiry_windows(None, scope={"line_id": "x"}, start=AT, end=end)
+    assert [(left, right) for left, right, _ in windows] == [(AT, end)]
+
+
+def test_report_clock_decisions_survive_cache_eviction(service, monkeypatch):
+    from apps.api import reports
+
+    for seq in range(1, 6):
+        submit(service, batch(seq, AT + timedelta(seconds=seq)), now=OLD)
+
+    def daily():
+        with service.engine.connect() as db:
+            return read_daily_report(
+                db, LINE_ID, AT.date(), now=AT + timedelta(days=1), scope=SCOPE
+            )
+
+    reports._CLOCK_MEMO.clear()
+    expected = daily()
+    assert len(reports._CLOCK_MEMO) >= 2  # canonical clock evidence was validated
+    # A tiny cache evicts entries while the same report validates the rest.
+    monkeypatch.setattr(reports, "_CLOCK_MEMO_LIMIT", 1)
+    assert daily() == expected
+    assert daily() == expected

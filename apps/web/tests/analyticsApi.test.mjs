@@ -84,6 +84,15 @@ test('timeline segments must be ordered and unknown spans cannot carry a stop re
   const state = fixture('timeline')
   state.segments.find(item => item.class === 'UNKNOWN').state = 'RUNNING'
   assert.throws(() => api.parseTimeline(state))
+  // The server keeps microseconds: a sub-millisecond span is ordered, not empty.
+  const tiny = fixture('timeline')
+  tiny.segments.splice(1, 0, { ...tiny.segments[4], from: '2026-10-22T01:35:00Z', to: '2026-10-22T01:35:00.000400Z' })
+  tiny.segments[2].from = '2026-10-22T01:35:00.000400Z'
+  assert.equal(api.parseTimeline(tiny).segments[1].to, '2026-10-22T01:35:00.000400Z')
+  const reversed = fixture('timeline')
+  reversed.segments[0].to = '2026-10-22T01:35:00.000400Z'
+  reversed.segments[1].from = '2026-10-22T01:35:00.000300Z'
+  assert.throws(() => api.parseTimeline(reversed))
 })
 
 test('SPC limits require a baseline and capability requires a specification', () => {

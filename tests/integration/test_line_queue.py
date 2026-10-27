@@ -527,3 +527,75 @@ def test_database_preserves_entry_identity_and_bound_receipt(completed, statemen
     with pytest.raises(DBAPIError), state.engine.begin() as db:
         db.execute(text(statement))
     assert read(state) == before
+
+
+def test_edited_order_reenrolls_with_its_new_version_and_keeps_old_evidence(state):
+    from apps.api.work_order_edit import EditIntent, edit_work_order
+    from tests.integration.test_work_order_edit import BODY
+
+    release(state)
+    first = update(state, definition("work-A"))
+    removed = update(state, definition(request_id="queue-2", revision=int(first["revision"])))
+    assert removed["entries"] == []
+    with state.engine.begin() as db:
+        edit_work_order(
+            db,
+            "work-A",
+            EditIntent.model_validate(BODY),
+            principal=state.principal,
+            clock=lambda: AT,
+        )
+    assert scalar(state, "SELECT row_version FROM work_orders WHERE id='work-A'") == 3
+    again = QueueUpdate(
+        request_id="queue-3",
+        expected_revision=int(removed["revision"]),
+        source_id="source",
+        stream_id="stream",
+        auto_advance=True,
+        entries=[dict(work_order_id="work-A", expected_row_version=3)],
+    )
+    queued = update(state, again)
+    [entry] = queued["entries"]
+    assert entry["expected_row_version"] == "3" and entry["state"] == "WAITING"
+    assert entry["entry_id"] != first["entries"][0]["entry_id"]
+    assert entry["load_command_id"] != first["entries"][0]["load_command_id"]
+    assert (
+        scalar(
+            state,
+            "SELECT count(*) FROM line_queue_entries WHERE work_order_id='work-A' "
+            "AND state='REMOVED' AND expected_row_version=2",
+        )
+        == 1
+    )
+    # Removing and re-adding at the same version reuses that entry and its LOAD id.
+    out = update(state, definition(request_id="queue-4", revision=int(queued["revision"])))
+    back = update(
+        state,
+        again.model_copy(
+            update={"request_id": "queue-5", "expected_revision": int(out["revision"])}
+        ),
+    )
+    assert back["entries"][0]["entry_id"] == entry["entry_id"]
+
+
+def test_queued_order_cannot_be_cancelled_until_it_leaves_the_queue(state):
+    from apps.api.work_order_cancel import CancellationIntent, cancel_work_order
+
+    release(state)
+    queued = update(state, definition("work-A"))
+
+    def cancel():
+        with state.engine.begin() as db:
+            return cancel_work_order(
+                db,
+                "work-A",
+                CancellationIntent(cancellation_id="cancel-A", expected_row_version=2),
+                principal=state.principal,
+                clock=lambda: AT,
+            )
+
+    with pytest.raises(RegistrationConflict):
+        cancel()
+    assert scalar(state, "SELECT status FROM work_orders WHERE id='work-A'") == "RELEASED"
+    update(state, definition(request_id="queue-2", revision=int(queued["revision"])))
+    assert cancel()["status"] == "CANCELLED"

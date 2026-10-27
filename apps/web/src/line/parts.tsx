@@ -72,7 +72,7 @@ export function TagDetails({ live }: { live: LiveLine }) {
         const usable = fresh && quality === 'Good' && sample?.reading.value !== null && (sample?.reading.data_type !== 'UInt64' || typeof sample.reading.value === 'string')
         return <div key={tag.logical_name} data-tag-id={tag.logical_name} className={usable ? 'usable' : 'unusable'}>
           <dt title={tag.logical_name}>{names[tag.name] ?? tag.name}</dt>
-          <dd><strong>{usable && sample ? displayValue(sample, tag.enum) : '—'}{usable && tag.unit ? <small> {tag.unit}</small> : null}</strong><span>{!sample ? '미수신' : `${quality}${fresh ? '' : ' · 오래됨'}`}</span></dd>
+          <dd><strong>{usable && sample ? displayValue(sample, tag.enum) : '—'}{usable && tag.unit ? <small> {tag.unit}</small> : null}</strong><span>{!sample ? '미수신' : `${({ Good: '정상', Uncertain: '불확실', Bad: '불량' } as Record<string, string>)[quality]}${fresh ? '' : ' · 갱신 안 됨'}`}</span></dd>
         </div>
       })}</dl>
     </section>)}</div>
