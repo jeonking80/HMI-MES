@@ -156,7 +156,21 @@ def assess_measured_clock(
         .first()
     )
     if row is None:
-        raise MeasuredClockConflict("unknown clock probe")
+        # Probes are pruned once expired, so a batch delivered late (a delivery backlog over
+        # MAX_AGE_SECONDS) can no longer find its probe. Its measurement would be stale anyway:
+        # accept the batch with UNKNOWN time rather than a permanent conflict that blocks every
+        # later batch behind it. Nothing is certified from an unverifiable nonce.
+        return MeasuredClockResult(
+            False,
+            "MEASURED_PROBE_UNAVAILABLE",
+            evidence.clock_epoch,
+            None,
+            None,
+            None,
+            None,
+            None,
+            {"credential_key_id": credential_key_id, "nonce_sha256": nonce_hash},
+        )
     if (
         row["gateway_id"],
         row["source_id"],

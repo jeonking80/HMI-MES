@@ -276,3 +276,20 @@ async def test_expired_full_scope_recovers_before_unrelated_expiry_prefix(measur
         scalar(env, "SELECT count(*) FROM capture_clock_probes WHERE clock_epoch='unrelated-epoch'")
         == 200
     )
+
+
+async def test_pruned_probe_is_unknown_time_not_a_blocking_conflict(measured):
+    # A delivery backlog longer than the probe lifetime lets cleanup delete the
+    # probe before its batch arrives. The batch must still be accepted (time
+    # UNKNOWN), or the gateway retries it forever and nothing behind it lands.
+    env = measured
+    response = await probe(env)
+    value = measured_batch(nonce=response.json()["nonce"])
+    with env.engine.begin() as connection:
+        connection.execute(text("DELETE FROM capture_clock_probes"))
+    result = await submit(env, value)
+    assert result.status_code == 200, result.text
+    assert scalar(env, "SELECT status FROM capture_clock_evidence") == "UNKNOWN"
+    assert scalar(env, "SELECT canonical_api_utc FROM capture_clock_evidence") is None
+    # The same batch retried is the same receipt, not a new conflict.
+    assert (await submit(env, value)).status_code == 200
