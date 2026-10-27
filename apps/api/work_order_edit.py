@@ -224,17 +224,26 @@ def _summary(row) -> dict:
 def work_order_overview(db: Connection, *, line_id: str, principal: Principal) -> dict:
     line_id = _ID.validate_python(line_id)
     _workflow_ready(db, principal, "read")
+    # Every actionable order (draft, or released and not yet bound) is listed however old;
+    # finished and cancelled history fills the rest up to the 200 most recent.
+    actionable = "(w.status='DRAFT' OR (w.status='RELEASED' AND l.execution_id IS NULL))"
     rows = (
         db.execute(
             text(
-                _OVERVIEW + ' WHERE w.line_id=:line ORDER BY w.created_at DESC, w.id COLLATE "C"'
-                " LIMIT 200"
+                _OVERVIEW + " WHERE w.line_id=:line AND " + actionable + " UNION ALL "
+                "("
+                + _OVERVIEW
+                + " WHERE w.line_id=:line AND NOT "
+                + actionable
+                + ' ORDER BY w.created_at DESC, w.id COLLATE "C" LIMIT 200)'
             ),
             {"line": line_id},
         )
         .mappings()
         .all()
     )
+    rows = sorted(rows, key=lambda row: row["id"])
+    rows = sorted(rows, key=lambda row: row["created_at"], reverse=True)
     return {"items": [_summary(row) for row in rows]}
 
 

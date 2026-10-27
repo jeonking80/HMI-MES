@@ -236,3 +236,40 @@ def test_unknown_clock_expiry_is_bounded_by_surviving_good_captures(service):
     assert all(
         p["quality"] != "RETENTION_EXPIRED" for p in points if at(p) > AT + timedelta(seconds=33)
     )
+
+
+def test_inverted_neighbour_bounds_keep_conservative_query_coverage(monkeypatch):
+    from apps.api import retention_provenance
+
+    entry = {
+        "time_unknown": True,
+        "analytical_from": None,
+        "analytical_until": None,
+        "sequence_from": (AT + timedelta(minutes=5)).isoformat(),
+        "sequence_until": (AT + timedelta(minutes=1)).isoformat(),
+    }
+    monkeypatch.setattr(retention_provenance, "expired_coverage", lambda *a, **k: [entry])
+    end = AT + timedelta(minutes=10)
+    windows = retention_provenance.expiry_windows(None, scope={"line_id": "x"}, start=AT, end=end)
+    assert [(left, right) for left, right, _ in windows] == [(AT, end)]
+
+
+def test_report_clock_decisions_survive_cache_eviction(service, monkeypatch):
+    from apps.api import reports
+
+    for seq in range(1, 6):
+        submit(service, batch(seq, AT + timedelta(seconds=seq)), now=OLD)
+
+    def daily():
+        with service.engine.connect() as db:
+            return read_daily_report(
+                db, LINE_ID, AT.date(), now=AT + timedelta(days=1), scope=SCOPE
+            )
+
+    reports._CLOCK_MEMO.clear()
+    expected = daily()
+    assert len(reports._CLOCK_MEMO) >= 2  # canonical clock evidence was validated
+    # A tiny cache evicts entries while the same report validates the rest.
+    monkeypatch.setattr(reports, "_CLOCK_MEMO_LIMIT", 1)
+    assert daily() == expected
+    assert daily() == expected

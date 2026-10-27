@@ -476,11 +476,17 @@ def _report_capture_rows(db, line_id, windows, *, scope, reversals):
 
 def _attach_unvalidated_bodies(db, rows):
     """Load complete original bodies only for evidence rows without a memoized check."""
-    missing = [
-        row
-        for row in rows
-        if row.get("clock_evidence") is not None and _memo_key(row) not in _CLOCK_MEMO
-    ]
+    missing = []
+    for row in rows:
+        if row.get("clock_evidence") is None:
+            continue
+        with _CLOCK_MEMO_LOCK:
+            validated = _CLOCK_MEMO.get(_memo_key(row))
+        if validated is not None:
+            # Keep this report's own reference: a later eviction cannot unvalidate the row.
+            row["clock_validated"] = validated
+        else:
+            missing.append(row)
     for offset in range(0, len(missing), 500):
         chunk = missing[offset : offset + 500]
         keys = json.dumps([{"g": row["gateway_id"], "b": row["batch_id"]} for row in chunk])
@@ -530,10 +536,12 @@ def _clock_decision(row, cutoff):
     from apps.api.capture_clock import apply_reversal_cutoff, validated_capture_clock
 
     key = _memo_key(row)
-    with _CLOCK_MEMO_LOCK:
-        validated = _CLOCK_MEMO.get(key)
-        if validated is not None:
-            _CLOCK_MEMO.move_to_end(key)
+    validated = row.get("clock_validated")
+    if validated is None:
+        with _CLOCK_MEMO_LOCK:
+            validated = _CLOCK_MEMO.get(key)
+            if validated is not None:
+                _CLOCK_MEMO.move_to_end(key)
     if validated is None:
         # No complete body (it changed between reads) validates the projection,
         # whose digest cannot match: the decision fails closed.
@@ -543,6 +551,7 @@ def _clock_decision(row, cutoff):
             batch_sha256=row["content_sha256"],
         )
         if "clock_body" in row:
+            row["clock_validated"] = validated
             with _CLOCK_MEMO_LOCK:
                 _CLOCK_MEMO[key] = validated
                 while len(_CLOCK_MEMO) > _CLOCK_MEMO_LIMIT:

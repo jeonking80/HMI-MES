@@ -40,6 +40,10 @@ def expiry_windows(connection, *, scope, start, end, tail=timedelta(seconds=1)):
             lower, upper = entry.get("sequence_from"), entry.get("sequence_until")
             left = _time(lower) if lower is not None else start
             right = _time(upper) + tail if upper is not None else end
+            if not left < right:
+                # Neighbour times that do not form an interval (e.g. a UTC step across a
+                # restart) prove nothing: keep the conservative query-wide coverage.
+                left, right = start, end
         else:
             left, right = _time(left), _time(right) + tail
         left, right = max(start, left), min(end, right)
