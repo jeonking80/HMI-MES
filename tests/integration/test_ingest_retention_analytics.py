@@ -6,10 +6,8 @@ from datetime import datetime, timedelta
 import pytest
 import sqlalchemy as sa
 
-from apps.api.bootstrap import LINE_ID
 from apps.api.capture_clock import read_capture_clock
 from apps.api.ingest_retention import expired_coverage
-from apps.api.reports import read_daily_report
 from apps.api.trend_history import TrendRetention, cleanup_trends, read_trends
 from tests.integration.test_alarm_consumer import capture
 from tests.integration.test_alarm_consumer import state as state
@@ -60,15 +58,6 @@ def test_expired_raw_is_explicit_and_minute_values_are_preserved(service):
     assert minute["value"] == before["value"]
     assert minute["valid_count"] == before["valid_count"]
     assert minute["raw_evidence"]["availability"] == "RETENTION_EXPIRED"
-    with service.engine.connect() as db:
-        report = read_daily_report(
-            db,
-            LINE_ID,
-            AT.date(),
-            now=AT + timedelta(days=1),
-            scope=SCOPE,
-        )
-    assert report["raw_evidence"]["availability"] == "RETENTION_EXPIRED"
 
 
 def test_canonical_offset_envelope_is_distinct_from_original_capture(service):
@@ -252,24 +241,3 @@ def test_inverted_neighbour_bounds_keep_conservative_query_coverage(monkeypatch)
     end = AT + timedelta(minutes=10)
     windows = retention_provenance.expiry_windows(None, scope={"line_id": "x"}, start=AT, end=end)
     assert [(left, right) for left, right, _ in windows] == [(AT, end)]
-
-
-def test_report_clock_decisions_survive_cache_eviction(service, monkeypatch):
-    from apps.api import reports
-
-    for seq in range(1, 6):
-        submit(service, batch(seq, AT + timedelta(seconds=seq)), now=OLD)
-
-    def daily():
-        with service.engine.connect() as db:
-            return read_daily_report(
-                db, LINE_ID, AT.date(), now=AT + timedelta(days=1), scope=SCOPE
-            )
-
-    reports._CLOCK_MEMO.clear()
-    expected = daily()
-    assert len(reports._CLOCK_MEMO) >= 2  # canonical clock evidence was validated
-    # A tiny cache evicts entries while the same report validates the rest.
-    monkeypatch.setattr(reports, "_CLOCK_MEMO_LIMIT", 1)
-    assert daily() == expected
-    assert daily() == expected

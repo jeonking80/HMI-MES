@@ -239,7 +239,7 @@ def test_real_evidence_timeline_daily_and_unknown(migrated):
     """Use the same actual capture/clock/coordinator setup as reporting, without a mock."""
     from test_alarm_consumer import AT as report_at
     from test_alarm_consumer import capture
-    from test_reports import ingest
+    from test_reports import ingest, states
     from test_reports import state as report_fixture
 
     state = report_fixture.__wrapped__(migrated)
@@ -249,14 +249,9 @@ def test_real_evidence_timeline_daily_and_unknown(migrated):
         "downtime-operator",
     )
     for seq, seconds in ((1, 0), (2, 2)):
-        ingest(
-            state,
-            capture(
-                seq,
-                seconds=seconds,
-                values={"Line.State": 3, "Sealer.State": 3, "Sealer.RunFeedback": False},
-            ),
-        )
+        ingest(state, capture(seq, seconds=seconds))
+    # The PLC reports the run paused from the start; the reason annotates that stop.
+    states(state, 500, [(0, "READY", "PAUSED")])
     from apps.api.reports import read_daily_report, read_execution_timeline
 
     now = report_at + timedelta(seconds=3)

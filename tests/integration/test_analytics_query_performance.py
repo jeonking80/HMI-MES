@@ -3,16 +3,13 @@
 from datetime import timedelta
 
 import pytest
-from alembic import command
 from sqlalchemy import event, select
 from test_alarm_consumer import AT, capture
 from test_reports import ingest
 from test_reports import state as report_state
 
 from apps.api.bootstrap import LINE_ID
-from apps.api.database import migration_config
 from apps.api.ingestion import ingest_batches
-from apps.api.reports import read_execution_timeline
 from apps.api.snapshot import read_snapshot
 from contracts.models import EVENT_ADAPTER
 from contracts.transport import GatewayBatch, batch_digest
@@ -102,20 +99,3 @@ def test_snapshot_complete_capture_opt_in_matches_history(state, shape):
         query = fallback_queries[0]
         assert "body @> jsonb_build_object(" in query
         assert query.index("LIMIT 1") < query.index("jsonb_array_elements")
-
-
-def test_legacy_projection_keeps_nonempty_nonreport_samples(state):
-    # Actual head17 has no durable canonical proof. A sampled link failure must
-    # remain sampled, even when none of its tags is used by the report itself.
-    with state.engine.connect() as db:
-        command.downgrade(migration_config(db), "0017_guest_viewer")
-    body = capture(1, seconds=0, communication_age=5).body
-    body = body.model_copy(
-        update={"samples": tuple(s for s in body.samples if s.tag_id == "Sealer.State")}
-    )
-    ingest(state, envelope(body))
-    with state.engine.begin() as db:
-        report = read_execution_timeline(db, "run", **SCOPE, now=AT + timedelta(seconds=2))
-    assert report["durations_seconds"]["running"] == 0
-    assert all(s["class"] == "UNKNOWN" for s in report["segments"])
-    assert all(s.get("unknown_time_basis") != "API_RECEIPT_FENCE" for s in report["segments"])

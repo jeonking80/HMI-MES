@@ -38,6 +38,7 @@ from apps.api.guest import GUEST_TIMEOUT, GuestThrottled, issue_guest, validate_
 from apps.api.ingestion import source_streams
 from apps.api.items_http import mount_item_routes
 from apps.api.line_queue_http import mount_line_queue_routes
+from apps.api.line_status import mount_line_status_routes
 from apps.api.models import Line
 from apps.api.runtime_control_http import mount_runtime_control_routes
 from apps.api.screen_frames import APP_SCREEN_MAX_BYTES, ScreenScope, make_screen_frame
@@ -460,6 +461,7 @@ def create_user_app(auth: UserAuth, config: UserHTTPConfig) -> FastAPI:
     mount_work_order_edit_routes(app, auth, session_cookie=SESSION_COOKIE)
     mount_line_queue_routes(app, auth, session_cookie=SESSION_COOKIE)
     mount_runtime_control_routes(app, auth, session_cookie=SESSION_COOKIE)
+    mount_line_status_routes(app, auth, session_cookie=SESSION_COOKIE)
     from apps.api.dashboard_http import register_dashboard_routes
     from apps.api.downtime_http import register_downtime_routes
     from apps.api.reports_http import register_report_routes
