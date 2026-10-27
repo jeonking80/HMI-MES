@@ -128,11 +128,11 @@ export function parseDashboard(value: unknown): Dashboard {
 
 // ---- CX-01 trends ----------------------------------------------------------------------------
 
-export type PointQuality = 'GOOD' | 'PARTIAL' | 'UNCERTAIN' | 'BAD' | 'MISSING' | 'TIME_UNKNOWN'
+export type PointQuality = 'GOOD' | 'PARTIAL' | 'UNCERTAIN' | 'BAD' | 'MISSING' | 'TIME_UNKNOWN' | 'RETENTION_EXPIRED'
 export interface TrendPoint { t: string; value: number | null; min: number | null; max: number | null; quality: PointQuality; valid_count: number; expected_count: number }
 export interface TrendSeries { tag_id: string; unit: string; points: TrendPoint[] }
 export interface Trend { from: string; to: string; resolution: 'second' | 'minute'; policy_version: string; series: TrendSeries[]; generated_at: string }
-const qualities: readonly PointQuality[] = ['GOOD', 'PARTIAL', 'UNCERTAIN', 'BAD', 'MISSING', 'TIME_UNKNOWN']
+const qualities: readonly PointQuality[] = ['GOOD', 'PARTIAL', 'UNCERTAIN', 'BAD', 'MISSING', 'TIME_UNKNOWN', 'RETENTION_EXPIRED']
 
 export function parseTrend(value: unknown): Trend {
   const root = record(value, ['scope', 'from', 'to', 'resolution', 'policy_version', 'series', 'generated_at'])
@@ -150,7 +150,8 @@ export function parseTrend(value: unknown): Trend {
       need(qualities.includes(point.quality as PointQuality) && count(point.valid_count) && count(point.expected_count))
       need(point.valid_count as number <= (point.expected_count as number))
       // A slot without samples must not carry a value; the chart breaks the line there.
-      if (point.quality === 'MISSING') need(point.value === null && point.min === null && point.max === null)
+      // A slot whose raw samples were deleted by retention is unknown, never a value.
+      if (point.quality === 'MISSING' || point.quality === 'RETENTION_EXPIRED') need(point.value === null && point.min === null && point.max === null)
       if (point.value !== null && point.min !== null && point.max !== null) need((point.min as number) <= (point.max as number))
       return {
         t: point.t, value: point.value as number | null, min: point.min as number | null, max: point.max as number | null,
