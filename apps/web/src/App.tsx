@@ -2,8 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { AuthError, changePassword, deploymentFeatures, guestLogin, login, logout, noFeatures } from './auth'
 import type { Session } from './auth'
-import SnapshotPanel from './SnapshotPanel'
+import { LineDataProvider } from './line/lineData'
+import MonitorPage from './line/MonitorPage'
+import ControlPage from './line/ControlPage'
+import AlarmsPage from './line/AlarmsPage'
+import type { ZoneId } from './line/lineModel'
 import MesDraftPanel from './MesDraftPanel'
+import type { DraftsTab } from './MesDraftPanel'
 import WorkflowTracker from './WorkflowTracker'
 import { useWorkOrderWorkflow } from './useWorkOrderWorkflow'
 import type { WorkOrder } from './mesApi'
@@ -99,6 +104,8 @@ export default function App() {
     setError('세션이 만료되었거나 조회 권한이 변경되었습니다. 다시 로그인해 주세요.')
   }, [])
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null)
+  const [controlZone, setControlZone] = useState<ZoneId | 'Line'>('Line')
+  const [draftsTab, setDraftsTab] = useState<DraftsTab>('recipes')
   const [tracked, setTracked] = useState<TrackedCommand | null>(null)
   const [alarmLedger, setAlarmLedger] = useState<AlarmLedger | null>(null)
   const [workOrderGuard] = useState(() => new WorkOrderMutationGuard())
@@ -179,6 +186,8 @@ export default function App() {
     setWorkspaceTab(page)
   }
   function go(target: GuideTarget) {
+    if (target.anchor === 'mes-recipes') setDraftsTab('recipes')
+    if (target.anchor === 'mes-orders') setDraftsTab('orders')
     navigate(target.page)
     setFocusTarget({ anchor: target.anchor, at: Date.now() })
   }
@@ -208,9 +217,14 @@ export default function App() {
           {guestMode && <div className="message guest-banner" role="status">게스트 조회 모드입니다. 화면을 둘러볼 수 있지만 운전·등록 요청은 서버가 거절합니다. 세션은 30분 뒤 종료됩니다.</div>}
           {error && <div className="message error" role="alert">{error}</div>}
           {notice && <div className="message success" role="status">{notice}</div>}
-          {guided && (workspaceTab === 'operations' || workspaceTab === 'drafts') && <GuideFlow session={session} selectedOrder={selectedOrder} workflow={workflow} onGo={go} />}
-          <div hidden={workspaceTab !== 'operations'}><SnapshotPanel session={session} onSessionInvalid={invalidateSession} workflow={workflow} selectedOrder={selectedOrder} tracked={tracked} setTracked={setTracked} alarmLedger={alarmLedger} setAlarmLedger={setAlarmLedger} /></div>
-          {mesOpened && <div hidden={workspaceTab !== 'drafts'}><MesDraftPanel session={session} onSessionInvalid={invalidateSession} workflow={workflow} cancellation={cancellation} onSelectOrder={order => { setSelectedOrder(order); setNotice(`작업지시 ${order.id}를 골랐습니다. "작업지시 실행 연결" 카드에서 "실행 연결 내용 확인"을 누르세요.`); go({ page: 'operations', anchor: 'work-order-binding' }) }} /></div>}
+          {guided && (workspaceTab === 'control' || workspaceTab === 'drafts') && <GuideFlow session={session} selectedOrder={selectedOrder} workflow={workflow} onGo={go} />}
+          <LineDataProvider session={session} onSessionInvalid={invalidateSession}>
+            {/* One line page at a time: each owns its command tracker, so two never poll the same command. */}
+            {workspaceTab === 'operations' && <MonitorPage session={session} onSessionInvalid={invalidateSession} workflow={workflow} tracked={tracked} setTracked={setTracked} onOpenControl={zone => { setControlZone(zone); navigate('control') }} onOpenAlarms={() => navigate('alarms')} />}
+            {workspaceTab === 'control' && <ControlPage session={session} onSessionInvalid={invalidateSession} workflow={workflow} tracked={tracked} setTracked={setTracked} zone={controlZone} onZone={setControlZone} selectedOrder={selectedOrder} onSelectOrder={setSelectedOrder} onOpenMonitor={() => navigate('operations')} />}
+            {workspaceTab === 'alarms' && <AlarmsPage session={session} onSessionInvalid={invalidateSession} ledger={alarmLedger} setLedger={setAlarmLedger} />}
+          </LineDataProvider>
+          {mesOpened && <div hidden={workspaceTab !== 'drafts'}><MesDraftPanel session={session} onSessionInvalid={invalidateSession} workflow={workflow} cancellation={cancellation} tab={draftsTab} onTab={setDraftsTab} onSelectOrder={order => { setSelectedOrder(order); setNotice(`작업지시 ${order.id}를 골랐습니다. "작업" 칸에서 "작업 불러오기"를 누르세요.`); go({ page: 'control', anchor: 'work-order-binding' }) }} /></div>}
           {workspaceTab === 'dashboard' && <DashboardPage scope={analyticsScope} onScope={setAnalyticsScope} onSessionInvalid={invalidateSession} />}
           {workspaceTab === 'trends' && <TrendPage scope={analyticsScope} onScope={setAnalyticsScope} onSessionInvalid={invalidateSession} />}
           {workspaceTab === 'reports' && <ReportsPage session={session} scope={analyticsScope} onScope={setAnalyticsScope} onSessionInvalid={invalidateSession} />}
@@ -218,10 +232,12 @@ export default function App() {
           {features.assistant && <div hidden={workspaceTab !== 'assistant'}><AssistantPage session={session} scope={analyticsScope} onScope={setAnalyticsScope} onSessionInvalid={invalidateSession} /></div>}
           {workspaceTab === 'spc' && <SpcPage scope={analyticsScope} onScope={setAnalyticsScope} onSessionInvalid={invalidateSession} />}
           {/* Work-order request ledgers belong to the operations and work-order pages; hidden (not unmounted) elsewhere to keep their state. */}
-          <div hidden={workspaceTab !== 'operations' && workspaceTab !== 'drafts'}>
+          {/* Folded unless a request is open, so an unresolved original ID is never hidden. */}
+          <details className="lc-card lc-ledgers" hidden={workspaceTab !== 'control' && workspaceTab !== 'drafts'} open={!!workflow.attempt || !!cancellation.ledger || undefined}>
+            <summary>작업지시 요청 · 취소 기록 조회<span>{workflow.attempt || cancellation.ledger ? '확인할 요청이 있습니다' : '이전 요청 ID로 결과를 다시 볼 때 펼치세요'}</span></summary>
             <WorkflowTracker workflow={workflow} login={session.login} onSessionInvalid={invalidateSession} />
             <CancellationPanel cancellation={cancellation} login={session.login} />
-          </div>
+          </details>
           <p id="session-reset" className="session-note">페이지를 새로고침하거나 다시 열면 재로그인이 필요합니다.</p>
         </main>
       </div>

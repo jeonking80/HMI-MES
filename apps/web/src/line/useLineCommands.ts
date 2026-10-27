@@ -1,22 +1,27 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
-import type { Session } from './auth'
-import { CommandHTTPError, commandHTTP, commandLookupPath, commandLabels, newCommandRequest, parseResult, sameScope, statusLabels, terminal, uint64String } from './commands'
-import type { CommandKind, CommandRequest, CommandScope, TrackedCommand } from './commands'
-import { STEPS, stepGuide } from './commandGuide'
-import { conflictMessage } from './conflictReasons'
+import type { Session } from '../auth'
+import { CommandHTTPError, commandHTTP, commandLookupPath, newCommandRequest, parseResult, sameScope, terminal, uint64String } from '../commands'
+import type { CommandKind, CommandRequest, CommandScope, TrackedCommand } from '../commands'
+import { conflictMessage } from '../conflictReasons'
 
-interface Props {
+/**
+ * Line command requests: which commands this session may send now and why not, submitting one
+ * with its original ID, and following that ID to a final result. The PLC decides; an interrupted
+ * or unknown result keeps the original ID and is never re-sent under a new one.
+ * Moved unchanged from the former CommandPanel so the new screens share one implementation.
+ */
+export interface LineCommandsInput {
   source: CommandScope; session: Session; blockedReason: string; values: Record<string, unknown>
   newIntentBlocked?: string
   tracked: TrackedCommand | null; setTracked: Dispatch<SetStateAction<TrackedCommand | null>>
   onSessionInvalid: () => void
 }
 const identifier = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 128 && !/\s/.test(value)
+export const stateNames: Record<string, string> = { 0: 'STOPPED', 1: 'READY', 2: 'RUNNING', 3: 'PAUSED', 4: 'STOPPING', 5: 'FAULT', 6: 'ESTOP', 7: 'RECOVERY_REQUIRED' }
 
-export default function CommandPanel({ source, session, blockedReason, newIntentBlocked = '', values, tracked, setTracked, onSessionInvalid }: Props) {
+export function useLineCommands({ source, session, blockedReason, newIntentBlocked = '', values, tracked, setTracked, onSessionInvalid }: LineCommandsInput) {
   const [confirmEnd, setConfirmEnd] = useState<{ execution: string; version: string; epoch: string } | null>(null)
-  const [lookupId, setLookupId] = useState('')
   const [lookupAttempt, setLookupAttempt] = useState(0)
   const [lookupMessage, setLookupMessage] = useState('')
   const [polling, setPolling] = useState(false)
@@ -33,7 +38,6 @@ export default function CommandPanel({ source, session, blockedReason, newIntent
   // CX-35: speed may move within ±20 % of the LOAD baseline (and 1–60 m/min) while running or paused.
   const activeExecution = typeof values['Line.ActiveExecutionId'] === 'string' && values['Line.ActiveExecutionId'] ? values['Line.ActiveExecutionId'] as string : null
   const [baseline, setBaseline] = useState<{ execution: string; temperature: number; speed: number; recipe: string } | null>(null)
-  const [speedInput, setSpeedInput] = useState('')
   useEffect(() => {
     if (!activeExecution || !operator) return
     const controller = new AbortController()
@@ -47,8 +51,10 @@ export default function CommandPanel({ source, session, blockedReason, newIntent
   }, [activeExecution, operator, source.line_id, source.source_id, source.stream_id])
   const speedBase = baseline && baseline.execution === activeExecution ? baseline : null
   const speedRange = speedBase ? { min: Math.max(1, Math.ceil(speedBase.speed * 0.8 * 10) / 10), max: Math.min(60, Math.floor(speedBase.speed * 1.2 * 10) / 10) } : null
-  const speedValue = Number(speedInput)
-  const speedProblem = !speedRange ? '현재 실행의 기준 속도를 확인하고 있습니다.' : speedInput === '' || !Number.isFinite(speedValue) || speedValue < speedRange.min || speedValue > speedRange.max ? `${speedRange.min}~${speedRange.max} m/min 안에서 입력해 주세요.` : ''
+  const speedProblem = (input: string) => {
+    const value = Number(input)
+    return !speedRange ? '현재 실행의 기준 속도를 확인하고 있습니다.' : input === '' || !Number.isFinite(value) || value < speedRange.min || value > speedRange.max ? `${speedRange.min}~${speedRange.max} m/min 안에서 입력해 주세요.` : ''
+  }
 
   useEffect(() => () => { postController.current?.abort() }, [])
   useEffect(() => {
@@ -145,64 +151,34 @@ export default function CommandPanel({ source, session, blockedReason, newIntent
     } finally { submitting.current = false }
   }
 
-  function lookupOriginal() {
-    if (tracked) {
-      if (!scoped || posting) return
-      setLookupMessage('')
-      setLookupAttempt(value => value + 1)
-    } else if (identifier(lookupId)) {
-      setTracked({ commandId: lookupId, scope: source, request: null, counterEpoch: null, result: null, phase: 'TRACKING', message: '' })
-      setLookupMessage('')
-    }
+  function askEnd() {
+    setConfirmEnd({ execution: String(values['Line.ActiveExecutionId']), version: String(values['Line.ControlVersion']), epoch: String(values['Line.CounterEpoch']) })
   }
+  function setSpeed(input: string) {
+    if (!speedProblem(input) && !disabledReason('SET_PARAMETERS') && speedBase) void submit('SET_PARAMETERS', { recipe_version: speedBase.recipe, parameters: { temperature_c: speedBase.temperature, speed_m_per_min: Number(input) } })
+  }
+  function lookupAgain() {
+    if (!tracked || !scoped || posting) return
+    setLookupMessage('')
+    setLookupAttempt(value => value + 1)
+  }
+  function lookupId(id: string) {
+    if (tracked || !identifier(id)) return
+    setTracked({ commandId: id, scope: source, request: null, counterEpoch: null, result: null, phase: 'TRACKING', message: '' })
+    setLookupMessage('')
+  }
+  function acknowledge() { setTracked(null); setLookupMessage(''); setPolling(false) }
+
   const kinds: CommandKind[] = operator ? ['START', 'PAUSE', 'END_RUN', 'RESET_FAULT'] : producer ? ['END_RUN'] : []
   const result = tracked?.result
   const feedbackMatches = !blockedReason && result?.evidence?.state !== undefined
-    && result.evidence.state === ({ 0: 'STOPPED', 1: 'READY', 2: 'RUNNING', 3: 'PAUSED', 4: 'STOPPING', 5: 'FAULT', 6: 'ESTOP', 7: 'RECOVERY_REQUIRED' } as Record<string, string>)[String(state)]
+    && result.evidence.state === stateNames[String(state)]
     && result.evidence.execution_id === values['Line.ActiveExecutionId']
-  const reasons = kinds.map(kind => disabledReason(kind))
-  // One shared line when every button has the same reason; per-button text stays for assistive tech.
-  const sharedReason = kinds.length > 1 && reasons.every(reason => reason === reasons[0]) ? reasons[0] : null
-  // The control version a new request would carry; acceptance runs wait on it before clicking.
-  const shownVersion = uint64String(values['Line.ControlVersion']) ? String(values['Line.ControlVersion']) : undefined
-  const guide = blockedReason ? null : stepGuide(values)
-  return <section id="command-panel" className="command-panel" aria-labelledby="command-heading" data-control-version={shownVersion}>
-    <div className="monitor-heading"><div><p className="section-kicker">COMMAND REQUEST</p><h2 id="command-heading">현재 실행 제어 요청</h2></div><span className="read-only-tag">서버 · PLC 재검증</span></div>
-    <p className="form-help">요청 저장과 PLC 접수는 실행 완료가 아닙니다. 현재 실행에 대한 요청만 제공합니다. 작업지시 화면에서 배포 후 실행 연결을 준비할 수 있습니다.</p>
-    {guide && <div id="command-guide" className={`command-guide tone-${guide.tone}`} data-step={guide.step} role="status">
-      <ol className="command-steps" aria-label="운전 단계">{STEPS.map((label, index) => <li key={label} className={index < guide.step ? 'done' : index === guide.step ? 'current' : ''}>{label}</li>)}</ol>
-      <p><strong>{guide.title}</strong> {guide.next}</p>
-      {guide.progress !== null && <div className="command-progress" aria-label={`목표 대비 양품 ${Math.round(guide.progress * 100)}%`}><span style={{ width: `${Math.min(100, guide.progress * 100)}%` }} /></div>}
-    </div>}
-    {kinds.length ? <><div className="command-actions">{kinds.map(kind => {
-      const reason = disabledReason(kind)
-      return <div key={kind}><button id={`command-${kind}`} type="button" className={`button ${kind === 'START' ? 'primary' : kind === 'END_RUN' ? 'danger' : 'secondary'}${guide?.recommended === kind ? ' recommended' : ''}`} disabled={!!reason} aria-describedby={`command-${kind}-reason`} onClick={() => kind === 'END_RUN' ? setConfirmEnd({ execution: String(values['Line.ActiveExecutionId']), version: String(values['Line.ControlVersion']), epoch: String(values['Line.CounterEpoch']) }) : void submit(kind)}>{commandLabels[kind]}</button><p id={`command-${kind}-reason`} className={sharedReason === null ? 'command-reason' : 'command-reason sr-only'}>{reason || '요청 시 서버와 PLC가 조건을 다시 확인합니다.'}</p></div>
-    })}</div>{sharedReason !== null && <p className="command-reason command-reason-shared" aria-hidden="true">{sharedReason || '요청 시 서버와 PLC가 조건을 다시 확인합니다.'}</p>}</> : <p className="message caution">현재 역할은 운전 요청 권한이 없습니다. 명령 결과 조회는 가능합니다.</p>}
-    {confirmEnd && <div className="end-confirm" role="group" aria-labelledby="end-confirm-heading">
-      <h3 id="end-confirm-heading">현재 작업의 종료를 요청하시겠습니까?</h3><p>실행 {confirmEnd.execution}의 신규 투입을 중지하고 재공 정리 후 종료하도록 요청합니다. 종료가 확정되면 이 실행을 다시 시작할 수 없습니다. MES 실적 정산 완료와는 구분됩니다.</p>
-      {endConfirmationReason && <p className="message caution">{endConfirmationReason}</p>}<div><button id="command-END_RUN-confirm" className="button danger" type="button" disabled={!!endConfirmationReason} onClick={() => void submit('END_RUN')}>현재 실행 종료 요청</button><button className="button secondary" type="button" onClick={() => setConfirmEnd(null)}>취소</button></div>
-    </div>}
-    {operator && [2, 3].includes(Number(state)) && <div id="speed-adjust" className="speed-adjust">
-      <h3>운전 중 속도 조정</h3>
-      <p className="form-help">작업을 불러올 때의 기준 속도 {speedBase ? `${speedBase.speed} m/min` : '확인 중'}에서 ±20 % 안에서만 바꿀 수 있습니다. 온도는 바꾸지 않습니다. PLC가 판정하고 실행 기록에 남깁니다.</p>
-      <form onSubmit={event => { event.preventDefault(); if (!speedProblem && !disabledReason('SET_PARAMETERS') && speedBase) void submit('SET_PARAMETERS', { recipe_version: speedBase.recipe, parameters: { temperature_c: speedBase.temperature, speed_m_per_min: speedValue } }) }}>
-        <label htmlFor="speed-adjust-value">새 속도 (m/min)</label>
-        <div className="speed-adjust-row"><input id="speed-adjust-value" type="number" step="0.1" min={speedRange?.min} max={speedRange?.max} value={speedInput} placeholder={speedBase ? String(speedBase.speed) : ''} onChange={event => setSpeedInput(event.target.value)} />
-        <button id="command-SET_PARAMETERS" className="button secondary" type="submit" disabled={!!speedProblem || !!disabledReason('SET_PARAMETERS')}>운전 속도 변경</button></div>
-        <p className="command-reason">{disabledReason('SET_PARAMETERS') || speedProblem || '요청 시 서버와 PLC가 범위를 다시 확인합니다.'}</p>
-      </form>
-    </div>}
-    {tracked && <div id="command-tracker" className="command-tracker">
-      <p className="section-kicker">ORIGINAL COMMAND</p><h3 id="command-status" data-status={tracked.phase === 'REJECTED' ? 'HTTP_REJECTED' : tracked.phase === 'SUBMITTING' ? 'SUBMITTING' : result?.status ?? 'UNKNOWN'}>{tracked.phase === 'REJECTED' ? 'API 요청 거절' : tracked.phase === 'SUBMITTING' ? '요청 응답 확인 중' : result ? statusLabels[result.status] : '요청 결과 불명'}</h3>
-      <dl className="command-facts"><div><dt>원래 명령 ID</dt><dd id="original-command-id">{tracked.commandId}</dd></div><div><dt>요청 종류 · 실행</dt><dd>{tracked.request ? `${commandLabels[tracked.request.command.kind] ?? tracked.request.command.kind} · ${tracked.request.execution_id ?? '없음'}` : '원래 요청 조회 중'}</dd></div><div><dt>수집원</dt><dd>{tracked.scope.source_id} / {tracked.scope.stream_id}</dd></div>{tracked.request && <div><dt>요청 당시 버전 · 구간</dt><dd>{tracked.request.expected_control_version} · {tracked.counterEpoch ?? '별도 조회 필요'}</dd></div>}</dl>
-      {tracked.message && <p className="message caution" role="status">{tracked.message}</p>}
-      {!scoped && <p className="message caution">다른 수집원의 명령을 보관하고 있습니다. 원래 라인·수집원을 선택하면 같은 ID의 추적을 이어갈 수 있습니다.</p>}
-      {result && <div className="command-result"><p>서버 기록: {result.status} · {result.updated_at}</p>{result.reason_code && <p>사유 코드: {result.reason_code}</p>}{result.reason && <p>{result.reason}</p>}{result.status === 'SUCCEEDED' && <><p>실행 완료 근거: {result.evidence?.state} · 제어 버전 {result.applied_control_version}</p><p>{feedbackMatches ? '현재 정상 관측과 결과 상태·실행 ID가 일치합니다.' : '현재 정상 관측과 실행 결과의 대조를 확인할 수 없습니다.'}</p>{tracked.request?.command.kind === 'END_RUN' && <p>설비 종료 기록입니다. MES 실적 정산 완료는 아직 확인하지 않았습니다.</p>}</>}</div>}
-      {lookupMessage && <p className="message caution" role="status">{lookupMessage}</p>}
-      <div className="tracker-actions"><button id="command-lookup-original" className="button secondary" type="button" disabled={!scoped || posting || (polling && !finished)} onClick={lookupOriginal}>{polling && !finished ? '원래 ID 조회 중…' : '원래 ID 결과 다시 조회'}</button>{finished && <button id="command-acknowledge" className="button secondary" type="button" onClick={() => { setTracked(null); setLookupMessage(''); setPolling(false) }}>확정 결과 확인 · 다음 요청 준비</button>}</div>
-    </div>}
-    {!tracked && <form className="command-lookup-form" onSubmit={event => { event.preventDefault(); lookupOriginal() }}><label htmlFor="command-lookup-id">기존 명령 ID로 결과 조회</label><div><input id="command-lookup-id" required maxLength={128} value={lookupId} onChange={event => setLookupId(event.target.value)} /><button id="command-lookup-submit" className="button secondary" type="submit">결과 조회</button></div></form>}
-    <p className="form-help">결과 불명일 때 새 명령을 생성하거나 자동 재전송하지 않습니다. 원래 명령 ID를 기록해 주세요. 새로고침·로그아웃 후에는 재로그인하고 이 ID로 다시 조회할 수 있습니다.</p>
-  </section>
+  return {
+    operator, producer, kinds, disabledReason, submit, askEnd, confirmEnd, cancelEnd: () => setConfirmEnd(null), endConfirmationReason,
+    speedBase, speedRange, speedProblem, setSpeed, canSetSpeed: operator && [2, 3].includes(Number(state)),
+    tracked, scoped, posting, finished, polling, lookupMessage, lookupAgain, lookupId, acknowledge, result, feedbackMatches,
+    controlVersion: uint64String(values['Line.ControlVersion']) ? String(values['Line.ControlVersion']) : undefined,
+  }
 }
-
+export type LineCommands = ReturnType<typeof useLineCommands>

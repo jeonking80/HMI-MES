@@ -14,6 +14,8 @@ const iconPaths: Record<PageDefinition['icon'], ReactNode> = {
   report: <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></>,
   spc: <><path d="M3 6h18M3 18h18" strokeDasharray="2 2" /><path d="M3 12l4-2 3 3 4-4 3 2 4-1" /></>,
   assistant: <><path d="M4 5h16v11H9l-5 4z" /><path d="M8 9.5h8M8 12.5h5" /></>,
+  control: <><circle cx="12" cy="12" r="8" /><path d="M12 4v8l5 3" /></>,
+  alarm: <><path d="M6 17V11a6 6 0 0 1 12 0v6l2 2H4z" /><path d="M10 21h4" /></>,
 }
 
 function NavIcon({ icon }: { icon: PageDefinition['icon'] }) {

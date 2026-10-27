@@ -1,0 +1,115 @@
+import { useState } from 'react'
+import type { ReactNode } from 'react'
+import { commandLabels, statusLabels } from '../commands'
+import type { CommandKind } from '../commands'
+import { stepGuide } from '../commandGuide'
+import type { LineCommands } from './useLineCommands'
+
+const icons: Record<CommandKind, ReactNode> = {
+  START: <path d="M7 4L20 12L7 20Z" fill="currentColor" />,
+  PAUSE: <><rect x="6" y="4" width="4" height="16" fill="currentColor" /><rect x="14" y="4" width="4" height="16" fill="currentColor" /></>,
+  END_RUN: <rect x="5" y="5" width="14" height="14" rx="1.5" fill="currentColor" />,
+  RESET_FAULT: <path d="M5 12a7 7 0 1 0 2-5M5 4v4h4" fill="none" stroke="currentColor" strokeWidth="2.2" />,
+  SET_PARAMETERS: <path d="M4 12h16" stroke="currentColor" strokeWidth="2" />,
+}
+const shortLabels: Partial<Record<CommandKind, string>> = { START: '시작 · 재개', PAUSE: '일시 정지', END_RUN: '작업 종료', RESET_FAULT: '고장 리셋' }
+
+/** The line commands as large buttons. The one the PLC state calls for is emphasised; the rest stay visible with the reason they are unavailable. */
+export function CommandButtons({ cmd, values, compact = false }: { cmd: LineCommands; values: Record<string, unknown>; compact?: boolean }) {
+  if (!cmd.kinds.length) return <p className="lc-note">이 계정은 운전 명령 권한이 없습니다. 결과 조회만 할 수 있습니다.</p>
+  const recommended = stepGuide(values).recommended
+  const reasons = cmd.kinds.map(kind => cmd.disabledReason(kind))
+  const firstReason = reasons.find(Boolean) ?? ''
+  const allBlocked = reasons.every(Boolean)
+  return <div className="lc-commands">
+    <div className={`lc-command-grid${compact ? ' compact' : ''}`} data-control-version={cmd.controlVersion}>
+      {cmd.kinds.map((kind, index) => <button key={kind} id={`command-${kind}`} type="button" title={reasons[index] || undefined}
+        className={`lc-command kind-${kind}${recommended === kind && !reasons[index] ? ' recommended' : ''}`} disabled={!!reasons[index]}
+        onClick={() => kind === 'END_RUN' ? cmd.askEnd() : void cmd.submit(kind)}>
+        <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">{icons[kind]}</svg>{shortLabels[kind] ?? commandLabels[kind]}
+      </button>)}
+    </div>
+    {(allBlocked || firstReason) && <p className="lc-reason" role="status">{allBlocked ? reasons[0] : firstReason}</p>}
+    {cmd.confirmEnd && <div className="lc-confirm" role="group" aria-labelledby="end-confirm-heading">
+      <strong id="end-confirm-heading">현재 작업을 종료할까요?</strong>
+      <span>신규 투입을 멈추고 재공을 정리한 뒤 끝냅니다. 종료되면 이 실행은 다시 시작할 수 없습니다.</span>
+      {cmd.endConfirmationReason && <span className="lc-reason">{cmd.endConfirmationReason}</span>}
+      <div><button id="command-END_RUN-confirm" type="button" className="lc-button danger" disabled={!!cmd.endConfirmationReason} onClick={() => void cmd.submit('END_RUN')}>종료 요청</button><button type="button" className="lc-button" onClick={cmd.cancelEnd}>취소</button></div>
+    </div>}
+  </div>
+}
+
+/** Speed within ±20 % of the job's baseline while running or paused. Temperature is fixed by the loaded job. */
+export function SpeedControl({ cmd }: { cmd: LineCommands }) {
+  const [input, setInput] = useState('')
+  if (!cmd.canSetSpeed) return null
+  const base = cmd.speedBase
+  const value = input === '' && base ? String(base.speed) : input
+  const step = (delta: number) => {
+    const next = Math.round((Number(value || 0) + delta) * 10) / 10
+    setInput(String(cmd.speedRange ? Math.min(cmd.speedRange.max, Math.max(cmd.speedRange.min, next)) : next))
+  }
+  const blocked = cmd.disabledReason('SET_PARAMETERS')
+  const problem = cmd.speedProblem(value)
+  const changed = base !== null && Number(value) !== base.speed
+  return <form id="speed-adjust" className="lc-speed" onSubmit={event => { event.preventDefault(); cmd.setSpeed(value) }}>
+    <label htmlFor="speed-adjust-value">운전 속도</label>
+    <div className="lc-stepper">
+      <button type="button" aria-label="속도 0.5 낮추기" onClick={() => step(-0.5)}>−</button>
+      <input id="speed-adjust-value" type="number" step="0.1" inputMode="decimal" min={cmd.speedRange?.min} max={cmd.speedRange?.max} value={value} onChange={event => setInput(event.target.value)} />
+      <span>m/min</span>
+      <button type="button" aria-label="속도 0.5 높이기" onClick={() => step(0.5)}>+</button>
+    </div>
+    <button id="command-SET_PARAMETERS" type="submit" className="lc-button primary" disabled={!!blocked || !!problem || !changed}>{changed && base ? `적용 · ${base.speed} → ${value}` : '적용'}</button>
+    <p className="lc-hint">{blocked || problem || (cmd.speedRange ? `허용 ${cmd.speedRange.min}~${cmd.speedRange.max} m/min · 온도는 작업 설정값으로 고정` : '')}</p>
+  </form>
+}
+
+const steps = ['요청 저장', 'PLC 접수', '실행 완료']
+function progress(cmd: LineCommands): { reached: number; tone: 'active' | 'done' | 'bad' | 'unknown'; label: string } {
+  const tracked = cmd.tracked!
+  if (tracked.phase === 'REJECTED') return { reached: 0, tone: 'bad', label: '서버가 요청을 거절했습니다' }
+  if (tracked.phase === 'SUBMITTING') return { reached: 0, tone: 'active', label: '요청 보내는 중' }
+  const status = cmd.result?.status
+  if (!status) return { reached: 0, tone: 'unknown', label: '요청 결과 불명' }
+  if (status === 'SUCCEEDED') return { reached: 3, tone: 'done', label: statusLabels[status] }
+  if (status === 'ACCEPTED') return { reached: 2, tone: 'active', label: statusLabels[status] }
+  if (status === 'REQUESTED' || status === 'DELIVERED') return { reached: 1, tone: 'active', label: statusLabels[status] }
+  if (status === 'OUTCOME_UNKNOWN') return { reached: 2, tone: 'unknown', label: statusLabels[status] }
+  return { reached: status === 'EXPIRED' ? 1 : 2, tone: 'bad', label: statusLabels[status] }
+}
+
+/** The original command's progress, beside the controls that sent it. */
+export function CommandResult({ cmd }: { cmd: LineCommands }) {
+  const tracked = cmd.tracked
+  if (!tracked) return null
+  const view = progress(cmd)
+  const kind = tracked.request?.command.kind
+  return <div id="command-tracker" className="lc-result" data-tone={view.tone}>
+    <div className="lc-result-head">
+      <strong id="command-status" data-status={tracked.phase === 'REJECTED' ? 'HTTP_REJECTED' : tracked.phase === 'SUBMITTING' ? 'SUBMITTING' : cmd.result?.status ?? 'UNKNOWN'}>{view.label}</strong>
+      <span>{kind ? commandLabels[kind] ?? kind : '원래 요청 조회 중'}</span>
+    </div>
+    <ol className="lc-steps">{steps.map((label, index) => <li key={label} data-state={index < view.reached ? (view.tone === 'bad' && index === view.reached - 1 ? 'bad' : 'done') : index === view.reached && view.tone !== 'done' ? view.tone : 'todo'}>{label}</li>)}</ol>
+    {tracked.message && <p className="lc-reason" role="status">{tracked.message}</p>}
+    {cmd.result?.reason && <p className="lc-reason">{cmd.result.reason}</p>}
+    {cmd.result?.status === 'SUCCEEDED' && <p className="lc-hint">{cmd.feedbackMatches ? '현재 설비 상태와 결과가 일치합니다.' : '현재 설비 상태와 결과의 대조를 아직 확인하지 못했습니다.'}{kind === 'END_RUN' ? ' 실적 정산 완료는 실적 화면에서 확인합니다.' : ''}</p>}
+    {cmd.lookupMessage && <p className="lc-reason" role="status">{cmd.lookupMessage}</p>}
+    {!cmd.scoped && <p className="lc-reason">다른 수집원의 명령입니다. 원래 라인을 선택하면 이어서 조회합니다.</p>}
+    <div className="lc-result-foot">
+      <span className="lc-id">ID <code id="original-command-id">{tracked.commandId}</code></span>
+      <button id="command-lookup-original" type="button" className="lc-link" disabled={!cmd.scoped || cmd.posting || (cmd.polling && !cmd.finished)} onClick={cmd.lookupAgain}>{cmd.polling && !cmd.finished ? '조회 중…' : '다시 조회'}</button>
+      {cmd.finished && <button id="command-acknowledge" type="button" className="lc-button" onClick={cmd.acknowledge}>확인 · 다음 요청</button>}
+    </div>
+  </div>
+}
+
+/** Look up an earlier command by its ID (after a reload or from another screen). */
+export function CommandLookup({ cmd }: { cmd: LineCommands }) {
+  const [id, setId] = useState('')
+  if (cmd.tracked) return null
+  return <form className="lc-lookup" onSubmit={event => { event.preventDefault(); cmd.lookupId(id.trim()) }}>
+    <label htmlFor="command-lookup-id">이전 명령 ID로 결과 조회</label>
+    <div><input id="command-lookup-id" required maxLength={128} value={id} onChange={event => setId(event.target.value)} /><button id="command-lookup-submit" type="submit" className="lc-button">조회</button></div>
+  </form>
+}
