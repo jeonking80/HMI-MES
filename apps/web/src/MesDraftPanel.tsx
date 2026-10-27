@@ -164,13 +164,32 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
     setParamsManual(false)
     setRecipe(recipeEmpty)
   }
+  // Bring a form into view after a row action: open its folded box, scroll, mark it and focus the changed field.
+  function reveal(formId: string, fieldId: string) {
+    window.requestAnimationFrame(() => {
+      const form = document.getElementById(formId)
+      if (!form) return
+      const box = form.closest('details')
+      if (box) box.open = true
+      form.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      form.classList.remove('guide-focus')
+      void form.offsetWidth
+      form.classList.add('guide-focus')
+      window.setTimeout(() => form.classList.remove('guide-focus'), 2600)
+      document.getElementById(fieldId)?.focus({ preventScroll: true })
+    })
+  }
+  function pickForOrder(item: RecipeVersion) {
+    setSelectedRecipe(item)
+    reveal('mes-order-form', 'mes-order-recipe')
+  }
   // "Edit" keeps the stored version unchanged and starts its next version from its values.
   function editFrom(item: RecipeVersion) {
     setBaseGroup(item.recipe_id)
     setIdsManual(false)
     setParamsManual(false)
     suggestFor(item.item_id, item.recipe_id, item)
-    window.requestAnimationFrame(() => document.getElementById('mes-recipe-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+    reveal('mes-recipe-form', 'mes-recipe-temperature')
   }
   function chooseBase(recipeId: string) {
     const group = groups.find(entry => entry.recipe_id === recipeId)
@@ -303,7 +322,7 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
     {!canWrite && <p className="message caution">현재 계정은 등록된 내용을 조회할 수 있습니다. 공정 설정과 작업지시 등록은 생산 담당자가 진행합니다.</p>}
     <section id="mes-recipes" className="mes-card" aria-labelledby="mes-recipes-heading">
       <div className="mes-card-heading"><div><h3 id="mes-recipes-heading">공정 설정</h3><p>설정 그룹과 버전별로 등록 내용을 보관합니다.</p></div><button className="button secondary" type="button" onClick={recipes.refresh}>목록 새로 조회</button></div>
-      {recipes.error ? <p className="message error" role="alert">{recipes.error}</p> : !recipes.page ? <p role="status">공정 설정을 조회하고 있습니다.</p> : recipes.page.items.length === 0 ? <p className="mes-empty">{recipes.cursor ? '이후 공정 설정이 없습니다.' : '등록된 공정 설정이 없습니다.'}</p> : <div className="mes-table-scroll"><table id="mes-recipe-list"><caption className="sr-only">등록된 공정 설정</caption><thead><tr><th scope="col">설정 ID</th><th scope="col">설정 그룹 · 버전</th><th scope="col">품목</th><th scope="col">온도 · 속도</th>{canWrite && <th scope="col">작업</th>}</tr></thead><tbody>{recipes.page.items.map(item => <tr key={item.id}><th scope="row">{item.id}</th><td>{item.recipe_id} · {item.version}</td><td>{item.item_id}</td><td>{item.parameters.temperature_c} ℃ · {item.parameters.speed_m_per_min} m/min</td>{canWrite && <td><div className="row-actions"><button type="button" className="button secondary" disabled={locked('order')} onClick={() => setSelectedRecipe(item)} aria-label={`${item.id} 공정 설정을 작업지시에 사용`}>작업지시에 사용</button><button type="button" className="button secondary" disabled={locked('recipe')} onClick={() => editFrom(item)} aria-label={`${item.id} 값으로 새 버전 만들기`}>수정(새 버전)</button></div></td>}</tr>)}</tbody></table></div>}
+      {recipes.error ? <p className="message error" role="alert">{recipes.error}</p> : !recipes.page ? <p role="status">공정 설정을 조회하고 있습니다.</p> : recipes.page.items.length === 0 ? <p className="mes-empty">{recipes.cursor ? '이후 공정 설정이 없습니다.' : '등록된 공정 설정이 없습니다.'}</p> : <div className="mes-table-scroll"><table id="mes-recipe-list"><caption className="sr-only">등록된 공정 설정</caption><thead><tr><th scope="col">설정 ID</th><th scope="col">설정 그룹 · 버전</th><th scope="col">품목</th><th scope="col">온도 · 속도</th>{canWrite && <th scope="col">작업</th>}</tr></thead><tbody>{recipes.page.items.map(item => <tr key={item.id}><th scope="row">{item.id}</th><td>{item.recipe_id} · {item.version}</td><td>{item.item_id}</td><td>{item.parameters.temperature_c} ℃ · {item.parameters.speed_m_per_min} m/min</td>{canWrite && <td><div className="row-actions"><button type="button" className="button secondary" disabled={locked('order')} onClick={() => pickForOrder(item)} aria-label={`${item.id} 공정 설정을 작업지시에 사용`}>작업지시에 사용</button><button type="button" className="button secondary" disabled={locked('recipe')} onClick={() => editFrom(item)} aria-label={`${item.id} 값으로 새 버전 만들기`}>수정(새 버전)</button></div></td>}</tr>)}</tbody></table></div>}
       <div className="mes-pagination"><span>페이지당 최대 20건</span><div><button id="mes-recipes-first" className="button secondary" type="button" disabled={!recipes.cursor} onClick={recipes.refresh}>처음</button><button id="mes-recipes-next" className="button secondary" type="button" disabled={!recipes.page?.next_cursor} onClick={recipes.next}>다음</button></div></div>
       {canWrite && <details className="mes-editor" open><summary>새 공정 설정 등록</summary><p className="form-help">품목이나 기존 설정을 고르면 설정 ID·그룹·버전이 자동으로 채워집니다. 기존 설정은 수정하지 않고 새 버전으로 저장합니다.</p>
         {validation.recipe && <p className="message error" role="alert">{validation.recipe}</p>}
@@ -333,7 +352,7 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
         {validation.order && <p className="message error" role="alert">{validation.order}</p>}
         <form id="mes-order-form" onSubmit={submitOrder}><fieldset disabled={locked('order')}><legend className="sr-only">작성 중 작업지시 등록 내용</legend><div className="mes-form-grid">
           <div><label htmlFor="mes-order-id">작업지시 ID</label><input id="mes-order-id" required maxLength={128} value={orderId} onChange={event => { setOrderIdManual(true); setOrder(previous => ({ ...previous, id: event.target.value })) }} /><p className="input-help">{orderIdManual ? <button type="button" className="button text" onClick={() => setOrderIdManual(false)}>날짜 기준 번호로 다시 채우기</button> : '예정일 기준으로 다음 번호를 자동으로 붙입니다.'}</p></div>
-          <div><label htmlFor="mes-order-recipe">공정 설정</label><select id="mes-order-recipe" required value={chosenRecipe?.id ?? ''} onChange={event => setSelectedRecipe(recipeChoices.find(item => item.id === event.target.value) ?? null)}><option value="" disabled>공정 설정을 선택해 주세요</option>{orderRecipeChoices.map(item => <option key={item.id} value={item.id}>{item.item_id} · {item.recipe_id} {item.version} ({item.parameters.temperature_c} ℃ / {item.parameters.speed_m_per_min} m/min)</option>)}</select><p className="input-help">가장 최근 설정을 기본으로 고릅니다.</p></div>
+          <div><label htmlFor="mes-order-recipe">공정 설정</label><select id="mes-order-recipe" required value={chosenRecipe?.id ?? ''} onChange={event => setSelectedRecipe(recipeChoices.find(item => item.id === event.target.value) ?? null)}><option value="" disabled>공정 설정을 선택해 주세요</option>{orderRecipeChoices.map(item => <option key={item.id} value={item.id}>{item.item_id} · {item.recipe_id} {item.version} ({item.parameters.temperature_c} ℃ / {item.parameters.speed_m_per_min} m/min)</option>)}</select><p className="input-help">{selectedRecipe ? '공정 설정 목록에서 고른 설정입니다.' : '가장 최근에 등록한 설정을 기본으로 고릅니다.'}</p></div>
           <div><label htmlFor="mes-order-item">품목 ID</label><input id="mes-order-item" readOnly value={chosenRecipe?.item_id ?? ''} aria-describedby="mes-order-item-help" /><p id="mes-order-item-help" className="input-help">선택한 공정 설정의 품목입니다.</p></div>
           <div><label htmlFor="mes-order-line">생산 라인</label><select id="mes-order-line" required value={order.line} onChange={event => setOrder(previous => ({ ...previous, line: event.target.value }))}><option value="" disabled>라인을 선택해 주세요</option>{lines?.map(line => <option key={line.id} value={line.id}>{line.name}</option>)}</select>{lineError ? <p className="input-help">{lineError}</p> : lines?.length === 0 ? <p className="input-help">선택할 라인이 없습니다. 설비 관리자에게 라인 등록과 수집원 연결을 확인해 주세요.</p> : null}</div>
           <div><label htmlFor="mes-order-target">목표 양품 수량 (개)</label><input id="mes-order-target" type="number" required min="1" max="4294967295" step="1" value={order.target} onChange={event => setOrder(previous => ({ ...previous, target: event.target.value }))} /></div>

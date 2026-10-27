@@ -5,7 +5,7 @@ import type { RecipeVersion, WorkOrder } from './mesApi'
 export const TEMPERATURE_RANGE = { min: 50, max: 200 } as const
 export const SPEED_RANGE = { min: 1, max: 60 } as const
 export const DEFAULT_PARAMETERS = { temperature_c: 150, speed_m_per_min: 10 } as const
-export const DEFAULT_TARGET = 1000
+export const DEFAULT_TARGET = 10
 
 const slug = (value: string) => value.trim().toUpperCase().replace(/[^A-Z0-9가-힣._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60)
 
