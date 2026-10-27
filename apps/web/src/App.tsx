@@ -13,6 +13,8 @@ import CancellationPanel from './CancellationPanel'
 import { useCancellation } from './useCancellation'
 import { WorkOrderMutationGuard } from './workOrderMutationGuard'
 import Sidebar from './Sidebar'
+import GuideFlow from './GuideFlow'
+import type { GuideTarget } from './GuideFlow'
 import { buildNavigation, pageDefinition } from './navigation'
 import type { WorkspacePage } from './navigation'
 import DashboardPage from './analytics/DashboardPage'
@@ -40,6 +42,7 @@ export default function App() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const heading = useRef<HTMLHeadingElement>(null)
+  const [focusTarget, setFocusTarget] = useState<{ anchor: string; at: number } | null>(null)
   const passwordRequired = session?.must_change_password === true
   const showPasswordForm = session !== null && (passwordRequired || changingPassword)
   const screen = !session ? 'login' : showPasswordForm ? 'password' : 'workspace'
@@ -53,6 +56,25 @@ export default function App() {
     return () => controller.abort()
   }, [signedIn])
   useEffect(() => { heading.current?.focus() }, [screen, workspaceTab])
+  // After a guided move, bring the target card into view and mark it, so the change is visible.
+  // Cards that load their data render a moment later; keep looking for a few seconds.
+  useEffect(() => {
+    if (!focusTarget) return
+    let tries = 0
+    const timer = window.setInterval(() => {
+      const element = document.getElementById(focusTarget.anchor)
+      const card = element?.closest('section') ?? element
+      if (card && card.offsetParent !== null) {
+        window.clearInterval(timer)
+        card.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        card.classList.remove('guide-focus')
+        void card.offsetWidth
+        card.classList.add('guide-focus')
+        window.setTimeout(() => card.classList.remove('guide-focus'), 2600)
+      } else if (++tries > 40) window.clearInterval(timer)
+    }, 100)
+    return () => window.clearInterval(timer)
+  }, [focusTarget])
   // Success notices are transient; errors stay until the next action.
   useEffect(() => {
     if (!notice) return
@@ -156,6 +178,11 @@ export default function App() {
     if (page === 'drafts') setMesOpened(true)
     setWorkspaceTab(page)
   }
+  function go(target: GuideTarget) {
+    navigate(target.page)
+    setFocusTarget({ anchor: target.anchor, at: Date.now() })
+  }
+  const guided = !guestMode && session !== null && session.roles.some(role => ['operator', 'production_manager', 'equipment_admin'].includes(role))
 
   if (session && screen === 'workspace') {
     const current = pageDefinition(workspaceTab)
@@ -181,8 +208,9 @@ export default function App() {
           {guestMode && <div className="message guest-banner" role="status">게스트 조회 모드입니다. 화면을 둘러볼 수 있지만 운전·등록 요청은 서버가 거절합니다. 세션은 30분 뒤 종료됩니다.</div>}
           {error && <div className="message error" role="alert">{error}</div>}
           {notice && <div className="message success" role="status">{notice}</div>}
+          {guided && (workspaceTab === 'operations' || workspaceTab === 'drafts') && <GuideFlow session={session} selectedOrder={selectedOrder} workflow={workflow} onGo={go} />}
           <div hidden={workspaceTab !== 'operations'}><SnapshotPanel session={session} onSessionInvalid={invalidateSession} workflow={workflow} selectedOrder={selectedOrder} tracked={tracked} setTracked={setTracked} alarmLedger={alarmLedger} setAlarmLedger={setAlarmLedger} /></div>
-          {mesOpened && <div hidden={workspaceTab !== 'drafts'}><MesDraftPanel session={session} onSessionInvalid={invalidateSession} workflow={workflow} cancellation={cancellation} onSelectOrder={order => { setSelectedOrder(order); setWorkspaceTab('operations') }} /></div>}
+          {mesOpened && <div hidden={workspaceTab !== 'drafts'}><MesDraftPanel session={session} onSessionInvalid={invalidateSession} workflow={workflow} cancellation={cancellation} onSelectOrder={order => { setSelectedOrder(order); setNotice(`작업지시 ${order.id}를 골랐습니다. "작업지시 실행 연결" 카드에서 "실행 연결 내용 확인"을 누르세요.`); go({ page: 'operations', anchor: 'work-order-binding' }) }} /></div>}
           {workspaceTab === 'dashboard' && <DashboardPage scope={analyticsScope} onScope={setAnalyticsScope} onSessionInvalid={invalidateSession} />}
           {workspaceTab === 'trends' && <TrendPage scope={analyticsScope} onScope={setAnalyticsScope} onSessionInvalid={invalidateSession} />}
           {workspaceTab === 'reports' && <ReportsPage session={session} scope={analyticsScope} onScope={setAnalyticsScope} onSessionInvalid={invalidateSession} />}
