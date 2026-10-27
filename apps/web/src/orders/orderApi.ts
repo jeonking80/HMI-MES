@@ -14,12 +14,12 @@ export interface OrderSummary extends WorkOrder {
   phase: OrderPhase
   released_at: string | null; released_by: string | null
   cancelled_at: string | null; cancelled_by: string | null
-  revised_to: string | null; revised_from: string | null
   queue_position: number | null
   execution: OrderExecution | null
 }
 
-export interface OrderEvent { action: string; actor: string; occurred_at: string }
+export interface OrderChange { field: string; before: string | number | null; after: string | number | null }
+export interface OrderEvent { action: string; actor: string; occurred_at: string; changes: OrderChange[] | null }
 
 const phases: OrderPhase[] = ['DRAFT', 'WAITING', 'RUNNING', 'DONE', 'CANCELLED']
 
@@ -42,27 +42,18 @@ export async function readHistory(id: string, signal: AbortSignal): Promise<Orde
   return value.events as OrderEvent[]
 }
 
-export interface RevisionBody {
-  new_work_order_id: string; recipe_version_id: string; target_quantity: number; planned_date: string
-  expected_row_version: string; release_id: string
+export interface EditBody {
+  edit_id: string; expected_row_version: string; recipe_version_id: string; target_quantity: number; planned_date: string
 }
 
-export function revise(id: string, body: RevisionBody, csrf: string, signal: AbortSignal) {
-  return mesRequest(`/api/v1/work-order-actions/revise?work_order_id=${encodeURIComponent(id)}`, signal, csrf, body)
+export function editOrder(id: string, body: EditBody, csrf: string, signal: AbortSignal) {
+  return mesRequest(`/api/v1/work-order-actions/edit?work_order_id=${encodeURIComponent(id)}`, signal, csrf, body)
 }
 
-/** 다음 수정본 ID: WO-1 → WO-1-R2 → WO-1-R3 (이미 있는 ID는 건너뜀). */
-export function nextRevisionId(id: string, taken: ReadonlySet<string>) {
-  const base = id.replace(/-R\d+$/, '')
-  for (let n = 2; n < 1000; n += 1) {
-    const candidate = `${base}-R${n}`
-    if (!taken.has(candidate) && candidate.length <= 128) return candidate
-  }
-  return `${base}-R${Date.now()}`
-}
+export const fieldLabels: Record<string, string> = { recipe_version_id: '공정 설정', target_quantity: '목표', planned_date: '예정일' }
 
 export const phaseLabels: Record<OrderPhase, string> = { DRAFT: '작성 중', WAITING: '대기', RUNNING: '진행 중', DONE: '완료', CANCELLED: '취소' }
 export const eventLabels: Record<string, string> = {
-  REGISTER_WORK_ORDER: '등록', RELEASE_WORK_ORDER: '배포', BIND_EXECUTION: '라인에 불러옴', CANCEL_WORK_ORDER: '취소',
+  REGISTER_WORK_ORDER: '등록', EDIT_WORK_ORDER: '수정', RELEASE_WORK_ORDER: '배포', BIND_EXECUTION: '라인에 불러옴', CANCEL_WORK_ORDER: '취소',
 }
 export const endReasonLabels: Record<string, string> = { TARGET_REACHED: '목표 도달', OPERATOR: '작업자 종료' }

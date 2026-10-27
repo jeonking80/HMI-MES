@@ -316,13 +316,15 @@ def test_nonempty_segments_refuse_lossy_downgrade_without_changes(observation_se
     retire(service, batch())
     before_rows = compaction_snapshot(service.engine)
     before_segments = segment_snapshot(service.engine)
+    with service.engine.connect() as db:
+        start = db.execute(sa.text("SELECT version_num FROM alembic_version")).scalar()
     with pytest.raises((RuntimeError, DBAPIError)), service.engine.connect() as db:
         command.downgrade(migration_config(db), HEAD23)
     assert compaction_snapshot(service.engine) == before_rows
     assert segment_snapshot(service.engine) == before_segments
     assert lookup(service.engine, "batch-1")
     with service.engine.connect() as db:
-        assert db.execute(sa.text("SELECT version_num FROM alembic_version")).scalar() == HEAD24
+        assert db.execute(sa.text("SELECT version_num FROM alembic_version")).scalar() == start
 
 
 def test_runtime_can_lookup_and_prune_but_cannot_write_segments_or_invoke_compactor(head23):

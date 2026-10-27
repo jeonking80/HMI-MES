@@ -24,6 +24,7 @@ CLOCK_EVIDENCE_REVISIONS = frozenset(
         "0022_ingest_retention",
         "0023_ingest_compaction",
         "0024_ingest_retired_segments",
+        "0025_mes_edit_audit",
     }
 )
 NORMALIZATION_VERSION = "api-interval-midpoint-v1"
@@ -60,7 +61,11 @@ def capture_frontier_table(connection, *, alias="capture_history", deduplicate=T
     avoid sorting/deduplicating the full retained history on every capture.
     """
     revision = schema_revision(connection)
-    if revision in {"0023_ingest_compaction", "0024_ingest_retired_segments"}:
+    if revision in {
+        "0023_ingest_compaction",
+        "0024_ingest_retired_segments",
+        "0025_mes_edit_audit",
+    }:
         union = "UNION" if deduplicate else "UNION ALL"
         return f"""(SELECT gateway_id,source_id,stream_id,capture_generation,capture_seq,
             captured_at,clock_epoch,monotonic_seconds FROM ingest_receipts
@@ -450,6 +455,7 @@ def _fence_expired_reversal_minutes(connection, body, epoch, cutoff):
         "0022_ingest_retention",
         "0023_ingest_compaction",
         "0024_ingest_retired_segments",
+        "0025_mes_edit_audit",
     }:
         return
     binding = dict(
@@ -461,7 +467,11 @@ def _fence_expired_reversal_minutes(connection, body, epoch, cutoff):
         cutoff=cutoff,
     )
     compact = ""
-    if revision in {"0023_ingest_compaction", "0024_ingest_retired_segments"}:
+    if revision in {
+        "0023_ingest_compaction",
+        "0024_ingest_retired_segments",
+        "0025_mes_edit_audit",
+    }:
         compact = """ OR EXISTS(SELECT 1 FROM ingest_retention_ranges
         WHERE source_id=:source AND stream_id=:stream AND gateway_id=:gateway
           AND capture_generation=:generation AND :epoch=ANY(clock_epochs)

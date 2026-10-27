@@ -44,7 +44,7 @@ from apps.api.screen_frames import APP_SCREEN_MAX_BYTES, ScreenScope, make_scree
 from apps.api.screen_ws import mount_screen_ws
 from apps.api.snapshot import SnapshotNotFound, read_snapshot
 from apps.api.work_order_cancel_http import mount_work_order_cancel_routes
-from apps.api.work_order_revise_http import mount_work_order_revise_routes
+from apps.api.work_order_edit_http import mount_work_order_edit_routes
 from apps.api.work_orders_http import mount_work_order_routes
 
 SESSION_COOKIE = "hmi_session"
@@ -457,7 +457,7 @@ def create_user_app(auth: UserAuth, config: UserHTTPConfig) -> FastAPI:
     mount_alarm_routes(app, auth, session_cookie=SESSION_COOKIE)
     mount_execution_routes(app, auth, session_cookie=SESSION_COOKIE)
     mount_work_order_cancel_routes(app, auth, session_cookie=SESSION_COOKIE)
-    mount_work_order_revise_routes(app, auth, session_cookie=SESSION_COOKIE)
+    mount_work_order_edit_routes(app, auth, session_cookie=SESSION_COOKIE)
     mount_line_queue_routes(app, auth, session_cookie=SESSION_COOKIE)
     mount_runtime_control_routes(app, auth, session_cookie=SESSION_COOKIE)
     from apps.api.dashboard_http import register_dashboard_routes
