@@ -17,6 +17,7 @@ function daysAgo(day: string, days: number) {
   date.setUTCDate(date.getUTCDate() - days)
   return date.toISOString().slice(0, 10)
 }
+const MAX_RANGE_DAYS = 93
 /** Seoul calendar day [start, end) as UTC instants. */
 function seoulRange(fromDay: string, toDay: string) {
   const start = new Date(`${fromDay}T00:00:00+09:00`)
@@ -57,15 +58,16 @@ function ExecutionReports({ session, scope, onScope, onSessionInvalid }: Props) 
   const [fromDay, setFromDay] = useState(daysAgo(today, 6))
   const [toDay, setToDay] = useState(today)
   const [selected, setSelected] = useState<ExecutionReport | null>(null)
-  const range = seoulRange(fromDay, toDay)
+  // The server accepts at most 93 days per query; clamp a typed start date to that window.
+  const range = seoulRange(fromDay < daysAgo(toDay, MAX_RANGE_DAYS - 1) ? daysAgo(toDay, MAX_RANGE_DAYS - 1) : fromDay, toDay)
   const params = scope ? { line_id: scope.line_id, from: range.from, to: range.to } : null
   const reports = useResource(params ? query('/api/v1/reports/executions', { ...params, limit: '50' }) : null, parseExecutionReports, onSessionInvalid)
   const items = reports.data?.items ?? []
   return <>
     <div className="filter-row">
       <ScopePicker id="report-scope" sources={sources.data} value={scope} onChange={value => { onScope(value); setSelected(null) }} />
-      <div className="filter-field"><label className="filter-label" htmlFor="report-from">시작일</label><input id="report-from" type="date" value={fromDay} max={toDay} onChange={event => { if (event.target.value) { setFromDay(event.target.value); setSelected(null) } }} /></div>
-      <div className="filter-field"><label className="filter-label" htmlFor="report-to">종료일</label><input id="report-to" type="date" value={toDay} min={fromDay} max={today} onChange={event => { if (event.target.value) { setToDay(event.target.value); setSelected(null) } }} /></div>
+      <div className="filter-field"><label className="filter-label" htmlFor="report-from">시작일</label><input id="report-from" type="date" value={fromDay} min={daysAgo(toDay, MAX_RANGE_DAYS - 1)} max={toDay} onChange={event => { if (event.target.value) { setFromDay(event.target.value); setSelected(null) } }} /></div>
+      <div className="filter-field"><label className="filter-label" htmlFor="report-to">종료일</label><input id="report-to" type="date" value={toDay} min={fromDay} max={today} onChange={event => { if (event.target.value) { setToDay(event.target.value); if (fromDay < daysAgo(event.target.value, MAX_RANGE_DAYS - 1)) setFromDay(daysAgo(event.target.value, MAX_RANGE_DAYS - 1)); setSelected(null) } }} /></div>
       <RefreshStatus loading={reports.loading} updatedAt={reports.updatedAt} onRefresh={reports.refresh} />
       {params && <a className="button secondary compact download" href={query('/api/v1/reports/executions.csv', params)} download>CSV 내려받기</a>}
     </div>

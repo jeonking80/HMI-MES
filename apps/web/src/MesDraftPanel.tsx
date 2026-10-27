@@ -20,7 +20,8 @@ interface Attempt {
 interface LineChoice { id: string; name: string }
 const recipeEmpty = { id: '', family: '', version: '', item: '', temperature: String(DEFAULT_PARAMETERS.temperature_c), speed: String(DEFAULT_PARAMETERS.speed_m_per_min) }
 const orderEmpty = { id: '', line: '', target: String(DEFAULT_TARGET), date: '' }
-const CHOICE_PAGES = 10
+// Full choice lists (ID suggestions, queue candidates): 100 per page, up to 2000 rows.
+const CHOICE_PAGES = 20
 const displayTime = (value: string) => new Date(value).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false })
 
 function usePage<T>(path: string, parse: (value: unknown) => Page<T>, onSessionInvalid: () => void, refreshKey = '') {
@@ -54,7 +55,7 @@ function useAll<T>(path: string, parse: (value: unknown) => Page<T>, refreshKey:
       const collected: T[] = []
       let cursor: string | null = null
       for (let page = 0; page < CHOICE_PAGES; page += 1) {
-        const query = new URLSearchParams({ limit: '20', ...(cursor ? { after_id: cursor } : {}) })
+        const query = new URLSearchParams({ limit: '100', ...(cursor ? { after_id: cursor } : {}) })
         const value = parse(await mesRequest(`${path}?${query}`, controller.signal))
         collected.push(...value.items)
         cursor = value.next_cursor

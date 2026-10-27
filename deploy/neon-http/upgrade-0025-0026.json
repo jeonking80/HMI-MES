@@ -1,0 +1,12 @@
+[
+ "SELECT pg_catalog.pg_advisory_xact_lock(843001)",
+ "SET LOCAL search_path = pg_catalog, public, pg_temp",
+ "DO $$ BEGIN IF current_database() <> 'hmi_mes_demo' THEN RAISE EXCEPTION 'unexpected database'; END IF; IF (SELECT count(*) FROM public.alembic_version) <> 1 OR NOT EXISTS (SELECT 1 FROM public.alembic_version WHERE version_num='0025_mes_edit_audit') THEN RAISE EXCEPTION 'unexpected schema revision or database'; END IF; IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='hmi_migrator') OR NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='hmi_app') THEN RAISE EXCEPTION 'dedicated roles required'; END IF; IF (SELECT nspowner FROM pg_namespace WHERE nspname='public') IS DISTINCT FROM 'hmi_migrator'::regrole::oid OR NOT EXISTS (SELECT 1 FROM pg_class WHERE oid=to_regclass('public.alembic_version') AND relowner='hmi_migrator'::regrole::oid AND relkind='r') THEN RAISE EXCEPTION 'dedicated migrator ownership required'; END IF; END $$",
+ "SET LOCAL ROLE hmi_migrator",
+ "SET LOCAL search_path = public, pg_temp",
+ "ALTER TABLE public.line_queue_entries DROP CONSTRAINT line_queue_entries_work_order_id_key",
+ "CREATE UNIQUE INDEX ux_line_queue_entries_active_order ON public.line_queue_entries(work_order_id) WHERE state <> 'REMOVED'",
+ "CREATE INDEX ix_line_queue_entries_work_order ON public.line_queue_entries(work_order_id)",
+ "SET LOCAL search_path = pg_catalog, public, pg_temp",
+ "UPDATE public.alembic_version SET version_num='0026_queue_reenroll' WHERE version_num='0025_mes_edit_audit'"
+]

@@ -10,6 +10,7 @@ from pydantic import Field, TypeAdapter, model_validator
 from sqlalchemy import Connection, text
 
 from apps.api.auth import PERMISSIONS, AuthorizationError, Principal
+from apps.api.capture_clock import schema_revision
 from apps.api.commands import CommandConflict
 from apps.api.control_http import _configured
 from apps.api.database import SCHEMA_LOCK_ID, SUPPORTED_LINE_QUEUE_REVISIONS
@@ -31,6 +32,8 @@ from contracts.models import (
     UInt64,
     UTCTimestamp,
 )
+
+REENROLL_REVISIONS = frozenset({"0026_queue_reenroll"})
 
 QUEUE_LOCK = "mes-line-queue"
 
@@ -244,9 +247,34 @@ def update_queue(
         ),
         {"line": line_id},
     )
+    reenroll = schema_revision(db) in REENROLL_REVISIONS
     for position, entry in enumerate(intent.entries):
-        key = json.dumps(["mes-queue", line_id, entry.work_order_id])
-        identity = str(uuid5(NAMESPACE_URL, key))
+        # Reuse the entry already enrolled at this exact version; an edited order gets a new
+        # entry (its enrolled version is immutable evidence), which needs schema 0026.
+        same = db.execute(
+            text(
+                "SELECT entry_id FROM line_queue_entries WHERE work_order_id=:order "
+                "AND expected_row_version=:version AND state IN ('WAITING','REMOVED') "
+                "ORDER BY created_at DESC,entry_id LIMIT 1"
+            ),
+            {"order": entry.work_order_id, "version": entry.expected_row_version},
+        ).scalar_one_or_none()
+        if same is not None:
+            identity = same
+        else:
+            enrolled = db.execute(
+                text("SELECT 1 FROM line_queue_entries WHERE work_order_id=:order LIMIT 1"),
+                {"order": entry.work_order_id},
+            ).first()
+            if enrolled is None:
+                key = json.dumps(["mes-queue", line_id, entry.work_order_id])
+            elif reenroll:
+                key = json.dumps(
+                    ["mes-queue", line_id, entry.work_order_id, str(entry.expected_row_version)]
+                )
+            else:
+                raise RegistrationConflict("Edited work order re-enrollment requires schema 0026")
+            identity = str(uuid5(NAMESPACE_URL, key))
         load_id = str(uuid5(NAMESPACE_URL, "mes-queue-load:" + identity))
         db.execute(
             text(

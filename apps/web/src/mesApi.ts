@@ -62,7 +62,7 @@ export function parseOrder(value: unknown): WorkOrder {
 }
 function parsePage<T>(value: unknown, parse: (item: unknown) => T): Page<T> {
   const result = record(value)
-  if (!Array.isArray(result.items) || result.items.length > 20 || (result.next_cursor !== null && !validId(result.next_cursor))) throw new Error('Unconfirmed MES page')
+  if (!Array.isArray(result.items) || result.items.length > 100 || (result.next_cursor !== null && !validId(result.next_cursor))) throw new Error('Unconfirmed MES page')
   return { items: result.items.map(parse), next_cursor: result.next_cursor as string | null }
 }
 export const recipePage = (value: unknown) => parsePage(value, parseRecipe)

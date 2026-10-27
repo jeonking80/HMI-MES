@@ -1,7 +1,7 @@
 """Expired raw provenance coexists with retained minutes, execution totals and clocks."""
 
 from dataclasses import replace
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pytest
 import sqlalchemy as sa
@@ -212,3 +212,27 @@ def test_merged_compacted_epoch_endpoints_preserve_chronology_and_reversal(servi
             WHERE clock_epoch='clock-1'""")
         ).scalar_one()
     assert reversal == 4
+
+
+def test_unknown_clock_expiry_is_bounded_by_surviving_good_captures(service):
+    good = service.trend_clock_policy
+    service.trend_clock_policy = None
+    submit(service, batch(1, AT), now=OLD)
+    assert prune(service.engine)["deleted_count"] == 1
+    service.trend_clock_policy = good
+    submit(service, batch(2, AT + timedelta(seconds=30)), now=OLD)
+    result = read(service, "second")
+    entry = result["retention_expired"][0]
+    assert entry["time_unknown"] is True
+    assert entry["sequence_from"] is None and entry["sequence_until"] is not None
+
+    def at(point):
+        return datetime.fromisoformat(point["t"].replace("Z", "+00:00"))
+
+    points = result["series"][0]["points"]
+    expired = [at(p) for p in points if p["quality"] == "RETENTION_EXPIRED"]
+    # Capture 1 happened before GOOD capture 2: later seconds stay ordinary.
+    assert expired and max(expired) < AT + timedelta(seconds=33)
+    assert all(
+        p["quality"] != "RETENTION_EXPIRED" for p in points if at(p) > AT + timedelta(seconds=33)
+    )

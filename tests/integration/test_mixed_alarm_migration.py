@@ -441,6 +441,7 @@ def test_explicit_mixed_feature_set_rejects_old_heads_without_claiming_coordinat
         "0023_ingest_compaction",
         "0024_ingest_retired_segments",
         "0025_mes_edit_audit",
+        "0026_queue_reenroll",
     }
     assert OLD not in supported
     # No fake writer/helper mirrors the proposed admission algorithm. The actual

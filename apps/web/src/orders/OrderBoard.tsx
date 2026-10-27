@@ -22,7 +22,7 @@ function progressOf(order: OrderSummary) {
   const run = order.execution
   if (order.phase === 'DONE' && run) return `양품 ${run.good_quantity ?? '?'} · 불량 ${run.reject_quantity ?? '?'}`
   if (order.phase === 'RUNNING' && run) return run.good_quantity === null ? '생산 중' : `생산 중 ${run.good_quantity}/${order.target_quantity}`
-  if (order.phase === 'WAITING') return order.queue_position ? `대기열 ${order.queue_position}번` : '불러오기 대기'
+  if (order.phase === 'WAITING') return order.queue_position !== null ? `대기열 ${order.queue_position + 1}번` : '불러오기 대기'
   if (order.phase === 'CANCELLED') return '취소됨'
   return '배포 전'
 }
@@ -147,8 +147,9 @@ export default function OrderBoard({ session, lines, recipes, canWrite, canBind,
           </form> : <div className="wo-actions">
             {selected.phase === 'WAITING' && canBind && <button type="button" className="button primary" disabled={isBlocked(selected.id)} onClick={() => onBind(selected)}>운전 제어에서 불러오기 →</button>}
             {selected.phase === 'DRAFT' && canWrite && <button type="button" className="button primary" disabled={isBlocked(selected.id)} onClick={() => onRelease(selected)}>배포</button>}
-            {['DRAFT', 'WAITING'].includes(selected.phase) && canWrite && <button id="wo-edit" type="button" className="button secondary" disabled={!!pendingRevision || isBlocked(selected.id)} onClick={() => startEdit(selected)}>수정</button>}
-            {['DRAFT', 'WAITING'].includes(selected.phase) && canWrite && <button type="button" className="button secondary danger-text" disabled={!!pendingRevision || isBlocked(selected.id)} onClick={() => onCancel(selected)}>취소</button>}
+            {['DRAFT', 'WAITING'].includes(selected.phase) && canWrite && <button id="wo-edit" type="button" className="button secondary" disabled={!!pendingRevision || isBlocked(selected.id) || selected.queue_position !== null} onClick={() => startEdit(selected)}>수정</button>}
+            {['DRAFT', 'WAITING'].includes(selected.phase) && canWrite && <button type="button" className="button secondary danger-text" disabled={!!pendingRevision || isBlocked(selected.id) || selected.queue_position !== null} onClick={() => onCancel(selected)}>취소</button>}
+            {selected.queue_position !== null && canWrite && <span className="form-help">대기열에 들어 있어 수정·취소할 수 없습니다. 운전 제어의 대기열에서 먼저 빼 주세요.</span>}
             {selected.phase === 'RUNNING' && <button type="button" className="button primary" onClick={onOpenControl}>운전 제어에서 보기 →</button>}
             {selected.phase === 'DONE' && <button type="button" className="button secondary" onClick={onReports}>실적 보기 →</button>}
             {['RUNNING', 'DONE'].includes(selected.phase) && <span className="form-help">라인에 불러온 작업지시는 기록으로 남아 수정·취소할 수 없습니다.</span>}
