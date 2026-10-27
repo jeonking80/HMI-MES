@@ -32,6 +32,30 @@ CHECKS = [
 ]
 
 
+def host_load(previous):
+    """CPU busy/steal share since the previous call and available memory, from /proc."""
+    try:
+        fields = [int(v) for v in Path("/proc/stat").read_text().split("\n", 1)[0].split()[1:]]
+        memory = {
+            line.split(":")[0]: int(line.split()[1])
+            for line in Path("/proc/meminfo").read_text().splitlines()
+        }
+        load = Path("/proc/loadavg").read_text().split()[0]
+    except (OSError, ValueError, IndexError):
+        return previous, None
+    if previous is None:
+        return fields, None
+    delta = [now - old for now, old in zip(fields, previous, strict=True)]
+    total = sum(delta[:8]) or 1
+    idle = delta[3] + delta[4]
+    steal = delta[7] if len(delta) > 7 else 0
+    summary = (
+        f"cpu {100 * (total - idle - steal) // total}% steal {100 * steal // total}%"
+        f" load {load} mem {memory.get('MemAvailable', 0) // 1024}MB"
+    )
+    return fields, summary
+
+
 class Agent:
     def __init__(self, directory: Path, token_file: Path, api_url: str):
         self.directory = directory
@@ -43,6 +67,7 @@ class Agent:
         self.detail: str | None = None
         self.last_failure = 0.0
         self.stopping = False
+        self.cpu = None
 
     def runtime(self, *args):
         return [
@@ -54,9 +79,12 @@ class Agent:
         ]
 
     def exchange(self) -> str:
+        self.cpu, load = host_load(self.cpu)
+        # An error keeps its reason; otherwise report host load for diagnosis.
+        detail = self.detail if self.state == "ERROR" else load
         response = httpx.post(
             self.api_url + "/internal/v1/runtime-control/agent",
-            json={"state": self.state, "detail": self.detail},
+            json={"state": self.state, "detail": detail},
             headers={"Authorization": "Bearer " + self.token},
             timeout=15,
         )
