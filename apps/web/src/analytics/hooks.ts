@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnalyticsError, readJson } from './api'
 import type { Scope } from './api'
 
@@ -33,9 +33,12 @@ export function useResource<T>(path: string | null, parse: (value: unknown) => T
   // Each request has a key; loading is derived from whether the latest key has settled.
   const key = path ? `${attempt}|${path}` : null
   const [state, setState] = useState<{ key: string | null; path: string | null; data: T | null; error: string; updatedAt: number | null }>({ key: null, path: null, data: null, error: '', updatedAt: null })
+  // A periodic refresh never cancels a slow read in flight: it would never finish.
+  const inFlight = useRef(false)
   useEffect(() => {
     if (!path || !key) return
     const controller = new AbortController()
+    inFlight.current = true
     readJson(path, parse, controller.signal).then(data => {
       if (!controller.signal.aborted) setState({ key, path, data, error: '', updatedAt: Date.now() })
     }).catch((cause: unknown) => {
@@ -43,12 +46,12 @@ export function useResource<T>(path: string | null, parse: (value: unknown) => T
       if (cause instanceof AnalyticsError && (cause.status === 401 || cause.status === 403)) { onSessionInvalid(); return }
       const message = cause instanceof AnalyticsError ? cause.message : '데이터를 조회하지 못했습니다.'
       setState(previous => previous.path === path ? { ...previous, key, error: message } : { key, path, data: null, error: message, updatedAt: null })
-    })
-    return () => controller.abort()
+    }).finally(() => { if (!controller.signal.aborted) inFlight.current = false })
+    return () => { controller.abort(); inFlight.current = false }
   }, [key, path, parse, onSessionInvalid])
   useEffect(() => {
     if (!path || !refreshMs) return
-    const timer = window.setInterval(refresh, refreshMs)
+    const timer = window.setInterval(() => { if (!inFlight.current) refresh() }, refreshMs)
     return () => window.clearInterval(timer)
   }, [path, refreshMs, refresh])
   const current = state.path === path

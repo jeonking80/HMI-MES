@@ -23,6 +23,8 @@ export function useWorkOrderWorkflow(session: Session | null, onSessionInvalid: 
   const [{ attempt, history }, setLedger] = useState<{ attempt: WorkflowAttempt | null; history: readonly ArchivedWorkflow[] }>({ attempt: null, history: [] })
   const setAttempt = useCallback((update: SetStateAction<WorkflowAttempt | null>) => setLedger(previous => ({ ...previous, attempt: typeof update === 'function' ? update(previous.attempt) : update })), [])
   const [checking, setChecking] = useState(false)
+  // Confirmed releases close their attempt at once; this count lets lists reload after one.
+  const [released, setReleased] = useState<{ count: number; id: string }>({ count: 0, id: '' })
   const active = useRef<AbortController | null>(null)
   const locked = useRef(false)
   useEffect(() => () => { active.current?.abort() }, [session])
@@ -42,7 +44,7 @@ export function useWorkOrderWorkflow(session: Session | null, onSessionInvalid: 
       const response = await mesRequest(workflowPath(kind, intent.work_order_id, post ? undefined : workflowIdentity(intent)), controller.signal, post ? session.csrf_token : undefined, post ? workflowBody(kind, intent) : undefined)
       const record = parseWorkflow(kind, post ? { intent, receipt: response } : response, intent.work_order_id, workflowIdentity(intent), initial.knownIntent ? intent : undefined, initial.expectedOrder)
       // A confirmed release needs no further action: close it and report it in place.
-      if (kind === 'release') { guard.release(record.intent.work_order_id, 'workflow', workflowIdentity(record.intent)); setAttempt(null); onReleased?.(record.intent.work_order_id); return }
+      if (kind === 'release') { guard.release(record.intent.work_order_id, 'workflow', workflowIdentity(record.intent)); setAttempt(null); setReleased(previous => ({ count: previous.count + 1, id: record.intent.work_order_id })); onReleased?.(record.intent.work_order_id); return }
       setAttempt({ ...initial, intent: record.intent, knownIntent: true, phase: 'confirmed', record, message: '실행 연결 등록을 확인했습니다. 작업 불러오기의 PLC 결과를 별도로 확인해 주세요.' })
     } catch (cause) {
       const status = cause instanceof MesHTTPError ? cause.status : 0
@@ -52,7 +54,7 @@ export function useWorkOrderWorkflow(session: Session | null, onSessionInvalid: 
         // A 409 is a server answer, not a lost response: read the original ID once to tell a stored duplicate from a rejection.
         try {
           const stored = parseWorkflow(kind, await mesRequest(workflowPath(kind, intent.work_order_id, workflowIdentity(intent)), controller.signal), intent.work_order_id, workflowIdentity(intent), intent, initial.expectedOrder)
-          if (kind === 'release') { guard.release(stored.intent.work_order_id, 'workflow', workflowIdentity(stored.intent)); setAttempt(null); onReleased?.(stored.intent.work_order_id); return }
+          if (kind === 'release') { guard.release(stored.intent.work_order_id, 'workflow', workflowIdentity(stored.intent)); setAttempt(null); setReleased(previous => ({ count: previous.count + 1, id: stored.intent.work_order_id })); onReleased?.(stored.intent.work_order_id); return }
           setAttempt({ ...tried, intent: stored.intent, knownIntent: true, phase: 'confirmed', record: stored, message: '원래 ID의 저장 기록을 확인했습니다.' })
         } catch (lookup) {
           const missing = lookup instanceof MesHTTPError && lookup.status === 404
@@ -96,7 +98,7 @@ export function useWorkOrderWorkflow(session: Session | null, onSessionInvalid: 
     } finally { locked.current = false; setChecking(false) }
   }
   return {
-    attempt, history, checking, archiveExecution,
+    attempt, history, checking, archiveExecution, released,
     submit: (kind: WorkflowKind, intent: WorkflowIntent, order?: WorkOrder) => perform(kind, intent, true, undefined, order),
     lookup: () => attempt ? perform(attempt.kind, attempt.intent, false, attempt) : Promise.resolve(),
     recover: (kind: WorkflowKind, order: string, id: string) => {

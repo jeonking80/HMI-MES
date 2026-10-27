@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import heapq
 import json
+import threading
+from collections import OrderedDict
 from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import text
@@ -431,18 +433,17 @@ def _report_capture_rows(db, line_id, windows, *, scope, reversals):
         FROM jsonb_array_elements(b.body->'samples') WITH ORDINALITY sample_rows(sample,ordinal)
         WHERE ordinal=1 OR sample->>'tag_id' IN
           ('Line.State','Line.ActiveExecutionId','Line.FaultCode')))"""
+    # Every row reads the small projection (the three tags reports use). A row with
+    # durable clock evidence is validated against its complete original body,
+    # loaded below only when this exact stored input has not been validated yet.
     body_projection = legacy_body
-    if canonical:
-        body_projection = (
-            "CASE WHEN clock.batch_id IS NULL THEN " + legacy_body + " ELSE b.body END"
-        )
     rows = (
         db.execute(
             text(
                 contexts + "SELECT b.gateway_id,b.batch_id,b.source_id,b.stream_id,"
                 "b.capture_generation,b.capture_seq,b.content_sha256,"
                 + body_projection
-                + " AS body,b.stored_at,"
+                + " AS body,md5(b.body::text) AS body_md5,b.stored_at,"
                 "s.conflicted,s.reconciliation_required," + proof + ","
                 "report_context.contexts,matched.report_windows FROM ingest_batches b "
                 "JOIN source_streams s USING(source_id,stream_id) "
@@ -463,11 +464,90 @@ def _report_capture_rows(db, line_id, windows, *, scope, reversals):
         .mappings()
         .all()
     )
+    rows = [dict(row) for row in rows]
+    if canonical:
+        _attach_unvalidated_bodies(db, rows)
     grouped = [[] for _ in windows]
     for row in rows:
         for idx in row["report_windows"]:
             grouped[idx].append(row)
     return grouped
+
+
+def _attach_unvalidated_bodies(db, rows):
+    """Load complete original bodies only for evidence rows without a memoized check."""
+    missing = [
+        row
+        for row in rows
+        if row.get("clock_evidence") is not None and _memo_key(row) not in _CLOCK_MEMO
+    ]
+    for offset in range(0, len(missing), 500):
+        chunk = missing[offset : offset + 500]
+        keys = json.dumps([{"g": row["gateway_id"], "b": row["batch_id"]} for row in chunk])
+        full = {
+            (item["gateway_id"], item["batch_id"]): item
+            for item in db.execute(
+                text(
+                    "SELECT b.gateway_id,b.batch_id,b.body,md5(b.body::text) AS body_md5 "
+                    "FROM jsonb_to_recordset(CAST(:keys AS jsonb)) AS k(g text,b text) "
+                    "JOIN ingest_batches b ON b.gateway_id=k.g AND b.batch_id=k.b"
+                ),
+                {"keys": keys},
+            ).mappings()
+        }
+        for row in chunk:
+            item = full.get((row["gateway_id"], row["batch_id"]))
+            # The same stored bytes the first read hashed; otherwise validate nothing
+            # here and let the evidence check fail closed on the projected body.
+            if item is not None and item["body_md5"] == row["body_md5"]:
+                row["clock_body"] = item["body"]
+
+
+_CLOCK_MEMO: OrderedDict[tuple, tuple] = OrderedDict()
+_CLOCK_MEMO_LIMIT = 60_000
+_CLOCK_MEMO_LOCK = threading.Lock()
+
+
+def _memo_key(row):
+    """Every input of the clock validation: stored body bytes (PostgreSQL md5 of
+    its text), recorded digest and the complete evidence row."""
+    evidence = row["clock_evidence"]
+    return (
+        row["gateway_id"],
+        row["batch_id"],
+        row["content_sha256"],
+        row["body_md5"],
+        tuple(sorted((name, repr(value)) for name, value in dict(evidence).items())),
+    )
+
+
+def _clock_decision(row, cutoff):
+    """effective_capture_clock for a report row, reusing a validation of the same bytes.
+
+    Pure memoization: a changed stored byte or evidence field is a new key and is
+    validated again against its complete original body.
+    """
+    from apps.api.capture_clock import apply_reversal_cutoff, validated_capture_clock
+
+    key = _memo_key(row)
+    with _CLOCK_MEMO_LOCK:
+        validated = _CLOCK_MEMO.get(key)
+        if validated is not None:
+            _CLOCK_MEMO.move_to_end(key)
+    if validated is None:
+        # No complete body (it changed between reads) validates the projection,
+        # whose digest cannot match: the decision fails closed.
+        validated = validated_capture_clock(
+            row["clock_evidence"],
+            body=row.get("clock_body", row["body"]),
+            batch_sha256=row["content_sha256"],
+        )
+        if "clock_body" in row:
+            with _CLOCK_MEMO_LOCK:
+                _CLOCK_MEMO[key] = validated
+                while len(_CLOCK_MEMO) > _CLOCK_MEMO_LIMIT:
+                    _CLOCK_MEMO.popitem(last=False)
+    return apply_reversal_cutoff(*validated, cutoff)
 
 
 def load_report_evidence(
@@ -514,21 +594,12 @@ def load_report_evidence(
         known_clock = _clock_known(row)
         invalidated_canonical = False
         if row["clock_evidence"] is not None:
-            from apps.api.capture_clock import effective_capture_clock
-
-            decision = effective_capture_clock(
-                row["clock_evidence"],
-                body=body,
-                batch_sha256=row["content_sha256"],
-                reversal_seq=cutoff,
-            )
+            decision = _clock_decision(row, cutoff)
             known_clock = decision.status == "GOOD" and row["clock_evidence"]["line_id"] == line_id
             if known_clock:
                 at = decision.canonical_api_utc
             elif decision.reason_code == "CLOCK_REVERSAL":
-                accepted = effective_capture_clock(
-                    row["clock_evidence"], body=body, batch_sha256=row["content_sha256"]
-                )
+                accepted = _clock_decision(row, None)
                 if accepted.status == "GOOD" and row["clock_evidence"]["line_id"] == line_id:
                     # Invalidate the previously accepted coverage coordinate;
                     # it cannot assert normal state or an occurrence time.

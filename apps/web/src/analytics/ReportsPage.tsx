@@ -5,7 +5,7 @@ import type { DowntimeReasonBody, ExecutionReport, Segment } from './api'
 import { Legend, ShareBar, StackedBars, StateTimeline } from './charts'
 import { SERIES_COLORS } from './scale'
 import type { TimelineSegment } from './charts'
-import { clock, dateTime, duration, hourLabel, lineStateLabels, percent, quantity, seoulToday, settlementLabels, unknownReasonLabels } from './format'
+import { clock, dateTime, duration, hourLabel, lineStateLabels, percent, quantity, seoulToday, settlementLabels, unknownReasonLabels, secondClock } from './format'
 import { useResource, useSources } from './hooks'
 import type { Source } from './hooks'
 import { Badge, Card, ChartOrTable, EmptyState, KpiTile, PageNotice, ProvisionalBadge, RefreshStatus, ScopePicker } from './ui'
@@ -124,7 +124,7 @@ function ExecutionDetail({ report, scope: selectedScope, session, onSessionInval
       <div className="table-scroll"><table className="data-table">
         <thead><tr><th scope="col">구간</th><th scope="col">분류</th><th scope="col">길이</th><th scope="col">정지 사유</th></tr></thead>
         <tbody>{data.segments.filter(item => item.class !== 'RUNNING').map(item => <tr key={item.from} className={segmentKey === item.from ? 'is-selected' : ''}>
-          <th scope="row">{clock(item.from)} ~ {clock(item.to)}</th>
+          <th scope="row">{secondClock(item.from)} ~ {secondClock(item.to)}</th>
           <td>{segmentLabel(item)}</td>
           <td>{duration((Date.parse(item.to) - Date.parse(item.from)) / 1000)}</td>
           <td>{item.class === 'STOPPED'
@@ -165,7 +165,7 @@ function StopReasonEditor({ segment, report, scope, session, canAnnotate, onSave
     setPending(body)
     void submit(body)
   }}>
-    <h3>정지 사유 · {clock(segment.from)} ~ {clock(segment.to)}</h3>
+    <h3>정지 사유 · {secondClock(segment.from)} ~ {secondClock(segment.to)}</h3>
     {segment.stop_reason && <p className="card-note">현재: {reasonLabel(segment.stop_reason.code)} · {segment.stop_reason.recorded_by} · {dateTime(segment.stop_reason.recorded_at)}</p>}
     <fieldset disabled={!canAnnotate || busy}>
       <div className="reason-options" role="radiogroup" aria-label="정지 사유">

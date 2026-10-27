@@ -30,7 +30,7 @@ export default function MonitorPage(props: Props) {
       <div className="lc-title"><h2>{line.source?.line_name ?? '라인'}</h2><span>실시간 공정</span></div>
       <div className="lc-chips">
         <SourcePicker />
-        <span id="screen-connection" className="lc-chip" data-tone={live?.stream.phase === 'synced' ? 'good' : live?.stream.phase === 'stopped' ? 'bad' : 'unknown'} data-state={live?.stream.phase ?? 'connecting'}><i aria-hidden="true" />{live?.stream.phase === 'synced' ? 'LIVE' : live?.stream.phase === 'stopped' ? '화면 연결 끊김' : '연결 중'}</span>
+        <span id="screen-connection" className="lc-chip" data-tone={live?.stream.phase === 'synced' ? (live.blockedReason ? 'unknown' : 'good') : live?.stream.phase === 'stopped' ? 'bad' : 'unknown'} data-state={live?.stream.phase ?? 'connecting'}><i aria-hidden="true" />{live?.stream.phase === 'synced' ? (live.blockedReason ? '화면 연결됨 · 데이터 지연' : '실시간') : live?.stream.phase === 'stopped' ? '화면 연결 끊김' : '연결 중'}</span>
         {live && <span className="lc-chip" data-tone={live.heartbeat === 'GOOD' ? 'good' : live.heartbeat === 'UNKNOWN' ? 'unknown' : 'bad'}>PLC 통신 <strong id="heartbeat-state" data-state={live.heartbeat}>{live.heartbeatLabel}</strong></span>}
         {power.state && power.state !== 'NOT_MANAGED' && <span className="lc-chip" data-tone={power.state === 'RUNNING' ? 'good' : power.state === 'ERROR' ? 'bad' : 'unknown'}>{powerLabels[power.state] ?? power.state}</span>}
         {live?.stream.phase === 'stopped' && <button type="button" className="lc-button" onClick={live.stream.retry}>다시 연결</button>}
@@ -50,8 +50,10 @@ function LiveMonitor({ live, source, power, session, onSessionInvalid, workflow,
   const execution = live.executionId
   const recipe = known('Line.RecipeVersion')
   const zoneIssue = (zone: ZoneId) => issues.find(item => item.zone === zone)
-  const cmd = useLineCommands({ source, session, blockedReason: live.blockedReason, newIntentBlocked: newIntentBlocked(workflow, live.controlValues), values: live.controlValues, tracked, setTracked, onSessionInvalid })
   const powerOff = power !== null && power !== 'NOT_MANAGED' && power !== 'RUNNING'
+  // With the plant powered off the real reason is the power, not stale tag quality.
+  const blockedReason = powerOff ? `${powerLabels[power] ?? '설비 전원 상태 확인 필요'} · 운전 제어 ①에서 전원을 켜 주세요.` : live.blockedReason
+  const cmd = useLineCommands({ source, session, blockedReason, newIntentBlocked: newIntentBlocked(workflow, live.controlValues), values: live.controlValues, tracked, setTracked, onSessionInvalid })
   return <>
     {issues.length > 0 && !powerOff && <div className="lc-alert" role="alert">
       <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3L22 20H2Z" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M12 10v5M12 17.5v.5" stroke="currentColor" strokeWidth="2" /></svg>

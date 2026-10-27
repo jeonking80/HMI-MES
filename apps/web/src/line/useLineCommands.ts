@@ -27,6 +27,8 @@ export function useLineCommands({ source, session, blockedReason, newIntentBlock
   const [polling, setPolling] = useState(false)
   const postController = useRef<AbortController | null>(null)
   const submitting = useRef(false)
+  // Command ID typed into the lookup box (never sent from this screen), until a record is found.
+  const lookupOnly = useRef<string | null>(null)
   const operator = session.roles.includes('operator')
   const producer = session.roles.includes('production_manager')
   const scoped = tracked !== null && sameScope(tracked.scope, source)
@@ -71,12 +73,20 @@ export function useLineCommands({ source, session, blockedReason, newIntentBlock
         const result = parseResult(response.result, commandId!)
         const request = response.request as CommandRequest
         if (request?.command_id !== commandId || typeof request.requested_by !== 'string' || !request.command?.kind) throw new Error('Unconfirmed original request')
+        if (lookupOnly.current === commandId) lookupOnly.current = null
         setTracked(previous => previous && previous.commandId === commandId ? { ...previous, result, request, phase: 'TRACKING', message: '' } : previous)
         setLookupMessage('')
         if (terminal(result)) { setPolling(false); return }
       } catch (cause) {
         if (controller.signal.aborted) return
         if (cause instanceof CommandHTTPError && (cause.status === 401 || cause.status === 403)) { onSessionInvalid(); return }
+        // A hand-typed ID this screen never sent: no stored record means nothing to wait for.
+        if (cause instanceof CommandHTTPError && cause.status === 404 && lookupOnly.current === commandId) {
+          setTracked(previous => previous && previous.commandId === commandId && previous.request === null
+            ? { ...previous, phase: 'REJECTED', message: '현재 라인에 이 ID의 명령 기록이 없습니다. 이 화면에서 보낸 요청이 아니므로 닫을 수 있습니다.' } : previous)
+          setPolling(false)
+          return
+        }
         const message = cause instanceof CommandHTTPError && cause.status === 404
           ? '현재 범위에서 원래 ID의 저장 기록을 확인하지 못했습니다. 미실행으로 단정할 수 없습니다.'
           : '명령 조회 결과를 확인할 수 없습니다. 원래 ID를 유지하며 새 명령을 보내지 않습니다.'
@@ -169,6 +179,7 @@ export function useLineCommands({ source, session, blockedReason, newIntentBlock
   }
   function lookupId(id: string) {
     if (tracked || !identifier(id)) return
+    lookupOnly.current = id
     setTracked({ commandId: id, scope: source, request: null, counterEpoch: null, result: null, phase: 'TRACKING', message: '' })
     setLookupMessage('')
   }

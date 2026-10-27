@@ -15,7 +15,7 @@ import type { LiveLine, Source } from './lineState'
 import { interlocks, stateOf, zones } from './lineModel'
 import type { ZoneId } from './lineModel'
 import { LampChip, MetricBox, SourcePicker, StateBadge } from './parts'
-import { newIntentBlocked, production, toneOf } from './logic'
+import { newIntentBlocked, powerLabels, production, toneOf } from './logic'
 import { useLineCommands } from './useLineCommands'
 import type { LineCommands } from './useLineCommands'
 import { CommandButtons, CommandLookup, CommandResult, SpeedControl } from './CommandControls'
@@ -157,7 +157,10 @@ function LiveControl({ live, source, session, onSessionInvalid, workflow, tracke
   const made = production(known)
   const power = usePowerState(onSessionInvalid)
   const run = useActiveRun(source, live.executionId, onSessionInvalid)
-  const cmd = useLineCommands({ source, session, blockedReason: live.blockedReason, newIntentBlocked: newIntentBlocked(workflow, live.controlValues), values: live.controlValues, tracked, setTracked, onSessionInvalid })
+  // With the plant powered off the real reason is the power, not stale tag quality.
+  const powerOff = power.managed && power.state !== null && power.state !== 'RUNNING'
+  const blockedReason = powerOff ? `${powerLabels[power.state ?? ''] ?? '설비 전원 상태 확인 필요'} · ① 전원에서 켜 주세요.` : live.blockedReason
+  const cmd = useLineCommands({ source, session, blockedReason, newIntentBlocked: newIntentBlocked(workflow, live.controlValues), values: live.controlValues, tracked, setTracked, onSessionInvalid })
   const step = stepOf(live, power.state, run)
   // The confirmed load of a settled run is finished business: close it so the next load is not blocked.
   const attempt = workflow.attempt

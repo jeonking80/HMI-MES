@@ -47,8 +47,9 @@ export function clock(value: string | number): string {
   return Number.isFinite(parsed) ? timeFormat.format(parsed) : MISSING
 }
 
-export function secondClock(value: number): string {
-  return Number.isFinite(value) ? secondFormat.format(value) : MISSING
+export function secondClock(value: string | number): string {
+  const parsed = typeof value === 'number' ? value : Date.parse(value)
+  return Number.isFinite(parsed) ? secondFormat.format(parsed) : MISSING
 }
 
 export function hourLabel(value: string): string {

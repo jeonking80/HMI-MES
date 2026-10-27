@@ -59,6 +59,9 @@ export default function OrderBoard({ session, lines, recipes, canWrite, canBind,
   useEffect(() => { const timer = window.setInterval(() => setTick(value => value + 1), 5000); return () => window.clearInterval(timer) }, [])
 
   const counts = Object.fromEntries(filters.map(key => [key, key === 'ALL' ? items?.length ?? 0 : items?.filter(item => item.phase === key).length ?? 0]))
+  // A picked order whose state changed (e.g. released) moves its tab along with it.
+  const picked = selectedId ? items?.find(item => item.id === selectedId) : undefined
+  if (picked && filter !== 'ALL' && picked.phase !== filter) setFilter(picked.phase)
   const shown = (items ?? []).filter(item => filter === 'ALL' || item.phase === filter)
   const selected = items?.find(item => item.id === selectedId) ?? shown[0] ?? null
   const historyKey = selected ? `${selected.id}|${selected.row_version}|${selected.execution?.settlement_status ?? ''}` : ''
@@ -74,7 +77,11 @@ export default function OrderBoard({ session, lines, recipes, canWrite, canBind,
   const recipeOf = (id: string) => recipes.find(item => item.id === id)
   const pendingRevision = revision && ['sending', 'unknown'].includes(revision.phase) ? revision : null
 
-  function pick(order: OrderSummary) { onCloseCreate(); setSelectedId(order.id); if (editing !== order.id) setEditing(null) }
+  function pick(order: OrderSummary) {
+    onCloseCreate(); setSelectedId(order.id); if (editing !== order.id) setEditing(null)
+    // On a narrow screen the detail sits below the list: bring it into view.
+    if (window.matchMedia('(max-width: 900px)').matches) window.requestAnimationFrame(() => document.getElementById('wo-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
   function startEdit(order: OrderSummary) {
     setForm({ recipe: order.recipe_version_id, target: String(order.target_quantity), date: order.planned_date })
     setEditing(order.id)
