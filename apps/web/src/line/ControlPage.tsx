@@ -182,7 +182,7 @@ function LiveControl({ live, source, session, onSessionInvalid, workflow, tracke
     1: [power.switching === 'starting' ? '켜는 중…' : power.switching === 'stopping' ? '끄는 중…' : powerText[power.state ?? 'UNKNOWN'] ?? '확인 중', power.power?.desired === 'ON' && power.power.run_until ? `${time(power.power.run_until)} 자동 꺼짐` : '설비 호스트'],
     2: step.current > 2 && run ? [`${run.workOrderId.replace(/^WO-\d{8}-/, 'WO-')} 불러옴`, `${time(run.registeredAt)}${run.loadedBy ? ` · ${run.loadedBy}` : ''}`] : ['작업을 불러오세요', '작업지시 선택'],
     3: step.current > 3 ? ['예열 완료', run?.startWhenReady ? '자동 시작' : '시작함'] : step.current === 3 ? [`${numberOr(known('Sealer.TemperaturePV'), 1)} / ${numberOr(known('Sealer.TemperatureSP'), 0)} ℃`, known('Sealer.Ready') === true ? '준비 완료' : '예열 중'] : ['대기', '작업을 불러오면 시작'],
-    4: step.current >= 4 ? [`양품 ${made.good ?? '—'} / ${made.target ?? '—'}`, `불량 ${made.reject ?? '—'} · ${typeof speed === 'number' ? speed.toFixed(1) : '—'} m/min`] : ['대기', '예열 후 시작'],
+    4: step.current >= 4 ? [`${Number(known('Line.State')) === 3 && step.current === 4 ? '일시 정지 · ' : ''}양품 ${made.good ?? '—'} / ${made.target ?? '—'}`, `불량 ${made.reject ?? '—'} · ${typeof speed === 'number' ? speed.toFixed(1) : '—'} m/min`] : ['대기', '예열 후 시작'],
     5: step.current === 5 ? ['정산 대기', '종료 중 · 기록 확인 중'] : step.current === 2 && run && run.settlement !== 'PENDING' ? [`직전 ${run.workOrderId.replace(/^WO-\d{8}-/, 'WO-')} ${run.settlement === 'SETTLED' ? '완료' : '확인 필요'}`, run.summary ? `양품 ${run.summary.good} · 불량 ${run.summary.reject}` : ''] : ['대기', run?.autoEnd ? '목표 도달 시 자동 종료' : '종료 요청 시'],
   }
   const labels: Record<Step, string> = { 1: '① 설비 전원', 2: '② 작업 준비', 3: '③ 예열', 4: '④ 생산', 5: step.current === 2 ? '⑤ 직전 작업 정산' : '⑤ 종료 · 정산' }

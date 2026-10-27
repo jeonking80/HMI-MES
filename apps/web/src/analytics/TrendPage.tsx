@@ -18,7 +18,7 @@ const ranges = [
 ] as const
 const MAX_TAGS = 4
 const qualityLabels: Record<PointQuality, string> = {
-  GOOD: '정상', PARTIAL: '일부 표본', UNCERTAIN: '품질 불확실', BAD: '품질 나쁨', MISSING: '데이터 없음', TIME_UNKNOWN: '시간 불명',
+  GOOD: '정상', PARTIAL: '일부 표본', UNCERTAIN: '품질 불확실', BAD: '품질 나쁨', MISSING: '데이터 없음', TIME_UNKNOWN: '시간 불명', RETENTION_EXPIRED: '보존 기간 지남',
 }
 const groups = [
   { label: '투입', prefix: 'Infeed.' }, { label: '실링', prefix: 'Sealer.' }, { label: '배출', prefix: 'Outfeed.' },

@@ -113,7 +113,7 @@ export default function App() {
   const workflow = useWorkOrderWorkflow(session, invalidateSession, () => setSelectedOrder(null), workOrderGuard, id => setNotice(`작업지시 ${id}를 배포했습니다. 운전 제어에서 불러올 수 있습니다.`))
   const knownLinked = (id: string) => (workflow.attempt?.record !== null && workflow.attempt?.kind === 'bind' && workflow.attempt.record?.intent.work_order_id === id)
     || workflow.history.some(item => item.attempt.intent.work_order_id === id)
-  const cancellation = useCancellation(session, invalidateSession, workOrderGuard, knownLinked, () => { setMesOpened(true); setDraftsTab('orders'); setWorkspaceTab('orders') })
+  const cancellation = useCancellation(session, invalidateSession, workOrderGuard, knownLinked, () => { setMesOpened(true); setDraftsTab('orders'); setWorkspaceTab('orders') }, id => setNotice(`작업지시 ${id}를 취소했습니다. 취소 기록은 작업지시의 취소 탭에 남습니다.`))
 
   async function run(action: 'login' | 'guest' | 'password' | 'logout') {
     if (inFlight.current) return
