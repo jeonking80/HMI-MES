@@ -15,15 +15,16 @@ const icons: Record<CommandKind, ReactNode> = {
 const shortLabels: Partial<Record<CommandKind, string>> = { START: '시작 · 재개', PAUSE: '일시 정지', END_RUN: '작업 종료', RESET_FAULT: '고장 리셋' }
 
 /** The line commands as large buttons. The one the PLC state calls for is emphasised; the rest stay visible with the reason they are unavailable. */
-export function CommandButtons({ cmd, values, compact = false }: { cmd: LineCommands; values: Record<string, unknown>; compact?: boolean }) {
-  if (!cmd.kinds.length) return <p className="lc-note">이 계정은 운전 명령 권한이 없습니다. 결과 조회만 할 수 있습니다.</p>
+export function CommandButtons({ cmd, values, compact = false, only }: { cmd: LineCommands; values: Record<string, unknown>; compact?: boolean; only?: CommandKind[] }) {
+  const kinds = only ? cmd.kinds.filter(kind => only.includes(kind)) : cmd.kinds
+  if (!kinds.length) return <p className="lc-note">{cmd.kinds.length ? '지금 이 단계에서 보낼 명령이 없습니다.' : '이 계정은 운전 명령 권한이 없습니다. 결과 조회만 할 수 있습니다.'}</p>
   const recommended = stepGuide(values).recommended
-  const reasons = cmd.kinds.map(kind => cmd.disabledReason(kind))
+  const reasons = kinds.map(kind => cmd.disabledReason(kind))
   const firstReason = reasons.find(Boolean) ?? ''
   const allBlocked = reasons.every(Boolean)
   return <div className="lc-commands">
     <div className={`lc-command-grid${compact ? ' compact' : ''}`} data-control-version={cmd.controlVersion}>
-      {cmd.kinds.map((kind, index) => <button key={kind} id={`command-${kind}`} type="button" title={reasons[index] || undefined}
+      {kinds.map((kind, index) => <button key={kind} id={`command-${kind}`} type="button" title={reasons[index] || undefined}
         className={`lc-command kind-${kind}${recommended === kind && !reasons[index] ? ' recommended' : ''}`} disabled={!!reasons[index]}
         onClick={() => kind === 'END_RUN' ? cmd.askEnd() : void cmd.submit(kind)}>
         <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">{icons[kind]}</svg>{shortLabels[kind] ?? commandLabels[kind]}
