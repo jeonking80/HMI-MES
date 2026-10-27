@@ -18,8 +18,6 @@ import CancellationPanel from './CancellationPanel'
 import { useCancellation } from './useCancellation'
 import { WorkOrderMutationGuard } from './workOrderMutationGuard'
 import Sidebar from './Sidebar'
-import GuideFlow from './GuideFlow'
-import type { GuideTarget } from './GuideFlow'
 import { buildNavigation, pageDefinition } from './navigation'
 import type { WorkspacePage } from './navigation'
 import DashboardPage from './analytics/DashboardPage'
@@ -28,6 +26,9 @@ import ReportsPage from './analytics/ReportsPage'
 import SpcPage from './analytics/SpcPage'
 import AssistantPage from './analytics/AssistantPage'
 import type { Source } from './analytics/hooks'
+
+/** A page and the card to bring into view after moving there. */
+interface GuideTarget { page: WorkspacePage; anchor: string }
 
 export default function App() {
   // A reload intentionally drops the CSRF token and requires login.
@@ -191,7 +192,6 @@ export default function App() {
     navigate(target.page)
     setFocusTarget({ anchor: target.anchor, at: Date.now() })
   }
-  const guided = !guestMode && session !== null && session.roles.some(role => ['operator', 'production_manager', 'equipment_admin'].includes(role))
 
   if (session && screen === 'workspace') {
     const current = pageDefinition(workspaceTab)
@@ -217,7 +217,6 @@ export default function App() {
           {guestMode && <div className="message guest-banner" role="status">게스트 조회 모드입니다. 화면을 둘러볼 수 있지만 운전·등록 요청은 서버가 거절합니다. 세션은 30분 뒤 종료됩니다.</div>}
           {error && <div className="message error" role="alert">{error}</div>}
           {notice && <div className="message success" role="status">{notice}</div>}
-          {guided && (workspaceTab === 'control' || workspaceTab === 'drafts') && <GuideFlow session={session} selectedOrder={selectedOrder} workflow={workflow} onGo={go} />}
           <LineDataProvider session={session} onSessionInvalid={invalidateSession}>
             {/* One line page at a time: each owns its command tracker, so two never poll the same command. */}
             {workspaceTab === 'operations' && <MonitorPage session={session} onSessionInvalid={invalidateSession} workflow={workflow} tracked={tracked} setTracked={setTracked} onOpenControl={zone => { setControlZone(zone); navigate('control') }} onOpenAlarms={() => navigate('alarms')} />}

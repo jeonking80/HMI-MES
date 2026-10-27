@@ -5,6 +5,7 @@ import { terminal } from '../commands'
 import type { TrackedCommand } from '../commands'
 import LoadTracker from '../LoadTracker'
 import { mesPaths, mesRequest, orderPage } from '../mesApi'
+import { parseExecutionReports, query } from '../analytics/api'
 import type { WorkOrder } from '../mesApi'
 import { screenUInt64 } from '../screenState'
 import type { WorkOrderWorkflow } from '../useWorkOrderWorkflow'
@@ -160,11 +161,24 @@ function JobCard({ live, source, session, workflow, tracked, selectedOrder, onSe
   const [startWhenReady, setStartWhenReady] = useState(canAutoStart)
   useEffect(() => {
     const controller = new AbortController()
-    mesRequest(`${mesPaths.order}?limit=50`, controller.signal).then(value => {
-      setOrders(orderPage(value).items.filter(item => item.status === 'RELEASED' && item.line_id === source.line_id))
+    // Hide orders already run in the last week (each order runs once). If that lookup fails,
+    // keep them listed: the server still refuses a second run.
+    const day = 24 * 3600_000, to = Math.ceil(Date.now() / day) * day
+    const used = fetch(query('/api/v1/reports/executions', { line_id: source.line_id, from: new Date(to - 8 * day).toISOString().replace('.000Z', 'Z'), to: new Date(to).toISOString().replace('.000Z', 'Z'), limit: '50' }), { credentials: 'same-origin', cache: 'no-store', signal: controller.signal })
+      .then(async response => response.ok ? new Set(parseExecutionReports(await response.json()).items.map(item => item.work_order_id)) : new Set<string>())
+      .catch(() => new Set<string>())
+    mesRequest(`${mesPaths.order}?limit=50`, controller.signal).then(async value => {
+      const ran = await used
+      if (controller.signal.aborted) return
+      setOrders(orderPage(value).items.filter(item => item.status === 'RELEASED' && item.line_id === source.line_id && !ran.has(item.id)))
     }).catch(cause => { if (!controller.signal.aborted && (cause?.status === 401 || cause?.status === 403)) onSessionInvalid() })
     return () => controller.abort()
   }, [source.line_id, revision, onSessionInvalid])
+  // Pick the first order ready to run, so the next step is one click.
+  useEffect(() => {
+    if (!orders) return
+    if (!selectedOrder || !orders.some(item => item.id === selectedOrder.id)) onSelectOrder(orders[0] ?? null)
+  }, [orders, selectedOrder, onSelectOrder])
   const allowed = session.roles.some(role => ['operator', 'production_manager'].includes(role))
   const values = live.controlValues
   const order = selectedOrder && selectedOrder.status === 'RELEASED' ? selectedOrder : null
@@ -180,7 +194,7 @@ function JobCard({ live, source, session, workflow, tracked, selectedOrder, onSe
     <div className="lc-job-row">
       <div className="lc-field"><label htmlFor="binding-order-select">배포된 작업지시</label>
         <select id="binding-order-select" value={order?.id ?? ''} onChange={event => { onSelectOrder(orders?.find(item => item.id === event.target.value) ?? null); setConfirmation(null) }}>
-          <option value="">{orders === null ? '불러오는 중…' : orders.length ? '작업지시를 고르세요' : '배포된 작업지시가 없습니다'}</option>
+          <option value="">{orders === null ? '불러오는 중…' : orders.length ? '작업지시를 고르세요' : '불러올 작업지시가 없습니다'}</option>
           {orders?.map(item => <option key={item.id} value={item.id}>{item.id} · {item.item_id} · {item.target_quantity.toLocaleString('ko-KR')}개</option>)}
         </select>
       </div>
@@ -188,7 +202,8 @@ function JobCard({ live, source, session, workflow, tracked, selectedOrder, onSe
       <button id="binding-prepare" type="button" className="lc-button primary" disabled={!!reason} onClick={() => order && setConfirmation({ command_id: crypto.randomUUID(), order_id: order.id, epoch: values['Line.CounterEpoch'] as string, line_id: source.line_id, source_id: source.source_id, stream_id: source.stream_id, expected_work_order_version: order.row_version, expected_control_version: values['Line.ControlVersion'] as string })}>작업 불러오기</button>
     </div>
     {order && <p id="binding-order" className="lc-hint">{order.id} · {order.item_id} · {order.recipe_version_id} · 목표 {order.target_quantity.toLocaleString('ko-KR')}개</p>}
-    {reason && order && <p id="binding-reason" className="lc-reason">{reason}</p>}
+    {orders !== null && orders.length === 0 && <p className="lc-reason">아직 생산하지 않은 배포 작업지시가 없습니다. "공정 설정 · 작업지시"에서 새로 만들어 배포하세요.</p>}
+    {reason && (order || orders?.length) ? <p id="binding-reason" className="lc-reason">{reason}</p> : null}
     <div className="lc-checks">
       <label><input id="binding-auto-end" type="checkbox" checked={autoEnd} onChange={event => setAutoEnd(event.target.checked)} /> 목표 도달 시 자동 종료</label>
       {canAutoStart && <label><input id="binding-start-when-ready" type="checkbox" checked={startWhenReady} onChange={event => setStartWhenReady(event.target.checked)} /> 준비되면 자동 시작</label>}
