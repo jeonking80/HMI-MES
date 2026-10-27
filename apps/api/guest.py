@@ -116,8 +116,26 @@ def issue_guest(auth, *, origin, peer):
                 ),
                 {"login": GUEST_LOGIN, "version": user["auth_version"], "now": now},
             ).scalar_one()
-            throttled = (rate or 0) >= GUEST_IP_LIMIT or count >= GUEST_SESSION_LIMIT
+            throttled = (rate or 0) >= GUEST_IP_LIMIT
             if not throttled:
+                # A full pool evicts its oldest guest sessions instead of refusing everyone:
+                # one peer filling the pool must not lock every later visitor out.
+                if count >= GUEST_SESSION_LIMIT:
+                    db.execute(
+                        sa.text(
+                            "UPDATE auth_sessions SET revoked_at=:now WHERE token_digest IN ("
+                            "SELECT token_digest FROM auth_sessions WHERE login=:login "
+                            "AND revoked_at IS NULL AND auth_version=:version "
+                            "AND expires_at>:now AND idle_expires_at>:now "
+                            "ORDER BY created_at, token_digest LIMIT :excess)"
+                        ),
+                        {
+                            "login": GUEST_LOGIN,
+                            "version": user["auth_version"],
+                            "now": now,
+                            "excess": count - GUEST_SESSION_LIMIT + 1,
+                        },
+                    )
                 result = auth._issue(db, user, now)
                 auth._audit(db, "GUEST", GUEST_LOGIN, "GUEST", now)
     # Commit rejected attempts too, so a full session pool cannot reset IP limits.

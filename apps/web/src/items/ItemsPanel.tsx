@@ -6,9 +6,9 @@ import type { ItemMaster, RecipeVersion, WorkOrder } from '../mesApi'
 import { nextItemId, UNITS } from './itemRules'
 
 interface Attempt { body: ItemMaster; phase: 'sending' | 'done' | 'conflict' | 'invalid' | 'unknown'; message: string }
-export default function ItemsPanel({ session, canWrite, items, loaded, recipes, orders, onChanged, onNewRecipe }: {
+export default function ItemsPanel({ session, canWrite, items, loaded, recipes, orders, onChanged, onNewRecipe, onSessionInvalid }: {
   session: Session; canWrite: boolean; items: ItemMaster[]; loaded: boolean; recipes: RecipeVersion[]; orders: WorkOrder[]
-  onChanged: () => void; onNewRecipe: (itemId: string) => void
+  onChanged: () => void; onNewRecipe: (itemId: string) => void; onSessionInvalid: () => void
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
@@ -34,7 +34,8 @@ export default function ItemsPanel({ session, canWrite, items, loaded, recipes, 
       const status = cause instanceof MesHTTPError ? cause.status : 0
       if (status === 409) setAttempt({ body, phase: 'conflict', message: `그 사이 ${body.id}가 다른 품목으로 등록됐습니다. 목록을 새로 불러온 뒤 다시 등록해 주세요.` })
       else if (status === 422) setAttempt({ body, phase: 'invalid', message: '입력값을 확인해 주세요.' })
-      else if (status === 401 || status === 403) setAttempt({ body, phase: 'invalid', message: '품목 등록 권한이 없습니다. 생산 담당자 계정으로 로그인해 주세요.' })
+      else if (status === 401) { setAttempt(null); onSessionInvalid() }
+      else if (status === 403) setAttempt({ body, phase: 'invalid', message: '품목 등록 권한이 없거나 보안 확인에 실패했습니다. 생산 담당자 계정으로 다시 로그인해 주세요.' })
       else setAttempt({ body, phase: 'unknown', message: '등록 결과를 확인하지 못했습니다. "같은 내용으로 다시 확인"을 누르세요. 같은 내용이면 두 번 등록되지 않습니다.' })
     }
   }

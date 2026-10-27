@@ -351,7 +351,7 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
         {lineError && <button className="button secondary" type="button" onClick={() => setLineRevision(value => value + 1)}>라인 다시 조회</button>}
         <AttemptResult kind="order" attempt={attempts.order} checking={checking.order} onLookup={() => void lookup('order')} onReset={() => reset('order')} /></div>} isBlocked={id => !!workflow.attempt || workflow.orderBlocked(id) || cancellation.blocked(id)} />
     </section>
-    <section id="mes-items" className="mes-card" aria-label="품목" hidden={tab !== 'items'}><ItemsPanel session={session} canWrite={canWrite} items={masterItems} loaded={masterLoaded} recipes={allRecipes} orders={allOrders} onChanged={() => setChoiceRevision(value => value + 1)} onNewRecipe={item => { onTab('recipes'); resetRecipe(); chooseItem(item); setRecipeMode('edit'); reveal('mes-recipe-form', 'mes-recipe-temperature') }} /></section>
+    <section id="mes-items" className="mes-card" aria-label="품목" hidden={tab !== 'items'}><ItemsPanel session={session} canWrite={canWrite} onSessionInvalid={onSessionInvalid} items={masterItems} loaded={masterLoaded} recipes={allRecipes} orders={allOrders} onChanged={() => setChoiceRevision(value => value + 1)} onNewRecipe={item => { onTab('recipes'); resetRecipe(); chooseItem(item); setRecipeMode('edit'); reveal('mes-recipe-form', 'mes-recipe-temperature') }} /></section>
     <div id="mes-queue" hidden={tab !== 'queue'}><LineQueuePanel session={session} orders={allOrders} onSessionInvalid={onSessionInvalid} /></div>
   </section>
 }

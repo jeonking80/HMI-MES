@@ -132,7 +132,7 @@ function ZoneWindow({ zone, live, cmd, issue, onClose, onOpenControl }: { zone: 
         <section className="lc-window-section" aria-labelledby="zone-settings">
           <h3 id="zone-settings">설정 변경</h3>
           {zone.id === 'Sealer' && <p className="lc-hint">목표 온도 {setpoint ?? '—'} ℃ · 운전 중 온도는 작업에 불러온 공정 설정값으로 고정됩니다. 바꾸려면 공정 설정의 새 버전으로 다음 작업을 불러오세요.</p>}
-          {cmd.canSetSpeed ? <SpeedControl cmd={cmd} /> : <p className="lc-hint">{cmd.operator ? '운전 속도는 운전 중이거나 일시 정지 중일 때 바꿀 수 있습니다.' : '이 계정은 설정 변경 권한이 없습니다.'}</p>}
+          {cmd.canSetSpeed ? <SpeedControl cmd={cmd} /> : <p className="lc-hint">{cmd.producer ? '운전 속도는 운전 중이거나 일시 정지 중일 때 바꿀 수 있습니다.' : '운전 속도 변경은 생산 담당자 권한이 필요합니다.'}</p>}
         </section>
 
         <section className="lc-window-section" aria-labelledby="zone-actions">
