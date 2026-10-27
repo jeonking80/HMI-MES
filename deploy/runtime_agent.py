@@ -10,7 +10,9 @@ commands and never starts equipment without a current, unexpired request.
 from __future__ import annotations
 
 import argparse
+import json
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -95,8 +97,26 @@ class Agent:
         if not self.directory.exists():
             subprocess.run(self.runtime("prepare", "--initialize"), check=True, cwd=ROOT)
 
+    def ports_free(self) -> bool:
+        try:
+            config = json.loads((self.directory / "runtime.json").read_text())
+            ports = (config["console_port"], config["opc_port"])
+        except (OSError, ValueError, KeyError):
+            return True
+        for port in ports:
+            with socket.socket() as probe:
+                try:
+                    probe.bind(("127.0.0.1", port))
+                except OSError:
+                    return False
+        return True
+
     def start(self):
         self.state, self.detail = "STARTING", None
+        # A just-stopped runtime can hold its ports for a moment; starting into them fails.
+        deadline = time.monotonic() + 30
+        while not self.ports_free() and time.monotonic() < deadline:
+            time.sleep(1)
         self.child = subprocess.Popen(
             self.runtime(
                 "serve",
