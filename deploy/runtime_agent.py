@@ -97,6 +97,13 @@ class Agent:
         if not self.directory.exists():
             subprocess.run(self.runtime("prepare", "--initialize"), check=True, cwd=ROOT)
 
+    def heartbeat(self) -> str | None:
+        """Report the current state during long start/stop work so the host never looks offline."""
+        try:
+            return self.exchange()
+        except (httpx.HTTPError, KeyError, ValueError):
+            return None
+
     def ports_free(self) -> bool:
         try:
             config = json.loads((self.directory / "runtime.json").read_text())
@@ -113,21 +120,29 @@ class Agent:
 
     def start(self):
         self.state, self.detail = "STARTING", None
-        # A just-stopped runtime can hold its ports for a moment; starting into them fails.
-        deadline = time.monotonic() + 30
-        while not self.ports_free() and time.monotonic() < deadline:
-            time.sleep(1)
-        self.child = subprocess.Popen(
-            self.runtime(
-                "serve",
-                "--token-file",
-                str(self.token_file),
-                "--api-url",
-                self.api_url,
-                "--clock-measured-round-trip",
-            ),
-            cwd=ROOT,
-        )
+        # A just-stopped runtime can hold its ports for a moment; starting into them fails
+        # at once, so wait for them and retry an immediate exit a few times before giving up.
+        for attempt in range(4):
+            deadline = time.monotonic() + 30
+            while not self.ports_free() and time.monotonic() < deadline:
+                time.sleep(1)
+                self.heartbeat()
+            self.child = subprocess.Popen(
+                self.runtime(
+                    "serve",
+                    "--token-file",
+                    str(self.token_file),
+                    "--api-url",
+                    self.api_url,
+                    "--clock-measured-round-trip",
+                ),
+                cwd=ROOT,
+            )
+            time.sleep(4)
+            if self.child.poll() is None or attempt == 3:
+                break
+            self.heartbeat()
+            time.sleep(3)
         marker = self.directory / ".commissioned"
         passwords = (
             ["--password-file", str(self.directory / "console-password")]
@@ -144,6 +159,8 @@ class Agent:
             if self.child.poll() is not None:
                 return self.fail("runtime exited while starting")
             time.sleep(3)
+            if self.heartbeat() == "OFF":
+                return self.stop()  # The operator cancelled the start.
             done = subprocess.run(self.runtime("commission", *passwords, *CHECKS), cwd=ROOT)
             if done.returncode == 0:
                 marker.touch(exist_ok=True)
@@ -156,7 +173,12 @@ class Agent:
             self.state = "STOPPING"
             self.child.send_signal(signal.SIGTERM)
             try:
-                self.child.wait(timeout=60)
+                deadline = time.monotonic() + 60
+                while self.child.poll() is None:
+                    if time.monotonic() > deadline:
+                        raise subprocess.TimeoutExpired(self.child.args, 60)
+                    time.sleep(2)
+                    self.heartbeat()
             except subprocess.TimeoutExpired:
                 self.child.kill()
                 self.child.wait(timeout=10)

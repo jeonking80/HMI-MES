@@ -478,9 +478,11 @@ def main():
                 new_password_file=args.new_password_file,
                 checks={name: getattr(args, name) for name in CHECKS},
             )
-    except Exception:
+    except Exception as error:
+        # Only the action and exception class: messages may carry paths or credentials.
         print(
-            "Runtime operation failed; inspect private configuration and existing state.",
+            f"Runtime operation failed ({args.action}: {type(error).__name__}); "
+            "inspect private configuration and existing state.",
             file=sys.stderr,
         )
         return 1
