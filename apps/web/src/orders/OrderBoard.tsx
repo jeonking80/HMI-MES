@@ -11,7 +11,11 @@ interface LineChoice { id: string; name: string }
 interface Revision { order: string; body: RevisionBody; phase: 'sending' | 'unknown' | 'conflict' | 'invalid' | 'done'; message: string }
 
 const filters: Filter[] = ['WAITING', 'RUNNING', 'DONE', 'DRAFT', 'CANCELLED', 'ALL']
-const time = (value: string | null) => value ? new Date(value).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : ''
+const time = (value: string | null) => {
+  if (!value) return ''
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date(value)).map(part => [part.type, part.value]))
+  return `${parts.month}/${parts.day} ${parts.hour}:${parts.minute}`
+}
 const settlementLabels = { PENDING: '정산 전', SETTLED: '정산 완료', MISMATCH: '정산 불일치', CONFLICT: '정산 충돌' }
 
 function progressOf(order: OrderSummary) {

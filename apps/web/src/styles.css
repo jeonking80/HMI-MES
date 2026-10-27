@@ -278,5 +278,5 @@ input:disabled { background:#f1f4f7; }
 .wo-timeline { display:flex; flex-direction:column; gap:8px; padding-top:14px; border-top:1px solid #e4eaf0; }
 .wo-timeline ol { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; font-size:.86rem; }
 .wo-timeline li { display:flex; gap:12px; }
-.wo-timeline li > span:first-child { flex:0 0 96px; color:#5f7186; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.wo-timeline li > span:first-child { flex:0 0 96px; white-space:nowrap; color:#5f7186; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .mes-generated-ids > summary { cursor:pointer; font-size:.85rem; color:#5f7186; margin:4px 0 8px; }
