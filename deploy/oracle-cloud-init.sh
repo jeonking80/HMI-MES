@@ -11,6 +11,11 @@ REPO=https://github.com/jeonking80/HMI-MES.git
 APP=/opt/hmi-mes
 STATE=/var/lib/hmi-mes
 
+# A public IP may be attached only after the VM is created; wait up to 2 hours for internet.
+for _ in $(seq 1 720); do
+  getent hosts github.com >/dev/null 2>&1 && curl -fsS -o /dev/null https://github.com && break
+  sleep 10
+done
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get install -y git python3 python3-venv
