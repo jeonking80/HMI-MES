@@ -218,20 +218,6 @@ input:disabled { background:#f1f4f7; }
 .runtime-power[data-state="RUNNING"] { border-color:#2e8b57; }
 .runtime-power[data-state="ERROR"] { border-color:#c0392b; }
 .runtime-power-actions { display:flex; gap:.5rem; }
-.guide-flow { margin:0 0 1.2rem; padding:1rem 1.2rem; border:1px solid #c9d8e6; border-radius:12px; background:#f6f9fc; }
-.guide-head { display:flex; justify-content:space-between; align-items:center; gap:1rem; }
-.guide-head h2 { margin:0; font-size:.95rem; }
-.guide-toggle { border:0; background:none; color:#3d5f86; font-size:.8rem; cursor:pointer; }
-.guide-steps { list-style:none; display:flex; flex-wrap:wrap; gap:.4rem; margin:.8rem 0 0; padding:0; counter-reset:none; }
-.guide-steps li button { display:flex; align-items:center; gap:.45rem; padding:.4rem .75rem .4rem .45rem; border:1px solid #d5dee8; border-radius:999px; background:#fff; color:#4a5d73; font-size:.8rem; cursor:pointer; }
-.guide-num { display:inline-grid; place-items:center; width:1.4rem; height:1.4rem; border-radius:50%; background:#e4eaf0; font-size:.72rem; font-weight:700; }
-.guide-steps li[data-state="done"] button { color:#2f6f55; border-color:#a8d0be; background:#edf7f3; }
-.guide-steps li[data-state="done"] .guide-num { background:#2f7d5b; color:#fff; }
-.guide-steps li[data-state="current"] button { color:#fff; border-color:#2d5a8a; background:#2d5a8a; font-weight:650; }
-.guide-steps li[data-state="current"] .guide-num { background:#fff; color:#2d5a8a; }
-.guide-steps li[data-state="unknown"] button { border-style:dashed; }
-.guide-now { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.8rem 1.2rem; margin-top:.9rem; padding-top:.9rem; border-top:1px solid #dce3ed; }
-.guide-now p { margin:0; font-size:.86rem; line-height:1.6; flex:1 1 320px; }
 .guide-focus { animation:guide-focus 2.4s ease-out; }
 @keyframes guide-focus { 0%,60% { box-shadow:0 0 0 4px #f2b640; } 100% { box-shadow:0 0 0 0 rgba(242,182,64,0); } }
 .binding-selected { margin:.8rem 0; padding:.8rem 1rem; border:2px solid #2d5a8a; border-radius:10px; background:#f3f8fc; }
@@ -248,3 +234,24 @@ input:disabled { background:#f1f4f7; }
 .mes-tabs { display:flex; gap:4px; border-bottom:1px solid #c4cfdb; margin-bottom:4px; }
 .mes-tabs button { padding:12px 18px; border:0; border-bottom:3px solid transparent; background:transparent; color:#5f7186; font:inherit; font-size:.95rem; cursor:pointer; }
 .mes-tabs button[aria-selected='true'] { border-bottom-color:#215e91; color:#12406a; font-weight:700; }
+.rc-layout { display:flex; flex-wrap:wrap; gap:20px; align-items:flex-start; }
+.rc-list { flex:1 1 300px; max-width:380px; display:flex; flex-direction:column; gap:8px; }
+.rc-list-head { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:4px 2px 8px; }
+.rc-list ul { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
+.rc-list li button { width:100%; display:flex; flex-direction:column; gap:4px; padding:12px 14px; border-radius:10px; border:1px solid #dce3ed; background:#fff; font:inherit; text-align:left; cursor:pointer; }
+.rc-list li button[aria-pressed='true'] { background:#e3eef8; border-color:#9ec1e0; }
+.rc-name { display:flex; justify-content:space-between; gap:8px; }
+.rc-name em { font-style:normal; font-size:.78rem; color:#5f7186; }
+.rc-list small { color:#5f7186; font-size:.8rem; }
+.rc-detail { flex:999 1 420px; min-width:0; }
+.rc-card { border:1px solid #dce3ed; border-radius:14px; padding:20px 22px; background:#fff; display:flex; flex-direction:column; gap:14px; }
+.rc-card h3 { margin:0; font-size:1.1rem; }
+.rc-card-head { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:12px; }
+.rc-card-head p { margin:4px 0 0; color:#5f7186; font-size:.84rem; }
+.rc-params { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; }
+.rc-params div { background:#f3f6fa; border-radius:12px; padding:16px; }
+.rc-params span { display:block; font-size:.82rem; color:#5f7186; }
+.rc-params strong { font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:1.8rem; }
+.rc-params small { font-family:var(--font-sans); font-size:.85rem; color:#5f7186; }
+.rc-next { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; padding-top:14px; border-top:1px solid #e4eaf0; }
+.mes-generated-ids > summary { cursor:pointer; font-size:.85rem; color:#5f7186; margin:4px 0 8px; }
