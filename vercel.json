@@ -1,17 +1,40 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "regions": ["sin1"],
+  "regions": [
+    "sin1"
+  ],
   "buildCommand": "npm --prefix apps/web ci && VITE_SCREEN_TRANSPORT=polling VITE_ANALYTICS_PAGES=enabled npm --prefix apps/web run build",
   "outputDirectory": "apps/web/dist",
   "functions": {
     "api/index.py": {
       "maxDuration": 60,
       "excludeFiles": "{.local/**,.cache/**,.venv/**,tests/**,docs/**,deploy/**,apps/web/node_modules/**,apps/web/src/**,**/*.sqlite*,**/*.pem,**/*.der,**/*.log}"
+    },
+    "api/ingest.py": {
+      "maxDuration": 60,
+      "excludeFiles": "{.local/**,.cache/**,.venv/**,tests/**,docs/**,deploy/**,apps/web/node_modules/**,apps/web/src/**,**/*.sqlite*,**/*.pem,**/*.der,**/*.log}"
+    },
+    "api/analytics.py": {
+      "maxDuration": 60,
+      "excludeFiles": "{.local/**,.cache/**,.venv/**,tests/**,docs/**,deploy/**,apps/web/node_modules/**,apps/web/src/**,**/*.sqlite*,**/*.pem,**/*.der,**/*.log}"
     }
   },
   "routes": [
-    { "src": "^/(?:auth|internal|health|api)(?:/.*)?$", "dest": "/api/index.py" },
-    { "handle": "filesystem" }
+    {
+      "src": "^/internal(?:/.*)?$",
+      "dest": "/api/ingest.py"
+    },
+    {
+      "src": "^/api/v1/(?:reports|spc|trends|dashboard|assistant)(?:/.*)?$",
+      "dest": "/api/analytics.py"
+    },
+    {
+      "src": "^/(?:auth|internal|health|api)(?:/.*)?$",
+      "dest": "/api/index.py"
+    },
+    {
+      "handle": "filesystem"
+    }
   ]
 }
