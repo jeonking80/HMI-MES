@@ -4,9 +4,8 @@ import type { Session } from '../auth'
 import { terminal } from '../commands'
 import type { TrackedCommand } from '../commands'
 import LoadTracker from '../LoadTracker'
-import { mesPaths, mesRequest, orderPage } from '../mesApi'
 import type { WorkOrder } from '../mesApi'
-import { parseExecutionReports, query } from '../analytics/api'
+import { readOverview } from '../orders/orderApi'
 import { screenUInt64 } from '../screenState'
 import type { WorkOrderWorkflow } from '../useWorkOrderWorkflow'
 import { workflowId } from '../workflow'
@@ -21,6 +20,12 @@ import { useLineCommands } from './useLineCommands'
 import type { LineCommands } from './useLineCommands'
 import { CommandButtons, CommandLookup, CommandResult, SpeedControl } from './CommandControls'
 import './line.css'
+
+/* The serverless API serves few requests at once; the 1 s screen poll must not queue behind a burst
+   of side reads, or the line data turns stale. Periods are spread so their beats rarely meet. */
+const POLL_POWER_MS = 9000
+const POLL_RUN_MS = 4000
+const POLL_ORDERS_MS = 13000
 
 interface Props {
   session: Session; onSessionInvalid: () => void; workflow: WorkOrderWorkflow
@@ -59,7 +64,8 @@ function usePowerState(onSessionInvalid: () => void) {
     const controller = new AbortController()
     const tick = () => { load(controller.signal).catch(() => { if (!controller.signal.aborted) setError(true) }) }
     tick()
-    const timer = window.setInterval(tick, 5000)
+    // Side reads stay off the 1 s screen poll's beat: few, slow and staggered (see POLL_* below).
+    const timer = window.setInterval(tick, POLL_POWER_MS)
     return () => { controller.abort(); window.clearInterval(timer) }
   }, [load])
   const state = !managed ? 'NOT_MANAGED' : error ? 'UNKNOWN' : power ? (power.agent_online ? power.reported_state : 'UNKNOWN') : null
@@ -90,7 +96,7 @@ function useActiveRun(source: Source, executionId: string | null, onSessionInval
       })
     }).catch(() => { if (!controller.signal.aborted) setRun(undefined) })
     void tick()
-    const timer = window.setInterval(() => void tick(), 5000)
+    const timer = window.setInterval(() => void tick(), POLL_RUN_MS)
     return () => { controller.abort(); window.clearInterval(timer) }
   }, [executionId, source.line_id, source.source_id, source.stream_id, onSessionInvalid])
   // A record of an earlier execution is not this one; until it arrives the run is unknown.
@@ -289,21 +295,23 @@ function JobStep({ live, source, session, workflow, tracked, selectedOrder, onSe
   const [startWhenReady, setStartWhenReady] = useState(canAutoStart)
   useEffect(() => {
     const controller = new AbortController()
-    // Hide orders already run in the last week (each order runs once). If that lookup fails,
-    // keep them listed: the server still refuses a second run.
-    const day = 24 * 3600_000, to = Math.ceil(Date.now() / day) * day
-    const used = fetch(query('/api/v1/reports/executions', { line_id: source.line_id, from: new Date(to - 8 * day).toISOString().replace('.000Z', 'Z'), to: new Date(to).toISOString().replace('.000Z', 'Z'), limit: '50' }), { credentials: 'same-origin', cache: 'no-store', signal: controller.signal })
-      .then(async response => response.ok ? new Set(parseExecutionReports(await response.json()).items.map(item => item.work_order_id)) : new Set<string>())
-      .catch(() => new Set<string>())
-    mesRequest(`${mesPaths.order}?limit=50`, controller.signal).then(async value => {
-      const ran = await used
-      if (controller.signal.aborted) return
-      setOrders(orderPage(value).items.filter(item => item.status === 'RELEASED' && item.line_id === source.line_id && !ran.has(item.id)))
-    }).catch(cause => { if (!controller.signal.aborted && (cause?.status === 401 || cause?.status === 403)) onSessionInvalid() })
-    return () => controller.abort()
+    let busy = false
+    const load = async () => {
+      if (busy) return
+      busy = true
+      try {
+        // One light read: the overview already knows which released orders were never run.
+        const items = await readOverview(source.line_id, controller.signal)
+        if (!controller.signal.aborted) setOrders(items.filter(item => item.phase === 'WAITING'))
+      } catch (cause) {
+        if (!controller.signal.aborted && ((cause as { status?: number })?.status === 401 || (cause as { status?: number })?.status === 403)) onSessionInvalid()
+      } finally { busy = false }
+    }
+    void load()
+    // Orders registered or finished elsewhere show up without a manual refresh; a slow read is never cut off.
+    const timer = window.setInterval(() => void load(), POLL_ORDERS_MS)
+    return () => { controller.abort(); window.clearInterval(timer) }
   }, [source.line_id, revision, onSessionInvalid])
-  // Orders registered or finished elsewhere show up without a manual refresh.
-  useEffect(() => { const timer = window.setInterval(() => setRevision(value => value + 1), 5000); return () => window.clearInterval(timer) }, [])
   // Pick the first order ready to run, so the next step is one click.
   useEffect(() => {
     if (!orders) return
