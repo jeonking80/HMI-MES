@@ -85,7 +85,7 @@ export default function ItemsPanel({ session, canWrite, items, loaded, recipes, 
         <div className="wo-timeline">
           <h4>작업지시 {ordersOf(selected.id).length}</h4>
           {ordersOf(selected.id).length === 0 ? <p className="form-help">아직 이 품목의 작업지시가 없습니다.</p>
-            : <ol>{ordersOf(selected.id).map(order => <li key={order.id}><span>{order.planned_date.slice(5)}</span><span><strong>{order.id}</strong> · 목표 {order.target_quantity}{selected.unit} · {order.status === 'CANCELLED' ? '취소' : order.status === 'DRAFT' ? '작성 중' : '배포됨'}</span></li>)}</ol>}
+            : <ol>{ordersOf(selected.id).map(order => <li key={order.id}><span>{order.planned_date.slice(5)}</span><span><strong>{order.id}</strong> · 목표 {order.target_quantity}{selected.unit}{order.status === 'CANCELLED' ? ' · 취소' : order.status === 'DRAFT' ? ' · 작성 중' : ''}</span></li>)}</ol>}
         </div>
       </div> : <div className="rc-card mes-empty">왼쪽에서 품목을 고르거나 새 품목을 등록하세요.</div>}
     </div>
