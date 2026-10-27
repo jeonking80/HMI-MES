@@ -37,7 +37,9 @@ export function useCancellation(session: Session | null, onSessionInvalid: () =>
       const parsed = await cancellationRequest(reference, controller.signal, post ? intent : null, post ? session.csrf_token : undefined)
       if (!post && intent && (parsed.intent.actor !== intent.actor || parsed.intent.expected_row_version !== intent.expected_row_version)) throw new CancellationRecoveryConflict()
       const observation: CancellationObservation = { method: post ? 'POST' : 'GET', status: 200, outcome: 'HTTP', observed_at: new Date().toISOString() }
-      setLedger(freezeCancellation({ ...original, observations: [...original.observations, observation], reference: original.reference, intent: parsed.intent, receipt: parsed.receipt, phase: 'CONFIRMED', message: '작업지시 취소 기록을 확인했습니다. 설비 정지·실행 종료·예약 해제를 수행한 것이 아닙니다.' }))
+      const confirmed: CancellationLedger = freezeCancellation({ ...original, observations: [...original.observations, observation], reference: original.reference, intent: parsed.intent, receipt: parsed.receipt, phase: 'CONFIRMED' as const, message: '작업지시 취소 기록을 확인했습니다. 설비 정지·실행 종료·예약 해제를 수행한 것이 아닙니다.' })
+      // Our own confirmed cancellation is done; keep it in the session history instead of an open ledger.
+      if (parsed.intent.actor === session.login) { setHistory(previous => Object.freeze([...previous, confirmed])); setLedger(null) } else setLedger(confirmed)
     } catch (cause) {
       const status = cause instanceof MesHTTPError ? cause.status : 0
       const confirmed = post && cause instanceof CancellationRejection && !controller.signal.aborted && generation === currentGeneration.current
