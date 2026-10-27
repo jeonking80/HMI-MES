@@ -254,4 +254,29 @@ input:disabled { background:#f1f4f7; }
 .rc-params strong { font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:1.8rem; }
 .rc-params small { font-family:var(--font-sans); font-size:.85rem; color:#5f7186; }
 .rc-next { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; padding-top:14px; border-top:1px solid #e4eaf0; }
+.wo-board { display:flex; flex-direction:column; gap:14px; }
+.wo-filters { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.wo-filters [role='tab'] { font:inherit; font-size:.88rem; padding:7px 14px; border-radius:999px; border:1px solid #dce3ed; background:#fff; cursor:pointer; }
+.wo-filters [role='tab'] span { color:#5f7186; margin-left:4px; }
+.wo-filters [role='tab'][aria-selected='true'] { background:#215e91; border-color:#215e91; color:#fff; font-weight:700; }
+.wo-filters [role='tab'][aria-selected='true'] span { color:#cfe1f2; }
+.wo-spacer { flex:1 1 auto; }
+.wo-phase { font-style:normal; font-size:.74rem; padding:2px 9px; border-radius:999px; background:#eef2f7; color:#5f7186; vertical-align:middle; font-weight:600; }
+.wo-phase.wo-waiting { background:#e7f0f9; color:#2d6ca2; }
+.wo-phase.wo-running { background:#fff4dc; color:#8a5a00; }
+.wo-phase.wo-done { background:#e3f4ea; color:#1f6b47; }
+.wo-phase.wo-cancelled { background:#f6e9e7; color:#9b3a2e; }
+.rc-list .wo-progress { color:#2d4a66; }
+.rc-params .wo-small { font-size:1.05rem; display:block; margin:4px 0; }
+.rc-params div > small { display:block; }
+.wo-note { margin:0; padding:10px 12px; border-radius:10px; background:#f3f6fa; font-size:.86rem; color:#3b4f65; }
+.wo-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding-top:14px; border-top:1px solid #e4eaf0; }
+.button.danger-text { color:#b0392e; }
+.wo-edit { display:flex; flex-direction:column; gap:10px; padding:16px; border-radius:12px; border:2px solid #215e91; background:#f8fbfe; }
+.wo-edit h4, .wo-timeline h4 { margin:0; font-size:.95rem; }
+.wo-edit fieldset { border:0; margin:0; padding:0; }
+.wo-timeline { display:flex; flex-direction:column; gap:8px; padding-top:14px; border-top:1px solid #e4eaf0; }
+.wo-timeline ol { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; font-size:.86rem; }
+.wo-timeline li { display:flex; gap:12px; }
+.wo-timeline li > span:first-child { flex:0 0 96px; color:#5f7186; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .mes-generated-ids > summary { cursor:pointer; font-size:.85rem; color:#5f7186; margin:4px 0 8px; }

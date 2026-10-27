@@ -113,7 +113,7 @@ export default function App() {
   const workflow = useWorkOrderWorkflow(session, invalidateSession, () => setSelectedOrder(null), workOrderGuard)
   const knownLinked = (id: string) => (workflow.attempt?.record !== null && workflow.attempt?.kind === 'bind' && workflow.attempt.record?.intent.work_order_id === id)
     || workflow.history.some(item => item.attempt.intent.work_order_id === id)
-  const cancellation = useCancellation(session, invalidateSession, workOrderGuard, knownLinked, () => { setMesOpened(true); setWorkspaceTab('drafts') })
+  const cancellation = useCancellation(session, invalidateSession, workOrderGuard, knownLinked, () => { setMesOpened(true); setDraftsTab('orders'); setWorkspaceTab('orders') })
 
   async function run(action: 'login' | 'guest' | 'password' | 'logout') {
     if (inFlight.current) return
@@ -183,13 +183,14 @@ export default function App() {
   }
 
   function navigate(page: WorkspacePage) {
-    if (page === 'drafts') setMesOpened(true)
+    if (page === 'drafts' || page === 'orders') setMesOpened(true)
+    if (page === 'drafts') setDraftsTab('recipes')
+    if (page === 'orders' && draftsTab === 'recipes') setDraftsTab('orders')
     setWorkspaceTab(page)
   }
   function go(target: GuideTarget) {
-    if (target.anchor === 'mes-recipes') setDraftsTab('recipes')
-    if (target.anchor === 'mes-orders') setDraftsTab('orders')
     navigate(target.page)
+    if (target.anchor === 'mes-orders') setDraftsTab('orders')
     setFocusTarget({ anchor: target.anchor, at: Date.now() })
   }
 
@@ -220,10 +221,10 @@ export default function App() {
           <LineDataProvider session={session} onSessionInvalid={invalidateSession}>
             {/* One line page at a time: each owns its command tracker, so two never poll the same command. */}
             {workspaceTab === 'operations' && <MonitorPage session={session} onSessionInvalid={invalidateSession} workflow={workflow} tracked={tracked} setTracked={setTracked} onOpenControl={zone => { setControlZone(zone); navigate('control') }} onOpenAlarms={() => navigate('alarms')} />}
-            {workspaceTab === 'control' && <ControlPage session={session} onSessionInvalid={invalidateSession} workflow={workflow} tracked={tracked} setTracked={setTracked} zone={controlZone} onZone={setControlZone} selectedOrder={selectedOrder} onSelectOrder={setSelectedOrder} onOpenMonitor={() => navigate('operations')} onOpenOrders={() => { setDraftsTab('orders'); navigate('drafts') }} onOpenReports={() => navigate('reports')} />}
+            {workspaceTab === 'control' && <ControlPage session={session} onSessionInvalid={invalidateSession} workflow={workflow} tracked={tracked} setTracked={setTracked} zone={controlZone} onZone={setControlZone} selectedOrder={selectedOrder} onSelectOrder={setSelectedOrder} onOpenMonitor={() => navigate('operations')} onOpenOrders={() => { setDraftsTab('orders'); navigate('orders') }} onOpenReports={() => navigate('reports')} />}
             {workspaceTab === 'alarms' && <AlarmsPage session={session} onSessionInvalid={invalidateSession} ledger={alarmLedger} setLedger={setAlarmLedger} />}
           </LineDataProvider>
-          {mesOpened && <div hidden={workspaceTab !== 'drafts'}><MesDraftPanel session={session} onSessionInvalid={invalidateSession} workflow={workflow} cancellation={cancellation} tab={draftsTab} onTab={setDraftsTab} onSelectOrder={order => { setSelectedOrder(order); setNotice(`작업지시 ${order.id}를 골랐습니다. "작업" 칸에서 "작업 불러오기"를 누르세요.`); go({ page: 'control', anchor: 'work-order-binding' }) }} /></div>}
+          {mesOpened && <div hidden={workspaceTab !== 'drafts' && workspaceTab !== 'orders'}><MesDraftPanel onOpenControl={() => navigate('control')} onOpenReports={() => navigate('reports')} session={session} onSessionInvalid={invalidateSession} workflow={workflow} cancellation={cancellation} tab={draftsTab} onTab={tab => { setDraftsTab(tab); setWorkspaceTab(tab === 'recipes' ? 'drafts' : 'orders') }} onSelectOrder={order => { setSelectedOrder(order); setNotice(`작업지시 ${order.id}를 골랐습니다. ② 작업 준비에서 "불러오기"를 누르세요.`); go({ page: 'control', anchor: 'work-order-binding' }) }} /></div>}
           {workspaceTab === 'dashboard' && <DashboardPage scope={analyticsScope} onScope={setAnalyticsScope} onSessionInvalid={invalidateSession} />}
           {workspaceTab === 'trends' && <TrendPage scope={analyticsScope} onScope={setAnalyticsScope} onSessionInvalid={invalidateSession} />}
           {workspaceTab === 'reports' && <ReportsPage session={session} scope={analyticsScope} onScope={setAnalyticsScope} onSessionInvalid={invalidateSession} />}
@@ -232,7 +233,7 @@ export default function App() {
           {workspaceTab === 'spc' && <SpcPage scope={analyticsScope} onScope={setAnalyticsScope} onSessionInvalid={invalidateSession} />}
           {/* Work-order request ledgers belong to the operations and work-order pages; hidden (not unmounted) elsewhere to keep their state. */}
           {/* Folded unless a request is open, so an unresolved original ID is never hidden. */}
-          <details className="lc-card lc-ledgers" hidden={workspaceTab !== 'control' && workspaceTab !== 'drafts'} open={!!workflow.attempt || !!cancellation.ledger || undefined}>
+          <details className="lc-card lc-ledgers" hidden={workspaceTab !== 'control' && workspaceTab !== 'orders'} open={!!workflow.attempt || !!cancellation.ledger || undefined}>
             <summary>작업지시 요청 · 취소 기록 조회<span>{workflow.attempt || cancellation.ledger ? '확인할 요청이 있습니다' : '이전 요청 ID로 결과를 다시 볼 때 펼치세요'}</span></summary>
             <WorkflowTracker workflow={workflow} login={session.login} onSessionInvalid={invalidateSession} />
             <CancellationPanel cancellation={cancellation} login={session.login} />

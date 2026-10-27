@@ -10,6 +10,7 @@ const iconPaths: Record<PageDefinition['icon'], ReactNode> = {
   dashboard: <><rect x="3" y="3" width="7" height="9" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" /><rect x="14" y="12" width="7" height="9" rx="1.5" /><rect x="3" y="16" width="7" height="5" rx="1.5" /></>,
   line: <><rect x="2.5" y="9" width="5" height="6" rx="1" /><rect x="9.5" y="9" width="5" height="6" rx="1" /><rect x="16.5" y="9" width="5" height="6" rx="1" /><path d="M2 19h20" /></>,
   trend: <><path d="M3 20h18" /><path d="M4 15l5-5 4 3 7-8" /></>,
+  recipe: <><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" /><circle cx="16" cy="6" r="2" /><circle cx="10" cy="12" r="2" /><circle cx="18" cy="18" r="2" /></>,
   orders: <><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 8h6M9 12h6M9 16h4" /></>,
   report: <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></>,
   spc: <><path d="M3 6h18M3 18h18" strokeDasharray="2 2" /><path d="M3 12l4-2 3 3 4-4 3 2 4-1" /></>,
