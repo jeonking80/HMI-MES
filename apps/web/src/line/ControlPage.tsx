@@ -302,6 +302,8 @@ function JobStep({ live, source, session, workflow, tracked, selectedOrder, onSe
     }).catch(cause => { if (!controller.signal.aborted && (cause?.status === 401 || cause?.status === 403)) onSessionInvalid() })
     return () => controller.abort()
   }, [source.line_id, revision, onSessionInvalid])
+  // Orders registered or finished elsewhere show up without a manual refresh.
+  useEffect(() => { const timer = window.setInterval(() => setRevision(value => value + 1), 5000); return () => window.clearInterval(timer) }, [])
   // Pick the first order ready to run, so the next step is one click.
   useEffect(() => {
     if (!orders) return
