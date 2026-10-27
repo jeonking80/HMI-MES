@@ -284,3 +284,22 @@ def test_dynamic_alarm_severity_lifecycle_and_source_isolation(service):
     }
     assert "custom-returned" not in own["alarms"]["active_by_severity"]
     assert len(json.dumps(own, ensure_ascii=False).encode("utf-8")) < 64 * 1024
+
+
+def test_snapshot_read_blocks_neither_intake_nor_the_same_account(service):
+    """A long dashboard/report read must not hold the line or the user's row.
+
+    Holding them stalled gateway intake (line FOR UPDATE) and every other request of
+    the same account for the whole computation.
+    """
+    auth = UserAuth(service.engine, allowed_origins={ORIGIN}, clock=lambda: AT)
+    session, _ = account(auth, "viewer", {"viewer"})
+    capture(service)
+    with auth.authorized_snapshot(session.token) as tx:
+        read_dashboard(tx.connection, **SCOPE, day=AT.date(), now=AT)
+        with service.engine.begin() as other:
+            other.execute(text("SET LOCAL lock_timeout = '200ms'"))
+            other.execute(text("SELECT id FROM lines WHERE id=:id FOR UPDATE"), {"id": LINE_ID})
+            other.execute(text("SELECT login FROM users WHERE login='viewer' FOR UPDATE"))
+        with service.engine.connect() as db:
+            assert db.execute(text("SELECT 1")).scalar_one() == 1

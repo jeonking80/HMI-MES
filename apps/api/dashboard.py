@@ -20,12 +20,9 @@ class DashboardUnavailable(RuntimeError):
 
 
 def read_dashboard(db, *, line_id: str, source_id: str, stream_id: str, day: date, now: datetime):
-    # Intake holds the line exclusively. This shared lock keeps report quantities,
-    # current capture and alarm state consistent during this passive projection.
-    if (
-        db.execute(select(Line.id).where(Line.id == line_id).with_for_update(read=True)).first()
-        is None
-    ):
+    # The caller's REPEATABLE READ snapshot keeps report quantities, current capture
+    # and alarm state consistent; a row lock here would stall intake for the whole read.
+    if db.execute(select(Line.id).where(Line.id == line_id)).first() is None:
         raise SnapshotNotFound("Dashboard line is not registered")
     scope = {"line_id": line_id, "source_id": source_id, "stream_id": stream_id}
     snapshot = read_snapshot(db, **scope, now=now, prefer_complete_capture=True)

@@ -121,8 +121,8 @@ def register_report_routes(app, auth):
             raise HTTPException(422, "invalid report query values") from None
 
         def perform():
-            with auth.authorized_transaction(
-                request.cookies.get("hmi_session"), permission="read", refresh_idle=False
+            with auth.authorized_snapshot(
+                request.cookies.get("hmi_session"), permission="read"
             ) as tx:
                 now = auth._now()
                 annotate = getattr(app.state, "report_segment_annotator", None)

@@ -332,8 +332,8 @@ def register_spc_routes(app: FastAPI, auth, *, session_cookie="hmi_session"):
             raise HTTPException(422, "invalid SPC query") from None
 
         def perform():
-            with auth.authorized_transaction(
-                request.cookies.get(session_cookie), permission="read", refresh_idle=False
+            with auth.authorized_snapshot(
+                request.cookies.get(session_cookie), permission="read"
             ) as tx:
                 return read_spc(tx.connection, query)
 

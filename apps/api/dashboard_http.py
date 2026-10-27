@@ -35,8 +35,8 @@ def register_dashboard_routes(app, auth):
             raise HTTPException(422, "invalid dashboard scope or date") from None
 
         def read():
-            with auth.authorized_transaction(
-                request.cookies.get("hmi_session"), permission="read", refresh_idle=False
+            with auth.authorized_snapshot(
+                request.cookies.get("hmi_session"), permission="read"
             ) as tx:
                 return read_dashboard(tx.connection, **values, day=day, now=auth._now())
 

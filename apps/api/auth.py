@@ -413,6 +413,28 @@ class UserAuth:
                 self._touch(db, token, row, now)
             yield AuthorizedTransaction(db, principal)
 
+    @contextmanager
+    def authorized_snapshot(
+        self, token: str, *, permission: str = "read"
+    ) -> Iterator[AuthorizedTransaction]:
+        """Authorize briefly, then run a long passive read in its own consistent snapshot.
+
+        Reports and dashboards compute for seconds. Inside ``authorized_transaction`` they
+        would hold the user row (stalling every other request of the account, including
+        the 1 s screen poll) and any shared row locks (stalling equipment intake).
+        A REPEATABLE READ, READ ONLY transaction gives the same consistent view without
+        blocking writers; it still follows the schema lock order of migrations.
+        """
+        with self.authorized_transaction(token, permission=permission, refresh_idle=False) as tx:
+            principal = tx.principal
+        with self.engine.connect().execution_options(isolation_level="REPEATABLE READ") as db:
+            with db.begin():
+                db.execute(sa.text("SET TRANSACTION READ ONLY"))
+                db.execute(
+                    sa.text("SELECT pg_advisory_xact_lock_shared(:key)"), {"key": SCHEMA_LOCK_ID}
+                )
+                yield AuthorizedTransaction(db, principal)
+
     def revoke(self, token: str, *, csrf_token: str, origin: str) -> None:
         """Authenticated logout, including viewer/initial-password sessions."""
         with self._transaction() as db:
