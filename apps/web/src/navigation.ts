@@ -5,7 +5,7 @@
  */
 const analyticsBuildFlag = import.meta.env.VITE_ANALYTICS_PAGES === 'enabled'
 
-export type WorkspacePage = 'dashboard' | 'operations' | 'control' | 'alarms' | 'trends' | 'drafts' | 'reports' | 'spc' | 'assistant'
+export type WorkspacePage = 'dashboard' | 'operations' | 'control' | 'alarms' | 'trends' | 'orders' | 'drafts' | 'reports' | 'spc' | 'assistant'
 
 export interface NavigationFeatures { analytics: boolean | null; assistant: boolean }
 
@@ -17,7 +17,7 @@ export interface PageDefinition {
   title: string
   kicker: string
   description: string
-  icon: 'dashboard' | 'line' | 'trend' | 'orders' | 'report' | 'spc' | 'assistant' | 'control' | 'alarm'
+  icon: 'dashboard' | 'line' | 'trend' | 'orders' | 'recipe' | 'report' | 'spc' | 'assistant' | 'control' | 'alarm'
   /** Pages whose server API is not available stay visible but disabled. */
   available: boolean
 }
@@ -41,7 +41,8 @@ export function buildNavigation(features: NavigationFeatures): NavigationGroup[]
       label: '제어',
       pages: [
         { page: 'control', id: 'workspace-control', label: '운전 제어', title: '운전 제어', kicker: 'OPERATION', description: '설비 전원, 작업 불러오기, 운전 명령과 그 결과입니다. 실행 여부는 PLC가 최종 판정합니다.', icon: 'control', available: true },
-        { page: 'drafts', id: 'workspace-drafts', label: '공정 설정 · 작업지시', title: '공정 설정 · 작업지시', kicker: 'PRODUCTION PLANNING', description: '공정 설정 버전과 작업지시를 등록하고 라인에 배포합니다.', icon: 'orders', available: true },
+        { page: 'orders', id: 'workspace-orders', label: '작업지시', title: '작업지시', kicker: 'WORK ORDERS', description: '작업지시를 한 건씩 등록·수정·취소하고, 어디서 어떻게 쓰였는지 기록을 봅니다.', icon: 'orders', available: true },
+        { page: 'drafts', id: 'workspace-drafts', label: '공정 설정', title: '공정 설정', kicker: 'RECIPES', description: '품목별 생산 조건(실링 온도 · 운전 속도)을 등록하고 버전을 관리합니다.', icon: 'recipe', available: true },
       ],
     },
     {
