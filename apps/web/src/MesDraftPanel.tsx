@@ -85,6 +85,8 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
   // Typing an ID or a parameter by hand stops the suggestions from overwriting it.
   const [idsManual, setIdsManual] = useState(false)
   const [paramsManual, setParamsManual] = useState(false)
+  // Which existing group the form continues; '' means a brand-new process setting.
+  const [baseGroup, setBaseGroup] = useState('')
   const [orderIdManual, setOrderIdManual] = useState(false)
   const [choiceRevision, setChoiceRevision] = useState(0)
   const { items: allRecipes } = useAll(mesPaths.recipe, recipePage, `recipes-${choiceRevision}`)
@@ -153,11 +155,27 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
   }
   function chooseItem(item: string) {
     const group = groups.find(entry => entry.item_id === item.trim())
+    setBaseGroup(group?.recipe_id ?? '')
     suggestFor(item, group?.recipe_id ?? '', group?.latest ?? null)
+  }
+  function resetRecipe() {
+    setBaseGroup('')
+    setIdsManual(false)
+    setParamsManual(false)
+    setRecipe(recipeEmpty)
+  }
+  // "Edit" keeps the stored version unchanged and starts its next version from its values.
+  function editFrom(item: RecipeVersion) {
+    setBaseGroup(item.recipe_id)
+    setIdsManual(false)
+    setParamsManual(false)
+    suggestFor(item.item_id, item.recipe_id, item)
+    window.requestAnimationFrame(() => document.getElementById('mes-recipe-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
   }
   function chooseBase(recipeId: string) {
     const group = groups.find(entry => entry.recipe_id === recipeId)
-    if (!group) return
+    if (!group) return resetRecipe()
+    setBaseGroup(group.recipe_id)
     setParamsManual(false)
     suggestFor(group.item_id, group.recipe_id, group.latest)
   }
@@ -271,7 +289,7 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
     setAttempts(previous => ({ ...previous, [kind]: null }))
     setValidation(previous => ({ ...previous, [kind]: '' }))
     if (wasConfirmed) {
-      if (kind === 'recipe') { setRecipe(recipeEmpty); setIdsManual(false); setParamsManual(false) }
+      if (kind === 'recipe') resetRecipe()
       else { setOrder(previous => ({ ...orderEmpty, line: previous.line, date: previous.date })); setOrderIdManual(false) }
     }
   }
@@ -285,12 +303,12 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
     {!canWrite && <p className="message caution">현재 계정은 등록된 내용을 조회할 수 있습니다. 공정 설정과 작업지시 등록은 생산 담당자가 진행합니다.</p>}
     <section id="mes-recipes" className="mes-card" aria-labelledby="mes-recipes-heading">
       <div className="mes-card-heading"><div><h3 id="mes-recipes-heading">공정 설정</h3><p>설정 그룹과 버전별로 등록 내용을 보관합니다.</p></div><button className="button secondary" type="button" onClick={recipes.refresh}>목록 새로 조회</button></div>
-      {recipes.error ? <p className="message error" role="alert">{recipes.error}</p> : !recipes.page ? <p role="status">공정 설정을 조회하고 있습니다.</p> : recipes.page.items.length === 0 ? <p className="mes-empty">{recipes.cursor ? '이후 공정 설정이 없습니다.' : '등록된 공정 설정이 없습니다.'}</p> : <div className="mes-table-scroll"><table id="mes-recipe-list"><caption className="sr-only">등록된 공정 설정</caption><thead><tr><th scope="col">설정 ID</th><th scope="col">설정 그룹 · 버전</th><th scope="col">품목</th><th scope="col">온도 · 속도</th>{canWrite && <th scope="col">작업지시</th>}</tr></thead><tbody>{recipes.page.items.map(item => <tr key={item.id}><th scope="row">{item.id}</th><td>{item.recipe_id} · {item.version}</td><td>{item.item_id}</td><td>{item.parameters.temperature_c} ℃ · {item.parameters.speed_m_per_min} m/min</td>{canWrite && <td><button type="button" className="button secondary" disabled={locked('order')} onClick={() => setSelectedRecipe(item)} aria-label={`${item.id} 공정 설정을 작업지시에 사용`}>선택</button></td>}</tr>)}</tbody></table></div>}
+      {recipes.error ? <p className="message error" role="alert">{recipes.error}</p> : !recipes.page ? <p role="status">공정 설정을 조회하고 있습니다.</p> : recipes.page.items.length === 0 ? <p className="mes-empty">{recipes.cursor ? '이후 공정 설정이 없습니다.' : '등록된 공정 설정이 없습니다.'}</p> : <div className="mes-table-scroll"><table id="mes-recipe-list"><caption className="sr-only">등록된 공정 설정</caption><thead><tr><th scope="col">설정 ID</th><th scope="col">설정 그룹 · 버전</th><th scope="col">품목</th><th scope="col">온도 · 속도</th>{canWrite && <th scope="col">작업</th>}</tr></thead><tbody>{recipes.page.items.map(item => <tr key={item.id}><th scope="row">{item.id}</th><td>{item.recipe_id} · {item.version}</td><td>{item.item_id}</td><td>{item.parameters.temperature_c} ℃ · {item.parameters.speed_m_per_min} m/min</td>{canWrite && <td><div className="row-actions"><button type="button" className="button secondary" disabled={locked('order')} onClick={() => setSelectedRecipe(item)} aria-label={`${item.id} 공정 설정을 작업지시에 사용`}>작업지시에 사용</button><button type="button" className="button secondary" disabled={locked('recipe')} onClick={() => editFrom(item)} aria-label={`${item.id} 값으로 새 버전 만들기`}>수정(새 버전)</button></div></td>}</tr>)}</tbody></table></div>}
       <div className="mes-pagination"><span>페이지당 최대 20건</span><div><button id="mes-recipes-first" className="button secondary" type="button" disabled={!recipes.cursor} onClick={recipes.refresh}>처음</button><button id="mes-recipes-next" className="button secondary" type="button" disabled={!recipes.page?.next_cursor} onClick={recipes.next}>다음</button></div></div>
       {canWrite && <details className="mes-editor" open><summary>새 공정 설정 등록</summary><p className="form-help">품목이나 기존 설정을 고르면 설정 ID·그룹·버전이 자동으로 채워집니다. 기존 설정은 수정하지 않고 새 버전으로 저장합니다.</p>
         {validation.recipe && <p className="message error" role="alert">{validation.recipe}</p>}
-        <form id="mes-recipe-form" onSubmit={submitRecipe}><fieldset disabled={locked('recipe')}><legend className="sr-only">공정 설정 등록 내용</legend><div className="mes-form-grid">
-          <div><label htmlFor="mes-recipe-base">기존 설정에서 시작 (선택)</label><select id="mes-recipe-base" value="" onChange={event => chooseBase(event.target.value)}><option value="">{groups.length ? '기존 설정을 고르면 다음 버전으로 채웁니다' : '등록된 설정이 없습니다'}</option>{groups.map(group => <option key={group.recipe_id} value={group.recipe_id}>{group.item_id} · {group.recipe_id} (최신 {group.latest.version}, {group.latest.parameters.temperature_c} ℃ / {group.latest.parameters.speed_m_per_min} m/min)</option>)}</select></div>
+        <form id="mes-recipe-form" onSubmit={submitRecipe}><fieldset disabled={locked('recipe')}><legend className="sr-only">공정 설정 등록 내용</legend><p id="mes-recipe-mode" className="recipe-mode" data-mode={baseGroup ? 'version' : 'new'}>{baseGroup ? <>기존 설정 <strong>{baseGroup}</strong>의 새 버전을 만들고 있습니다. 새 공정 설정을 만들려면 아래 "기존 설정에서 시작" 칸에서 "새 공정 설정"을 고르거나 <strong>입력 초기화</strong>를 누르세요.</> : <>새 공정 설정을 만들고 있습니다. 기존 설정을 바탕으로 하려면 아래 "기존 설정에서 시작" 칸에서 고르세요.</>}</p><div className="mes-form-grid">
+          <div><label htmlFor="mes-recipe-base">기존 설정에서 시작 (선택)</label><select id="mes-recipe-base" value={baseGroup} onChange={event => chooseBase(event.target.value)}><option value="">새 공정 설정 (처음부터 입력)</option>{groups.map(group => <option key={group.recipe_id} value={group.recipe_id}>{group.item_id} · {group.recipe_id} (최신 {group.latest.version}, {group.latest.parameters.temperature_c} ℃ / {group.latest.parameters.speed_m_per_min} m/min)</option>)}</select></div>
           <div><label htmlFor="mes-recipe-item">품목</label><input id="mes-recipe-item" required maxLength={128} list="mes-item-choices" placeholder="목록에서 고르거나 새 품목 입력" value={recipe.item} onChange={event => chooseItem(event.target.value)} /><datalist id="mes-item-choices">{items.map(item => <option key={item} value={item}>{masterItems.find(entry => entry.id === item)?.name}</option>)}</datalist>{newItem && <p className="input-help">처음 쓰는 품목입니다. 공정 설정을 등록할 때 품목 목록에도 함께 등록합니다(단위: 개).</p>}</div>
           <div><label htmlFor="mes-recipe-temperature">설정 온도 (℃)</label><input id="mes-recipe-temperature" type="number" required min={TEMPERATURE_RANGE.min} max={TEMPERATURE_RANGE.max} step="any" value={recipe.temperature} onChange={event => { setParamsManual(true); setRecipe(previous => ({ ...previous, temperature: event.target.value })) }} /><p className="input-help">허용 범위 {TEMPERATURE_RANGE.min}~{TEMPERATURE_RANGE.max} ℃</p></div>
           <div><label htmlFor="mes-recipe-speed">설정 속도 (m/min)</label><input id="mes-recipe-speed" type="number" required min={SPEED_RANGE.min} max={SPEED_RANGE.max} step="any" value={recipe.speed} onChange={event => { setParamsManual(true); setRecipe(previous => ({ ...previous, speed: event.target.value })) }} /><p className="input-help">허용 범위 {SPEED_RANGE.min}~{SPEED_RANGE.max} m/min</p></div>
@@ -300,7 +318,7 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
           <div><label htmlFor="mes-recipe-version">버전</label><input id="mes-recipe-version" required maxLength={128} value={recipe.version} onChange={event => { setIdsManual(true); setRecipe(previous => ({ ...previous, version: event.target.value })) }} /></div>
           <div><label htmlFor="mes-recipe-id">설정 ID</label><input id="mes-recipe-id" required maxLength={128} value={recipe.id} onChange={event => { setIdsManual(true); setRecipe(previous => ({ ...previous, id: event.target.value })) }} /></div>
         </div>{idsManual && <button type="button" className="button text" onClick={refillIds}>ID 자동으로 다시 채우기</button>}</fieldset>
-        <button id="mes-recipe-submit" className="button primary" type="submit">공정 설정 등록</button></fieldset></form>
+        <div className="mes-form-actions"><button id="mes-recipe-submit" className="button primary" type="submit">{baseGroup ? '새 버전으로 등록' : '새 공정 설정 등록'}</button><button id="mes-recipe-reset" className="button secondary" type="button" onClick={resetRecipe}>입력 초기화</button></div></fieldset></form>
         <AttemptResult kind="recipe" attempt={attempts.recipe} checking={checking.recipe} onLookup={() => void lookup('recipe')} onReset={() => reset('recipe')} />
       </details>}
     </section>
