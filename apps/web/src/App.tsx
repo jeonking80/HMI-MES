@@ -110,7 +110,7 @@ export default function App() {
   const [tracked, setTracked] = useState<TrackedCommand | null>(null)
   const [alarmLedger, setAlarmLedger] = useState<AlarmLedger | null>(null)
   const [workOrderGuard] = useState(() => new WorkOrderMutationGuard())
-  const workflow = useWorkOrderWorkflow(session, invalidateSession, () => setSelectedOrder(null), workOrderGuard)
+  const workflow = useWorkOrderWorkflow(session, invalidateSession, () => setSelectedOrder(null), workOrderGuard, id => setNotice(`작업지시 ${id}를 배포했습니다. 운전 제어에서 불러올 수 있습니다.`))
   const knownLinked = (id: string) => (workflow.attempt?.record !== null && workflow.attempt?.kind === 'bind' && workflow.attempt.record?.intent.work_order_id === id)
     || workflow.history.some(item => item.attempt.intent.work_order_id === id)
   const cancellation = useCancellation(session, invalidateSession, workOrderGuard, knownLinked, () => { setMesOpened(true); setDraftsTab('orders'); setWorkspaceTab('orders') })
@@ -233,11 +233,11 @@ export default function App() {
           {workspaceTab === 'spc' && <SpcPage scope={analyticsScope} onScope={setAnalyticsScope} onSessionInvalid={invalidateSession} />}
           {/* Work-order request ledgers belong to the operations and work-order pages; hidden (not unmounted) elsewhere to keep their state. */}
           {/* Folded unless a request is open, so an unresolved original ID is never hidden. */}
-          <details className="lc-card lc-ledgers" hidden={workspaceTab !== 'control' && workspaceTab !== 'orders'} open={!!workflow.attempt || !!cancellation.ledger || undefined}>
-            <summary>작업지시 요청 · 취소 기록 조회<span>{workflow.attempt || cancellation.ledger ? '확인할 요청이 있습니다' : '이전 요청 ID로 결과를 다시 볼 때 펼치세요'}</span></summary>
-            <WorkflowTracker workflow={workflow} login={session.login} onSessionInvalid={invalidateSession} />
-            <CancellationPanel cancellation={cancellation} login={session.login} />
-          </details>
+          {((workflow.attempt && workflow.attempt.phase !== 'confirmed') || cancellation.ledger) && <details className="lc-card lc-ledgers" hidden={workspaceTab !== 'control' && workspaceTab !== 'orders'} open>
+            <summary>확인이 필요한 요청<span>응답을 확인하지 못한 요청입니다. 원래 요청 기록을 조회해 결과를 확인하세요.</span></summary>
+            {workflow.attempt && workflow.attempt.phase !== 'confirmed' && <WorkflowTracker workflow={workflow} login={session.login} onSessionInvalid={invalidateSession} />}
+            {cancellation.ledger && <CancellationPanel cancellation={cancellation} login={session.login} />}
+          </details>}
           <p id="session-reset" className="session-note">페이지를 새로고침하거나 다시 열면 재로그인이 필요합니다.</p>
         </main>
       </div>

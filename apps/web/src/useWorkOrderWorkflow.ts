@@ -19,7 +19,7 @@ const notStored = (kind: WorkflowKind) => `서버가 이 ${kind === 'release' ? 
 const settled = (attempt: WorkflowAttempt) => attempt.postStatus === 409 || !attempt.knownIntent || (attempt.sentAt !== undefined && Date.now() - attempt.sentAt > SERVER_DEADLINE_MS)
 
 /** Lives above authenticated components. No request retry or browser persistence. */
-export function useWorkOrderWorkflow(session: Session | null, onSessionInvalid: () => void, onArchived: () => void, guard: WorkOrderMutationGuard) {
+export function useWorkOrderWorkflow(session: Session | null, onSessionInvalid: () => void, onArchived: () => void, guard: WorkOrderMutationGuard, onReleased?: (workOrderId: string) => void) {
   const [{ attempt, history }, setLedger] = useState<{ attempt: WorkflowAttempt | null; history: readonly ArchivedWorkflow[] }>({ attempt: null, history: [] })
   const setAttempt = useCallback((update: SetStateAction<WorkflowAttempt | null>) => setLedger(previous => ({ ...previous, attempt: typeof update === 'function' ? update(previous.attempt) : update })), [])
   const [checking, setChecking] = useState(false)
@@ -41,7 +41,9 @@ export function useWorkOrderWorkflow(session: Session | null, onSessionInvalid: 
     try {
       const response = await mesRequest(workflowPath(kind, intent.work_order_id, post ? undefined : workflowIdentity(intent)), controller.signal, post ? session.csrf_token : undefined, post ? workflowBody(kind, intent) : undefined)
       const record = parseWorkflow(kind, post ? { intent, receipt: response } : response, intent.work_order_id, workflowIdentity(intent), initial.knownIntent ? intent : undefined, initial.expectedOrder)
-      setAttempt({ ...initial, intent: record.intent, knownIntent: true, phase: 'confirmed', record, message: kind === 'release' ? '배포 기록을 확인했습니다. 설비 실행 완료를 뜻하지 않습니다.' : '실행 연결 등록을 확인했습니다. 작업 불러오기의 PLC 결과를 별도로 확인해 주세요.' })
+      // A confirmed release needs no further action: close it and report it in place.
+      if (kind === 'release') { guard.release(record.intent.work_order_id, 'workflow', workflowIdentity(record.intent)); setAttempt(null); onReleased?.(record.intent.work_order_id); return }
+      setAttempt({ ...initial, intent: record.intent, knownIntent: true, phase: 'confirmed', record, message: '실행 연결 등록을 확인했습니다. 작업 불러오기의 PLC 결과를 별도로 확인해 주세요.' })
     } catch (cause) {
       const status = cause instanceof MesHTTPError ? cause.status : 0
       const reason = conflictMessage(cause instanceof MesHTTPError ? cause.reasonCode : null)
@@ -50,6 +52,7 @@ export function useWorkOrderWorkflow(session: Session | null, onSessionInvalid: 
         // A 409 is a server answer, not a lost response: read the original ID once to tell a stored duplicate from a rejection.
         try {
           const stored = parseWorkflow(kind, await mesRequest(workflowPath(kind, intent.work_order_id, workflowIdentity(intent)), controller.signal), intent.work_order_id, workflowIdentity(intent), intent, initial.expectedOrder)
+          if (kind === 'release') { guard.release(stored.intent.work_order_id, 'workflow', workflowIdentity(stored.intent)); setAttempt(null); onReleased?.(stored.intent.work_order_id); return }
           setAttempt({ ...tried, intent: stored.intent, knownIntent: true, phase: 'confirmed', record: stored, message: '원래 ID의 저장 기록을 확인했습니다.' })
         } catch (lookup) {
           const missing = lookup instanceof MesHTTPError && lookup.status === 404
