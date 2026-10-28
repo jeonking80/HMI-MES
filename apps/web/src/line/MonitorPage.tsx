@@ -43,7 +43,7 @@ export default function MonitorPage(props: Props) {
   </div>
 }
 
-function LiveMonitor({ live, source, power, session, onSessionInvalid, workflow, tracked, setTracked, onOpenControl, onOpenAlarms }: Props & { live: LiveLine; source: NonNullable<ReturnType<typeof useLine>['source']>; power: string | null }) {
+function LiveMonitor({ live, source, power, session, onSessionInvalid, workflow, tracked, setTracked, onOpenControl }: Props & { live: LiveLine; source: NonNullable<ReturnType<typeof useLine>['source']>; power: string | null }) {
   const [open, setOpen] = useState<ZoneId | null>(null)
   const known = live.known
   const made = production(known)
@@ -61,7 +61,8 @@ function LiveMonitor({ live, source, power, session, onSessionInvalid, workflow,
       <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3L22 20H2Z" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M12 10v5M12 17.5v.5" stroke="currentColor" strokeWidth="2" /></svg>
       <strong>{issues[0].text}</strong>{issues.length > 1 && <span>외 {issues.length - 1}건</span>}
       <span className="lc-spacer" />
-      {issues[0].zone !== 'Line' ? <button type="button" className="lc-link" onClick={() => setOpen(issues[0].zone as ZoneId)}>눌러서 조치</button> : <button type="button" className="lc-link" onClick={onOpenAlarms}>알람 보기</button>}
+      {/* A live-screen condition, not a stored alarm: point at the equipment, never at an empty alarm list. */}
+      {issues[0].zone !== 'Line' ? <button type="button" className="lc-link" onClick={() => setOpen(issues[0].zone as ZoneId)}>설비 보기</button> : <button type="button" className="lc-link" onClick={() => onOpenControl('Line')}>운전 제어로</button>}
     </div>}
     {powerOff && <div className="lc-notice">설비 전원이 꺼져 있어 값이 갱신되지 않습니다. 운전 제어에서 설비를 켜세요. <button type="button" className="lc-link" onClick={() => onOpenControl('Line')}>운전 제어로 →</button></div>}
 
@@ -101,7 +102,6 @@ function LiveMonitor({ live, source, power, session, onSessionInvalid, workflow,
       <section className="lc-card lc-issues" aria-labelledby="issues-heading">
         <div className="lc-card-head"><h3 id="issues-heading">현재 이상</h3><span>{issues.length}건</span></div>
         {issues.length === 0 ? <p className="lc-ok">이상 없음</p> : <ul>{issues.map(item => <li key={item.key}>{item.zone !== 'Line' ? <button type="button" className="lc-link" onClick={() => setOpen(item.zone as ZoneId)}>{item.text} →</button> : item.text}</li>)}</ul>}
-        <button type="button" className="lc-link" onClick={onOpenAlarms}>알람 센터 →</button>
       </section>
     </div>
 
