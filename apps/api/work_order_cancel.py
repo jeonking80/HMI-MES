@@ -16,6 +16,7 @@ from apps.api.work_orders import (
     RegistrationNotFound,
     WorkOrdersUnavailable,
     _lock,
+    active_run,
 )
 from contracts.conflict_codes import ConflictReason
 from contracts.models import ContractModel, Identifier, PositiveUInt64, UTCTimestamp
@@ -107,11 +108,9 @@ def cancel_work_order(
         .mappings()
         .one()
     )
-    if db.execute(
-        text("SELECT 1 FROM work_order_execution_links WHERE work_order_id=:id"), {"id": identity}
-    ).first():
+    if active_run(db, identity) is not None:
         raise RegistrationConflict(
-            "Bound execution cancellation is not implemented",
+            "A running work order cannot be cancelled",
             reason_code=ConflictReason.WORK_ORDER_ALREADY_BOUND,
         )
     # A queued order would stay at the queue head and stop auto-advance; leave the queue first.

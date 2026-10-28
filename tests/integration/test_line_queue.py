@@ -599,3 +599,100 @@ def test_queued_order_cannot_be_cancelled_until_it_leaves_the_queue(state):
     assert scalar(state, "SELECT status FROM work_orders WHERE id='work-A'") == "RELEASED"
     update(state, definition(request_id="queue-2", revision=int(queued["revision"])))
     assert cancel()["status"] == "CANCELLED"
+
+
+def test_finished_work_order_loads_again_as_a_new_run_and_is_queued_again(completed):
+    state, controller, first = completed
+    update(state, definition(request_id="queue-empty", revision=1))
+    capture(
+        state,
+        values=project_tags(
+            controller.state,
+            controller.storage.load_execution(),
+            counter_epoch=controller.storage.identity.counter_epoch,
+            heartbeat=controller.storage.load_execution().tick,
+        ),
+    )
+    again = bind(
+        state,
+        definition=BindIntent(
+            **{
+                **intent().model_dump(),
+                "command_id": "load-A-again",
+                "expected_work_order_version": int(
+                    scalar(state, "SELECT row_version FROM work_orders WHERE id='work-A'")
+                ),
+                "expected_control_version": controller.state.control_version,
+            }
+        ),
+    )
+    assert again["execution_id"] != first["execution_id"]
+    assert (
+        scalar(
+            state, "SELECT count(*) FROM work_order_execution_links WHERE work_order_id='work-A'"
+        )
+        == 2
+    )
+    # The first run keeps its own settled result; the new one is still running.
+    assert (
+        scalar(
+            state,
+            "SELECT status FROM run_reconciliations WHERE execution_id='"
+            + first["execution_id"]
+            + "'",
+        )
+        == "SETTLED"
+    )
+    with pytest.raises(RegistrationConflict):
+        bind(
+            state,
+            definition=BindIntent(
+                **{
+                    **intent().model_dump(),
+                    "command_id": "load-A-twice",
+                    "expected_work_order_version": int(
+                        scalar(state, "SELECT row_version FROM work_orders WHERE id='work-A'")
+                    ),
+                    "expected_control_version": controller.state.control_version,
+                }
+            ),
+        )
+    with pytest.raises(RegistrationConflict):
+        update(state, definition("work-A", request_id="queue-running", revision=2))
+
+
+def test_queue_bound_order_is_queued_again_after_its_run_settles(completed):
+    state, controller, first = completed
+    process = controller.storage.load_execution()
+    capture(
+        state,
+        values=project_tags(
+            controller.state,
+            process,
+            counter_epoch=controller.storage.identity.counter_epoch,
+            heartbeat=process.tick,
+        ),
+    )
+    receipt = advance(state)
+    execute_load(state, controller, receipt)
+    bound = read(state)["entries"][0]
+    assert bound["state"] == "BOUND" and bound["work_order_id"] == "work-B"
+    final = finish_run(state, controller, receipt["execution_id"])
+    with state.engine.begin() as db:
+        assert record_final_summary(db, final, **SCOPE, now=AT).status == "SETTLED"
+    revision = int(read(state)["revision"])
+    version = int(scalar(state, "SELECT row_version FROM work_orders WHERE id='work-B'"))
+    again = definition("work-B", request_id="queue-again", revision=revision)
+    queued = update(
+        state,
+        QueueUpdate(
+            **{
+                **again.model_dump(),
+                "entries": [{"work_order_id": "work-B", "expected_row_version": version}],
+            }
+        ),
+    )
+    waiting = [entry for entry in queued["entries"] if entry["state"] == "WAITING"]
+    assert len(waiting) == 1 and waiting[0]["work_order_id"] == "work-B"
+    assert waiting[0]["entry_id"] != bound["entry_id"]
+    assert waiting[0]["load_command_id"] != bound["load_command_id"]

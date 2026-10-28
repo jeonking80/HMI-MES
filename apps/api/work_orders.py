@@ -341,3 +341,34 @@ def list_registrations(
         "items": [convert(row).model_dump(mode="json") for row in selected],
         "next_cursor": selected[-1]["id"] if len(rows) > limit else None,
     }
+
+
+# A work order is reusable: it may run again once its last run is over. A run is over when its
+# settlement is recorded, or when its LOAD_JOB was definitively refused (never started). An
+# unknown load outcome still counts as running: unknown is never treated as finished.
+_ACTIVE_RUN = text(
+    "SELECT l.execution_id FROM work_order_execution_links l "
+    "LEFT JOIN run_reconciliations r ON r.execution_id=l.execution_id "
+    "LEFT JOIN command_requests c ON c.command_id=l.load_command_id "
+    "WHERE l.work_order_id=:id AND (r.status IS NULL OR r.status='PENDING') "
+    "AND (c.status IS NULL OR c.status NOT IN ('FAILED','REJECTED','EXPIRED') "
+    "OR c.collision_latched) LIMIT 1"
+)
+
+
+REUSE_REVISIONS = frozenset({"0028_work_order_reuse"})
+
+
+def active_run(connection: Connection, work_order_id: str) -> str | None:
+    """The execution of this work order still running or unresolved, if any.
+
+    Before schema 0028 an order owns at most one execution, so any earlier run still blocks.
+    """
+    from apps.api.capture_clock import schema_revision
+
+    if schema_revision(connection) not in REUSE_REVISIONS:
+        return connection.execute(
+            text("SELECT execution_id FROM work_order_execution_links WHERE work_order_id=:id"),
+            {"id": work_order_id},
+        ).scalar()
+    return connection.execute(_ACTIVE_RUN, {"id": work_order_id}).scalar()

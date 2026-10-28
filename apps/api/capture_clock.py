@@ -27,6 +27,7 @@ CLOCK_EVIDENCE_REVISIONS = frozenset(
         "0025_mes_edit_audit",
         "0026_queue_reenroll",
         "0027_recipe_pressure",
+        "0028_work_order_reuse",
     }
 )
 NORMALIZATION_VERSION = "api-interval-midpoint-v1"
@@ -69,6 +70,7 @@ def capture_frontier_table(connection, *, alias="capture_history", deduplicate=T
         "0025_mes_edit_audit",
         "0026_queue_reenroll",
         "0027_recipe_pressure",
+        "0028_work_order_reuse",
     }:
         union = "UNION" if deduplicate else "UNION ALL"
         return f"""(SELECT gateway_id,source_id,stream_id,capture_generation,capture_seq,
@@ -500,6 +502,7 @@ def _fence_expired_reversal_minutes(connection, body, epoch, cutoff):
         "0025_mes_edit_audit",
         "0026_queue_reenroll",
         "0027_recipe_pressure",
+        "0028_work_order_reuse",
     }:
         return
     binding = dict(
@@ -517,6 +520,7 @@ def _fence_expired_reversal_minutes(connection, body, epoch, cutoff):
         "0025_mes_edit_audit",
         "0026_queue_reenroll",
         "0027_recipe_pressure",
+        "0028_work_order_reuse",
     }:
         compact = """ OR EXISTS(SELECT 1 FROM ingest_retention_ranges
         WHERE source_id=:source AND stream_id=:stream AND gateway_id=:gateway

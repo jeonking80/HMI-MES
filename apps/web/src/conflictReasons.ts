@@ -2,7 +2,7 @@
 const messages: Record<string, string> = {
   RESERVED_EXECUTION_NOT_SETTLED: '이전 작업의 실적 정산이 끝나지 않았습니다. 이전 작업을 종료하고 정산(SETTLED)을 확인한 뒤 다시 요청해 주세요.',
   WORK_ORDER_VERSION_CHANGED: '작업지시가 그사이 바뀌었습니다. 목록을 새로 조회한 뒤 다시 요청해 주세요.',
-  WORK_ORDER_ALREADY_BOUND: '이 작업지시는 이미 실행에 연결되어 있습니다. 같은 작업지시는 한 번만 연결할 수 있습니다.',
+  WORK_ORDER_ALREADY_BOUND: '이 작업지시는 지금 실행 중입니다. 정산이 끝나면 다시 불러올 수 있습니다.',
   FRESH_SOURCE_REQUIRED: '설비의 최신 값이 아직 들어오지 않았습니다. 수집 상태가 "최근 수집 확인"이 된 뒤 다시 요청해 주세요.',
   PHYSICAL_EXECUTION_MISMATCH: '설비에 올라가 있는 작업이 요청한 작업과 다릅니다. 라인 모니터링에서 현재 실행 ID를 확인해 주세요.',
   ID_CONTENT_CONFLICT: '같은 ID에 다른 내용이 이미 등록되어 있습니다. 기존 내용을 덮어쓰지 않았습니다.',

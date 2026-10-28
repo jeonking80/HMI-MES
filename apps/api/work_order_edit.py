@@ -15,18 +15,23 @@ from pydantic import BeforeValidator, Field, TypeAdapter
 from sqlalchemy import Connection, text
 
 from apps.api.auth import Principal
+from apps.api.capture_clock import schema_revision
 from apps.api.work_order_workflow import _event, _order_lock, _version, _workflow_ready
 from apps.api.work_orders import (
+    REUSE_REVISIONS,
     RegistrationConflict,
     RegistrationNotFound,
     WorkOrdersUnavailable,
     _date,
     _lock,
+    active_run,
 )
 from contracts.conflict_codes import ConflictReason
 from contracts.models import ContractModel, Identifier, PositiveUInt64, UTCTimestamp
 
-EDIT_REVISIONS = frozenset({"0025_mes_edit_audit", "0026_queue_reenroll", "0027_recipe_pressure"})
+EDIT_REVISIONS = frozenset(
+    {"0025_mes_edit_audit", "0026_queue_reenroll", "0027_recipe_pressure", "0028_work_order_reuse"}
+)
 _ID = TypeAdapter(Identifier)
 _FIELDS = ("recipe_version_id", "target_quantity", "planned_date")
 
@@ -88,15 +93,9 @@ def edit_work_order(
         .mappings()
         .one()
     )
-    if (
-        order["status"] not in {"DRAFT", "RELEASED"}
-        or db.execute(
-            text("SELECT 1 FROM work_order_execution_links WHERE work_order_id=:id"),
-            {"id": identity},
-        ).first()
-    ):
+    if order["status"] not in {"DRAFT", "RELEASED"} or active_run(db, identity) is not None:
         raise RegistrationConflict(
-            "Only unbound work orders can be edited",
+            "A running work order cannot be edited",
             reason_code=ConflictReason.STATE_NOT_ALLOWED,
         )
     if db.execute(
@@ -160,23 +159,34 @@ SELECT w.id,w.item_id,w.line_id,w.recipe_version_id,w.target_quantity,w.planned_
  l.execution_id,l.source_id,l.stream_id,l.bound_at,l.bound_by,
  r.status AS settlement_status,r.final_summary,
  t.good_quantity,t.reject_quantity,
- q.position AS queue_position
+ q.position AS queue_position,n.runs,c.status AS load_status,c.collision_latched AS load_collision
 FROM work_orders w
 LEFT JOIN work_order_releases rel ON rel.work_order_id=w.id
 LEFT JOIN work_order_cancellations can ON can.work_order_id=w.id
-LEFT JOIN work_order_execution_links l ON l.work_order_id=w.id
+LEFT JOIN LATERAL (SELECT * FROM work_order_execution_links x WHERE x.work_order_id=w.id
+ ORDER BY x.bound_at DESC, x.execution_id DESC LIMIT 1) l ON true
+LEFT JOIN LATERAL (SELECT count(*) AS runs FROM work_order_execution_links x
+ WHERE x.work_order_id=w.id) n ON true
+LEFT JOIN command_requests c ON c.command_id=l.load_command_id
 LEFT JOIN run_reconciliations r ON r.execution_id=l.execution_id
 LEFT JOIN execution_totals t ON t.execution_id=l.execution_id
 LEFT JOIN line_queue_entries q ON q.work_order_id=w.id AND q.state='WAITING'
 """
 
 
-def _phase(row) -> str:
+def _phase(row, reusable: bool) -> str:
+    """The order's own phase from its latest run; a reusable finished order waits to run again."""
     if row["status"] == "CANCELLED":
         return "CANCELLED"
     if row["execution_id"] is not None:
-        settled = row["settlement_status"] not in {None, "PENDING"}
-        return "DONE" if settled else "RUNNING"
+        refused = (
+            row["load_status"] in {"FAILED", "REJECTED", "EXPIRED"} and not row["load_collision"]
+        )
+        over = refused or row["settlement_status"] not in {None, "PENDING"}
+        if not over:
+            return "RUNNING"
+        if not reusable:
+            return "DONE"
     return "WAITING" if row["status"] == "RELEASED" else "DRAFT"
 
 
@@ -184,7 +194,7 @@ def _count(value):
     return None if value is None else int(value)
 
 
-def _summary(row) -> dict:
+def _summary(row, reusable: bool) -> dict:
     final = row["final_summary"] or {}
     return {
         "id": row["id"],
@@ -195,7 +205,8 @@ def _summary(row) -> dict:
         "planned_date": row["planned_date"].isoformat(),
         "status": row["status"],
         "row_version": str(int(row["row_version"])),
-        "phase": _phase(row),
+        "phase": _phase(row, reusable),
+        "runs": int(row["runs"] or 0),
         "created_by": row["created_by"],
         "created_at": row["created_at"].isoformat(),
         "released_at": row["released_at"].isoformat() if row["released_at"] else None,
@@ -226,7 +237,13 @@ def work_order_overview(db: Connection, *, line_id: str, principal: Principal) -
     _workflow_ready(db, principal, "read")
     # Every actionable order (draft, or released and not yet bound) is listed however old;
     # finished and cancelled history fills the rest up to the 200 most recent.
-    actionable = "(w.status='DRAFT' OR (w.status='RELEASED' AND l.execution_id IS NULL))"
+    reusable = schema_revision(db) in REUSE_REVISIONS
+    # A reusable released order is always actionable: it can run again.
+    actionable = (
+        "(w.status IN ('DRAFT','RELEASED'))"
+        if reusable
+        else "(w.status='DRAFT' OR (w.status='RELEASED' AND l.execution_id IS NULL))"
+    )
     rows = (
         db.execute(
             text(
@@ -244,7 +261,7 @@ def work_order_overview(db: Connection, *, line_id: str, principal: Principal) -
     )
     rows = sorted(rows, key=lambda row: row["id"])
     rows = sorted(rows, key=lambda row: row["created_at"], reverse=True)
-    return {"items": [_summary(row) for row in rows]}
+    return {"items": [_summary(row, reusable) for row in rows]}
 
 
 def _changes(evidence) -> list[dict]:
@@ -273,8 +290,39 @@ def work_order_history(db: Connection, identity: str, *, principal: Principal) -
         .mappings()
         .all()
     )
+    reusable = schema_revision(db) in REUSE_REVISIONS
+    runs = (
+        db.execute(
+            text(
+                "SELECT l.execution_id,l.bound_at,l.bound_by,r.status,r.final_summary,"
+                "t.good_quantity,t.reject_quantity FROM work_order_execution_links l "
+                "LEFT JOIN run_reconciliations r ON r.execution_id=l.execution_id "
+                "LEFT JOIN execution_totals t ON t.execution_id=l.execution_id "
+                "WHERE l.work_order_id=:id ORDER BY l.bound_at DESC, l.execution_id DESC LIMIT 50"
+            ),
+            {"id": identity},
+        )
+        .mappings()
+        .all()
+    )
     return {
-        "order": _summary(row),
+        "order": _summary(row, reusable),
+        # Every run of this order, newest first; each keeps its own result.
+        "runs": [
+            {
+                "execution_id": run["execution_id"],
+                "bound_at": run["bound_at"].isoformat(),
+                "bound_by": run["bound_by"],
+                "settlement_status": run["status"] or "PENDING",
+                "good_quantity": _count(
+                    (run["final_summary"] or {}).get("good_quantity", run["good_quantity"])
+                ),
+                "reject_quantity": _count(
+                    (run["final_summary"] or {}).get("reject_quantity", run["reject_quantity"])
+                ),
+            }
+            for run in runs
+        ],
         "events": [
             {
                 "action": event["action"],

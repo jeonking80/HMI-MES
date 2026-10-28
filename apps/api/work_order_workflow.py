@@ -23,6 +23,7 @@ from apps.api.work_orders import (
     WorkOrdersUnavailable,
     _lock,
     _ready,
+    active_run,
     recipe_parameters,
 )
 from contracts.conflict_codes import ConflictReason
@@ -367,11 +368,9 @@ def bind_work_order(
             "Binding requires the released work-order version",
             reason_code=ConflictReason.WORK_ORDER_VERSION_CHANGED,
         )
-    if db.execute(
-        text("SELECT 1 FROM work_order_execution_links WHERE work_order_id=:id"), {"id": identity}
-    ).first():
+    if active_run(db, identity) is not None:
         raise RegistrationConflict(
-            "Work order already owns its original execution",
+            "Work order is still running; it can run again once settled",
             reason_code=ConflictReason.WORK_ORDER_ALREADY_BOUND,
         )
     version = _version(order)
