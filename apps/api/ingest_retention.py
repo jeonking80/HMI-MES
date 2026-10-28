@@ -18,7 +18,9 @@ from apps.api.database import SCHEMA_LOCK_ID
 RETENTION_REVISION = "0022_ingest_retention"
 COMPACTION_REVISION = "0023_ingest_compaction"
 SEGMENTS_REVISION = "0024_ingest_retired_segments"
-SEGMENTS_REVISIONS = frozenset({SEGMENTS_REVISION, "0025_mes_edit_audit", "0026_queue_reenroll"})
+SEGMENTS_REVISIONS = frozenset(
+    {SEGMENTS_REVISION, "0025_mes_edit_audit", "0026_queue_reenroll", "0027_recipe_pressure"}
+)
 COMPACTION_REVISIONS = frozenset({COMPACTION_REVISION}) | SEGMENTS_REVISIONS
 RETENTION_REVISIONS = COMPACTION_REVISIONS | {RETENTION_REVISION}
 _LOG = logging.getLogger(__name__)

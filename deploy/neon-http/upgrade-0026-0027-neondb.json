@@ -1,0 +1,10 @@
+[
+ "SELECT pg_catalog.pg_advisory_xact_lock(843001)",
+ "SET LOCAL search_path = pg_catalog, public, pg_temp",
+ "DO $$ BEGIN IF current_database() <> 'neondb' THEN RAISE EXCEPTION 'unexpected database'; END IF; IF (SELECT count(*) FROM public.alembic_version) <> 1 OR NOT EXISTS (SELECT 1 FROM public.alembic_version WHERE version_num='0026_queue_reenroll') THEN RAISE EXCEPTION 'unexpected schema revision or database'; END IF; IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='hmi_migrator') OR NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='hmi_app') THEN RAISE EXCEPTION 'dedicated roles required'; END IF; IF (SELECT nspowner FROM pg_namespace WHERE nspname='public') IS DISTINCT FROM 'hmi_migrator'::regrole::oid OR NOT EXISTS (SELECT 1 FROM pg_class WHERE oid=to_regclass('public.alembic_version') AND relowner='hmi_migrator'::regrole::oid AND relkind='r') THEN RAISE EXCEPTION 'dedicated migrator ownership required'; END IF; END $$",
+ "SET LOCAL ROLE hmi_migrator",
+ "SET LOCAL search_path = public, pg_temp",
+ "ALTER TABLE public.recipe_versions ADD COLUMN air_pressure_bar double precision CONSTRAINT recipe_versions_air_pressure_bar_check CHECK (air_pressure_bar IS NULL OR (air_pressure_bar > (0)::double precision AND air_pressure_bar < 'Infinity'::double precision))",
+ "SET LOCAL search_path = pg_catalog, public, pg_temp",
+ "UPDATE public.alembic_version SET version_num='0027_recipe_pressure' WHERE version_num='0026_queue_reenroll'"
+]

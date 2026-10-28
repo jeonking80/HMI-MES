@@ -376,3 +376,23 @@ def test_migration_roundtrip_preserves_legacy_execution_and_plan(catalog):
         assert db.execute(text("SELECT count(*) FROM work_orders")).scalar_one() == 0
         assert db.execute(text("SELECT * FROM production_executions")).all() == before
         assert db.execute(text("SELECT * FROM execution_plans")).all() == plan
+
+
+def test_recipe_pressure_is_optional_and_round_trips(catalog):
+    pressured = recipe(
+        id="recipe-v2",
+        version="v2",
+        parameters={"temperature_c": 150.0, "speed_m_per_min": 6.0, "air_pressure_bar": 5.5},
+    )
+    with catalog.begin() as db:
+        plain = register_recipe_version(db, recipe(), actor="manager", now=AT)
+        stored = register_recipe_version(db, pressured, actor="manager", now=AT)
+        assert get_recipe_version(db, "recipe-v2") == stored
+    assert stored.parameters.air_pressure_bar == 5.5
+    assert plain.parameters.air_pressure_bar is None
+    assert "air_pressure_bar" not in plain.model_dump(mode="json")["parameters"]
+    assert (
+        scalar(catalog, "SELECT count(*) FROM recipe_versions WHERE air_pressure_bar IS NULL") == 1
+    )
+    with pytest.raises(IntegrityError), catalog.begin() as db:
+        db.execute(text("UPDATE recipe_versions SET air_pressure_bar='NaN'::float8"))

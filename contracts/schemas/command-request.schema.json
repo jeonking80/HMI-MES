@@ -106,6 +106,19 @@
           "exclusiveMinimum": 0,
           "title": "Speed M Per Min",
           "type": "number"
+        },
+        "air_pressure_bar": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Air Pressure Bar"
         }
       },
       "required": [

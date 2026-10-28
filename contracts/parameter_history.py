@@ -1,20 +1,37 @@
-"""Pure validation of PLC speed evidence against immutable LOAD identity."""
+"""Pure validation of PLC running-adjustment evidence against immutable LOAD identity."""
 
 from decimal import Decimal
 
 from contracts.models import Parameters, RunSummary
 
+# How far a running job may move from the values it was loaded with.
+SPEED_RATIO = Decimal("0.2")
+TEMPERATURE_STEP_C = Decimal("10")
+PRESSURE_STEP_BAR = Decimal("0.5")
 
-def validate_speed_adjustment(parameters: Parameters, baseline_parameters: Parameters) -> None:
-    """Raise ValueError unless only speed changes inside the original recipe limits."""
+
+def validate_running_adjustment(parameters: Parameters, baseline_parameters: Parameters) -> None:
+    """Raise ValueError unless every value stays near the LOAD recipe.
+
+    Speed within ±20 % (and 1–60 m/min), sealing temperature within ±10 °C and sealing
+    pressure within ±0.5 bar. A job loaded without a pressure cannot gain one mid-run.
+    """
     speed = Decimal(str(parameters.speed_m_per_min))
     baseline_speed = Decimal(str(baseline_parameters.speed_m_per_min))
+    temperature = Decimal(str(parameters.temperature_c))
+    baseline_temperature = Decimal(str(baseline_parameters.temperature_c))
+    pressure, baseline_pressure = parameters.air_pressure_bar, baseline_parameters.air_pressure_bar
     if (
-        parameters.temperature_c != baseline_parameters.temperature_c
-        or not Decimal("1") <= speed <= Decimal("60")
-        or not baseline_speed * Decimal("0.8") <= speed <= baseline_speed * Decimal("1.2")
+        not Decimal("1") <= speed <= Decimal("60")
+        or not baseline_speed * (1 - SPEED_RATIO) <= speed <= baseline_speed * (1 + SPEED_RATIO)
+        or abs(temperature - baseline_temperature) > TEMPERATURE_STEP_C
+        or (pressure is None) != (baseline_pressure is None)
+        or (
+            pressure is not None
+            and abs(Decimal(str(pressure)) - Decimal(str(baseline_pressure))) > PRESSURE_STEP_BAR
+        )
     ):
-        raise ValueError("speed adjustment must retain temperature and original recipe limits")
+        raise ValueError("running adjustment must stay near the original recipe")
 
 
 def validate_parameter_history(
@@ -65,7 +82,7 @@ def validate_parameter_history(
             or payload.previous_parameters != previous
         ):
             raise ValueError("parameter event does not continue the original recipe chain")
-        validate_speed_adjustment(payload.parameters, original_parameters)
+        validate_running_adjustment(payload.parameters, original_parameters)
         event_ids.add(event.event_id)
         command_ids.add(payload.command_id)
         previous = payload.parameters

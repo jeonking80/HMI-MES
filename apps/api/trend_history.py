@@ -40,6 +40,7 @@ TREND_REVISIONS = frozenset(
         "0024_ingest_retired_segments",
         "0025_mes_edit_audit",
         "0026_queue_reenroll",
+        "0027_recipe_pressure",
     }
 )
 

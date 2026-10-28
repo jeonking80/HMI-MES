@@ -23,6 +23,7 @@ from apps.api.work_orders import (
     WorkOrdersUnavailable,
     _lock,
     _ready,
+    recipe_parameters,
 )
 from contracts.conflict_codes import ConflictReason
 from contracts.models import (
@@ -30,7 +31,6 @@ from contracts.models import (
     CommandRequest,
     ContractModel,
     Identifier,
-    Parameters,
     PositiveUInt64,
     StrictBool,
     UInt64,
@@ -442,9 +442,7 @@ def bind_work_order(
         .one()
     )
     execution_id = str(uuid4())
-    parameters = Parameters(
-        temperature_c=recipe["temperature_c"], speed_m_per_min=recipe["speed_m_per_min"]
-    )
+    parameters = recipe_parameters(recipe)
     IngestionService(db.engine).register_execution_on_connection(
         db,
         execution_id=execution_id,

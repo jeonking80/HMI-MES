@@ -8,7 +8,10 @@ import type { LiveLine } from './lineState'
 import { interlocks, stateOf, zones } from './lineModel'
 import type { Zone, ZoneId } from './lineModel'
 import { Drawing, LampChip, MetricBox, SourcePicker, StateBadge, TagDetails } from './parts'
-import { issuesOf, powerLabels, production, toneOf, usePower } from './logic'
+import { issuesOf, newIntentBlocked, powerLabels, production, toneOf, usePower } from './logic'
+import { useLineCommands } from './useLineCommands'
+import type { LineCommands } from './useLineCommands'
+import { CommandResult, SetpointControl } from './CommandControls'
 import TrendMini from './TrendMini'
 import './line.css'
 
@@ -40,7 +43,7 @@ export default function MonitorPage(props: Props) {
   </div>
 }
 
-function LiveMonitor({ live, source, power, onSessionInvalid, onOpenControl, onOpenAlarms }: Props & { live: LiveLine; source: NonNullable<ReturnType<typeof useLine>['source']>; power: string | null }) {
+function LiveMonitor({ live, source, power, session, onSessionInvalid, workflow, tracked, setTracked, onOpenControl, onOpenAlarms }: Props & { live: LiveLine; source: NonNullable<ReturnType<typeof useLine>['source']>; power: string | null }) {
   const [open, setOpen] = useState<ZoneId | null>(null)
   const known = live.known
   const made = production(known)
@@ -49,6 +52,9 @@ function LiveMonitor({ live, source, power, onSessionInvalid, onOpenControl, onO
   const recipe = known('Line.RecipeVersion')
   const zoneIssue = (zone: ZoneId) => issues.find(item => item.zone === zone)
   const powerOff = power !== null && power !== 'NOT_MANAGED' && power !== 'RUNNING'
+  // Only the sealer has its own setpoints; they go through the same command path as operation control.
+  const blockedReason = powerOff ? `${powerLabels[power] ?? '설비 전원 상태 확인 필요'} · 운전 제어 ①에서 전원을 켜 주세요.` : live.blockedReason
+  const cmd = useLineCommands({ source, session, blockedReason, newIntentBlocked: newIntentBlocked(workflow, live.controlValues), values: live.controlValues, tracked, setTracked, onSessionInvalid })
   return <>
     {issues.length > 0 && !powerOff && <div className="lc-alert" role="alert">
       <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3L22 20H2Z" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M12 10v5M12 17.5v.5" stroke="currentColor" strokeWidth="2" /></svg>
@@ -101,12 +107,12 @@ function LiveMonitor({ live, source, power, onSessionInvalid, onOpenControl, onO
     <TagDetails live={live} />
     <p className="lc-foot"><span id="snapshot-health" data-tone={live.healthTone}>데이터 {live.health}</span> · 미수신 태그 {live.snapshot?.missing_tag_ids.length ?? '—'}개</p>
 
-    {open && <ZoneWindow zone={zones.find(item => item.id === open)!} live={live} issue={zoneIssue(open)?.text ?? null} onClose={() => setOpen(null)} onOpenControl={() => { setOpen(null); onOpenControl(open) }} />}
+    {open && <ZoneWindow zone={zones.find(item => item.id === open)!} live={live} cmd={cmd} issue={zoneIssue(open)?.text ?? null} onClose={() => setOpen(null)} onOpenControl={() => { setOpen(null); onOpenControl(open) }} />}
   </>
 }
 
 /** One zone over the monitoring screen: only what this equipment has. Line-wide commands live in operation control. */
-function ZoneWindow({ zone, live, issue, onClose, onOpenControl }: { zone: Zone; live: LiveLine; issue: string | null; onClose: () => void; onOpenControl: () => void }) {
+function ZoneWindow({ zone, live, cmd, issue, onClose, onOpenControl }: { zone: Zone; live: LiveLine; cmd: LineCommands; issue: string | null; onClose: () => void; onOpenControl: () => void }) {
   const close = useRef<HTMLButtonElement>(null)
   useEffect(() => { close.current?.focus() }, [])
   const known = live.known
@@ -115,7 +121,7 @@ function ZoneWindow({ zone, live, issue, onClose, onOpenControl }: { zone: Zone;
   return <div className="lc-overlay" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}>
     <section className="lc-window" role="dialog" aria-modal="true" aria-labelledby="zone-window-title" onKeyDown={event => { if (event.key === 'Escape') onClose() }}>
       <header className="lc-window-head">
-        <span className="lc-window-title"><small>0{index + 1}</small><h2 id="zone-window-title">{zone.label} 상태</h2><StateBadge state={state} /></span>
+        <span className="lc-window-title"><small>0{index + 1}</small><h2 id="zone-window-title">{zone.label} {zone.id === 'Sealer' ? '제어' : '상태'}</h2><StateBadge state={state} /></span>
         <button ref={close} type="button" aria-label="닫기" onClick={onClose}>×</button>
       </header>
       <div className="lc-window-body">
@@ -125,6 +131,11 @@ function ZoneWindow({ zone, live, issue, onClose, onOpenControl }: { zone: Zone;
         </div>
         <div className="lc-zone-lamps">{zone.lamps.map(lamp => <LampChip key={lamp.tag} known={known} lamp={lamp} />)}</div>
         <p className="lc-hint">{zoneNotes[zone.id]}</p>
+        {zone.id === 'Sealer' && <section className="lc-window-section" aria-labelledby="zone-settings">
+          <h3 id="zone-settings">실링 설정 변경</h3>
+          {cmd.canSetSpeed ? <SetpointControl cmd={cmd} known={known} only={['temperature', 'pressure']} /> : <p className="lc-hint">{cmd.producer ? '실링 온도·공압은 작업이 운전 중이거나 일시 정지 중일 때 바꿀 수 있습니다.' : '설정 변경은 생산 담당자 권한이 필요합니다.'}</p>}
+          {cmd.tracked && <CommandResult cmd={cmd} />}
+        </section>}
       </div>
       <footer className="lc-window-foot"><button type="button" className="lc-link" onClick={onOpenControl}>운전 제어에서 시작 · 정지 · 라인 속도 조작 →</button></footer>
     </section>
@@ -133,6 +144,6 @@ function ZoneWindow({ zone, live, issue, onClose, onOpenControl }: { zone: Zone;
 
 const zoneNotes: Record<ZoneId, string> = {
   Infeed: '투입은 라인 속도에 맞춰 제품을 보냅니다. 투입만 따로 바꾸는 설정은 없습니다.',
-  Sealer: '실링 온도는 불러온 작업의 공정 설정값을 따릅니다. 속도는 라인 전체 공통입니다.',
+  Sealer: '실링 온도와 공압은 불러온 작업의 공정 설정값 근처에서 바꿀 수 있습니다. 속도는 라인 전체 공통이라 운전 제어에서 바꿉니다.',
   Outfeed: '배출은 검사 결과에 따라 양품과 불량을 나눕니다. 배출만 따로 바꾸는 설정은 없습니다.',
 }

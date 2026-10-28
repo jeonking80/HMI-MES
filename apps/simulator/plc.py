@@ -24,7 +24,7 @@ from contracts.models import (
     UInt64,
     UTCTimestamp,
 )
-from contracts.parameter_history import validate_speed_adjustment
+from contracts.parameter_history import validate_running_adjustment
 
 Number = Annotated[float, Field(strict=True, ge=0)]
 Mode = Literal["LOCAL", "REMOTE"]
@@ -41,6 +41,9 @@ class PLCConfig(ContractModel):
     pressure_low_bar: Number = 4.0
     pressure_return_bar: Number = 4.5
     preheat_tolerance_c: Number = 5.0
+    # The regulator seals below supply pressure and above the low-pressure alarm.
+    seal_pressure_min_bar: Number = 4.5
+    seal_pressure_max_bar: Number = 6.0
     guard_fault_code: Annotated[int, Field(strict=True, ge=1, le=2**32 - 1)] = 1001
     pressure_fault_code: Annotated[int, Field(strict=True, ge=1, le=2**32 - 1)] = 1002
     equipment_fault_code: Annotated[int, Field(strict=True, ge=1, le=2**32 - 1)] = 1003
@@ -51,6 +54,7 @@ class PLCConfig(ContractModel):
             self.temperature_min_c > self.temperature_max_c
             or self.speed_min_m_per_min > self.speed_max_m_per_min
             or self.pressure_low_bar > self.pressure_return_bar
+            or self.seal_pressure_min_bar > self.seal_pressure_max_bar
         ):
             raise ValueError("PLC limits must be ordered")
         return self
@@ -226,6 +230,12 @@ def _within_limits(parameters: Parameters, config: PLCConfig) -> bool:
     return (
         config.temperature_min_c <= parameters.temperature_c <= config.temperature_max_c
         and config.speed_min_m_per_min <= parameters.speed_m_per_min <= config.speed_max_m_per_min
+        and (
+            parameters.air_pressure_bar is None
+            or config.seal_pressure_min_bar
+            <= parameters.air_pressure_bar
+            <= config.seal_pressure_max_bar
+        )
     )
 
 
@@ -534,17 +544,14 @@ def _guards(
             if (
                 args.recipe_version != s.recipe_version
                 or args.recipe_version != s.recipe_baseline_version
-                or args.parameters.temperature_c != s.parameters.temperature_c
-                or args.parameters.temperature_c != s.recipe_baseline.temperature_c
             ):
-                return _deny(
-                    "PARAMETERS_BLOCKED", "Active adjustment must retain recipe and temperature"
-                )
+                return _deny("PARAMETERS_BLOCKED", "Active adjustment must retain the recipe")
             try:
-                validate_speed_adjustment(args.parameters, s.recipe_baseline)
+                validate_running_adjustment(args.parameters, s.recipe_baseline)
             except ValueError:
                 return _deny(
-                    "PARAMETERS_OUT_OF_RANGE", "Speed must stay within 20 percent of LOAD recipe"
+                    "PARAMETERS_OUT_OF_RANGE",
+                    "Speed ±20 %, temperature ±10 °C and pressure ±0.5 bar of the LOAD recipe",
                 )
         elif (
             s.execution_id is None

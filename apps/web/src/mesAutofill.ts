@@ -4,7 +4,8 @@ import type { RecipeVersion, WorkOrder } from './mesApi'
 /** Ranges the virtual PLC accepts for LOAD_JOB; outside them the job is rejected after release. */
 export const TEMPERATURE_RANGE = { min: 50, max: 200 } as const
 export const SPEED_RANGE = { min: 1, max: 60 } as const
-export const DEFAULT_PARAMETERS = { temperature_c: 150, speed_m_per_min: 10 } as const
+export const PRESSURE_RANGE = { min: 4.5, max: 6 } as const
+export const DEFAULT_PARAMETERS = { temperature_c: 150, speed_m_per_min: 10, air_pressure_bar: 5.5 } as const
 export const DEFAULT_TARGET = 10
 
 const slug = (value: string) => value.trim().toUpperCase().replace(/[^A-Z0-9가-힣._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60)

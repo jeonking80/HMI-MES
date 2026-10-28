@@ -26,7 +26,7 @@ from apps.api.work_orders import (
 from contracts.conflict_codes import ConflictReason
 from contracts.models import ContractModel, Identifier, PositiveUInt64, UTCTimestamp
 
-EDIT_REVISIONS = frozenset({"0025_mes_edit_audit", "0026_queue_reenroll"})
+EDIT_REVISIONS = frozenset({"0025_mes_edit_audit", "0026_queue_reenroll", "0027_recipe_pressure"})
 _ID = TypeAdapter(Identifier)
 _FIELDS = ("recipe_version_id", "target_quantity", "planned_date")
 

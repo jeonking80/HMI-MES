@@ -9,7 +9,7 @@ import { conflictMessage } from './conflictReasons'
 import LineQueuePanel from './LineQueuePanel'
 import OrderBoard from './orders/OrderBoard'
 import ItemsPanel from './items/ItemsPanel'
-import { DEFAULT_PARAMETERS, DEFAULT_TARGET, parameterProblem, recipeGroups, SPEED_RANGE, suggestOrderId, suggestRecipe, TEMPERATURE_RANGE, todayKst } from './mesAutofill'
+import { DEFAULT_PARAMETERS, DEFAULT_TARGET, parameterProblem, PRESSURE_RANGE, recipeGroups, SPEED_RANGE, suggestOrderId, suggestRecipe, TEMPERATURE_RANGE, todayKst } from './mesAutofill'
 
 interface Attempt {
   definition: Definition
@@ -18,7 +18,7 @@ interface Attempt {
   stored: Registration | null
 }
 interface LineChoice { id: string; name: string }
-const recipeEmpty = { id: '', family: '', version: '', item: '', temperature: String(DEFAULT_PARAMETERS.temperature_c), speed: String(DEFAULT_PARAMETERS.speed_m_per_min) }
+const recipeEmpty = { id: '', family: '', version: '', item: '', temperature: String(DEFAULT_PARAMETERS.temperature_c), speed: String(DEFAULT_PARAMETERS.speed_m_per_min), pressure: String(DEFAULT_PARAMETERS.air_pressure_bar) }
 const orderEmpty = { id: '', line: '', target: String(DEFAULT_TARGET), date: '' }
 // Full choice lists (ID suggestions, queue candidates): 100 per page, up to 2000 rows.
 const CHOICE_PAGES = 20
@@ -156,7 +156,7 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
         const ids = suggestRecipe(allRecipes, group, item)
         Object.assign(next, { id: ids.id, family: ids.recipe_id, version: ids.version })
       }
-      if (base && (!paramsManual || group)) Object.assign(next, { temperature: String(base.parameters.temperature_c), speed: String(base.parameters.speed_m_per_min) })
+      if (base && (!paramsManual || group)) Object.assign(next, { temperature: String(base.parameters.temperature_c), speed: String(base.parameters.speed_m_per_min), pressure: base.parameters.air_pressure_bar === undefined ? '' : String(base.parameters.air_pressure_bar) })
       return next
     })
   }
@@ -278,7 +278,11 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
     }
     const problem = parameterProblem(temperature, speed)
     if (problem) { setValidation(previous => ({ ...previous, recipe: problem })); return }
-    const definition: RecipeDefinition = { id: recipe.id, recipe_id: recipe.family, version: recipe.version, item_id: recipe.item, parameters: { temperature_c: temperature, speed_m_per_min: speed } }
+    const pressure = recipe.pressure === '' ? undefined : Number(recipe.pressure)
+    if (pressure !== undefined && !(Number.isFinite(pressure) && pressure >= PRESSURE_RANGE.min && pressure <= PRESSURE_RANGE.max)) {
+      setValidation(previous => ({ ...previous, recipe: `실링 공압은 ${PRESSURE_RANGE.min}~${PRESSURE_RANGE.max} bar로 입력하거나 비워 두세요.` })); return
+    }
+    const definition: RecipeDefinition = { id: recipe.id, recipe_id: recipe.family, version: recipe.version, item_id: recipe.item, parameters: { temperature_c: temperature, speed_m_per_min: speed, ...(pressure === undefined ? {} : { air_pressure_bar: pressure }) } }
     void submit('recipe', definition)
   }
   function submitOrder(event: FormEvent<HTMLFormElement>) {
@@ -314,7 +318,7 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
       <div className="rc-layout">
         <div className="rc-list">
           {recipes.error ? <p className="message error" role="alert">{recipes.error}</p> : !recipes.page ? <p role="status">공정 설정을 조회하고 있습니다.</p> : recipes.page.items.length === 0 ? <p className="mes-empty">등록된 공정 설정이 없습니다. "+ 새 공정 설정"으로 만드세요.</p>
-            : <ul id="mes-recipe-list">{recipes.page.items.map(item => <li key={item.id}><button type="button" aria-pressed={recipeMode === 'view' && shownRecipe?.id === item.id} onClick={() => { setViewRecipe(item); setRecipeMode('view') }}><span className="rc-name"><strong>{item.recipe_id}</strong><em>{item.version}</em></span><small>{masterItems.find(entry => entry.id === item.item_id)?.name ?? item.item_id} · {item.parameters.temperature_c} ℃ · {item.parameters.speed_m_per_min} m/min</small></button></li>)}</ul>}
+            : <ul id="mes-recipe-list">{recipes.page.items.map(item => <li key={item.id}><button type="button" aria-pressed={recipeMode === 'view' && shownRecipe?.id === item.id} onClick={() => { setViewRecipe(item); setRecipeMode('view') }}><span className="rc-name"><strong>{item.recipe_id}</strong><em>{item.version}</em></span><small>{masterItems.find(entry => entry.id === item.item_id)?.name ?? item.item_id} · {item.parameters.temperature_c} ℃ · {item.parameters.speed_m_per_min} m/min{item.parameters.air_pressure_bar === undefined ? '' : ` · ${item.parameters.air_pressure_bar} bar`}</small></button></li>)}</ul>}
           {(recipes.cursor || recipes.page?.next_cursor) && <div className="mes-pagination"><button id="mes-recipes-first" className="button secondary" type="button" disabled={!recipes.cursor} onClick={recipes.refresh}>처음</button><button id="mes-recipes-next" className="button secondary" type="button" disabled={!recipes.page?.next_cursor} onClick={recipes.next}>다음</button></div>}
         </div>
         <div className="rc-detail">
@@ -325,6 +329,7 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
           <div className="span-2"><label htmlFor="mes-recipe-item">품목</label><select id="mes-recipe-item" required value={recipe.item} onChange={event => chooseItem(event.target.value)}><option value="" disabled>품목을 선택해 주세요</option>{masterItems.filter(item => item.enabled || item.id === recipe.item).map(item => <option key={item.id} value={item.id}>{item.name} ({item.id})</option>)}</select><p className="input-help">목록에 없으면 <button type="button" className="button text" onClick={() => onTab('items')}>품목 탭에서 먼저 등록</button>하세요.</p></div>
           <div><label htmlFor="mes-recipe-temperature">설정 온도 (℃)</label><input id="mes-recipe-temperature" type="number" required min={TEMPERATURE_RANGE.min} max={TEMPERATURE_RANGE.max} step="any" value={recipe.temperature} onChange={event => { setParamsManual(true); setRecipe(previous => ({ ...previous, temperature: event.target.value })) }} /><p className="input-help">허용 범위 {TEMPERATURE_RANGE.min}~{TEMPERATURE_RANGE.max} ℃</p></div>
           <div><label htmlFor="mes-recipe-speed">설정 속도 (m/min)</label><input id="mes-recipe-speed" type="number" required min={SPEED_RANGE.min} max={SPEED_RANGE.max} step="any" value={recipe.speed} onChange={event => { setParamsManual(true); setRecipe(previous => ({ ...previous, speed: event.target.value })) }} /><p className="input-help">허용 범위 {SPEED_RANGE.min}~{SPEED_RANGE.max} m/min</p></div>
+          <div><label htmlFor="mes-recipe-pressure">실링 공압 (bar)</label><input id="mes-recipe-pressure" type="number" min={PRESSURE_RANGE.min} max={PRESSURE_RANGE.max} step="0.1" value={recipe.pressure} onChange={event => { setParamsManual(true); setRecipe(previous => ({ ...previous, pressure: event.target.value })) }} /><p className="input-help">허용 범위 {PRESSURE_RANGE.min}~{PRESSURE_RANGE.max} bar · 비우면 공급 압력 그대로</p></div>
         </div>
         <div className="mes-form-actions"><button type="button" className="button secondary" onClick={() => setRecipeMode('view')}>취소</button><button id="mes-recipe-submit" className="button primary" type="submit">{baseGroup ? '새 버전으로 저장' : '공정 설정 등록'}</button></div></fieldset></form>
         <AttemptResult kind="recipe" attempt={attempts.recipe} checking={checking.recipe} onLookup={() => void lookup('recipe')} onReset={() => reset('recipe')} />
@@ -332,7 +337,7 @@ export default function MesDraftPanel({ session, onSessionInvalid, workflow, can
             {recipeNotice && <p className="message success" role="status">{recipeNotice}</p>}
             <div className="rc-card-head"><div><h3>{shownRecipe.recipe_id} · {shownRecipe.version}</h3><p>{shownRecipe.item_id} · 등록 {shownRecipe.created_by} · {new Date(shownRecipe.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p></div>
               {canWrite && <button type="button" className="button secondary" disabled={locked('recipe')} onClick={() => { editFrom(shownRecipe); setRecipeMode('edit'); setRecipeNotice('') }} aria-label={`${shownRecipe.id} 값으로 새 버전 만들기`}>수정 → 새 버전</button>}</div>
-            <div className="rc-params"><div><span>실링 온도</span><strong>{shownRecipe.parameters.temperature_c}<small> ℃</small></strong></div><div><span>운전 속도</span><strong>{shownRecipe.parameters.speed_m_per_min}<small> m/min</small></strong></div></div>
+            <div className="rc-params"><div><span>실링 온도</span><strong>{shownRecipe.parameters.temperature_c}<small> ℃</small></strong></div><div><span>운전 속도</span><strong>{shownRecipe.parameters.speed_m_per_min}<small> m/min</small></strong></div><div><span>실링 공압</span><strong>{shownRecipe.parameters.air_pressure_bar ?? '공급 압력'}<small>{shownRecipe.parameters.air_pressure_bar === undefined ? '' : ' bar'}</small></strong></div></div>
             {canWrite && <div className="rc-next"><span>이 설정으로 생산하려면</span><button type="button" className="button primary" disabled={locked('order')} onClick={() => pickForOrder(shownRecipe)} aria-label={`${shownRecipe.id} 공정 설정을 작업지시에 사용`}>작업지시 만들기 →</button></div>}
           </div> : <div className="rc-card mes-empty">왼쪽에서 공정 설정을 고르세요.</div>}
         </div>
