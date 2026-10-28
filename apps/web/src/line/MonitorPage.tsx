@@ -97,6 +97,8 @@ function LiveMonitor({ live, source, power, session, onSessionInvalid, workflow,
       <div className="lc-interlocks" aria-label="인터록"><span>인터록</span>{interlocks.map(lamp => <LampChip key={lamp.tag} known={known} lamp={lamp} />)}</div>
     </section>
 
+    <LineSpeedCard cmd={cmd} known={known} />
+
     <div className="lc-lower">
       <TrendMini source={source} onSessionInvalid={onSessionInvalid} />
       <section className="lc-card lc-issues" aria-labelledby="issues-heading">
@@ -110,6 +112,17 @@ function LiveMonitor({ live, source, power, session, onSessionInvalid, workflow,
 
     {open && <ZoneWindow zone={zones.find(item => item.id === open)!} live={live} cmd={cmd} issue={zoneIssue(open)?.text ?? null} onClose={() => setOpen(null)} onOpenControl={() => { setOpen(null); onOpenControl(open) }} />}
   </>
+}
+
+/** Line speed beside the process view: the same SET_PARAMETERS path as operation control. */
+function LineSpeedCard({ cmd, known }: { cmd: LineCommands; known: LiveLine['known'] }) {
+  const speed = known('Sealer.ActualSpeed')
+  return <section className="lc-card lc-speed-card" aria-labelledby="line-speed-heading">
+    <div className="lc-card-head"><h3 id="line-speed-heading">라인 속도 <small>투입 · 실링 · 배출 공통</small></h3><span>현재 <b>{typeof speed === 'number' ? speed.toFixed(1) : '—'}</b> m/min{cmd.ranges.speed ? ` · 허용 ${cmd.ranges.speed.min}~${cmd.ranges.speed.max}` : ''}</span></div>
+    {cmd.canSetSpeed ? <SetpointControl cmd={cmd} known={known} only={['speed']} />
+      : <p className="lc-hint">{cmd.producer ? '작업이 운전 중이거나 일시 정지 중일 때 바꿀 수 있습니다.' : '속도 변경은 생산 담당자 권한이 필요합니다.'}</p>}
+    {cmd.tracked && <CommandResult cmd={cmd} />}
+  </section>
 }
 
 /** The work order behind the PLC's active execution, read once per execution (not on the 1 s beat). */
