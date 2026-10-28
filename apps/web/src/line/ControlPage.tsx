@@ -8,7 +8,6 @@ import { readOverview } from '../orders/orderApi'
 import { screenUInt64 } from '../screenState'
 import type { WorkOrderWorkflow } from '../useWorkOrderWorkflow'
 import { workflowId } from '../workflow'
-import type { BindBody } from '../workflow'
 import { useLine } from './lineState'
 import type { LiveLine, Source } from './lineState'
 import { interlocks, stateOf, zones } from './lineModel'
@@ -294,7 +293,6 @@ function PowerStep({ session, power, onSessionInvalid, producing }: { session: S
 function JobStep({ live, source, session, workflow, tracked, selectedOrder, onSelectOrder, onSessionInvalid, onOpenOrders, powerOn, lineStatus }: { live: LiveLine; source: Source; session: Session; workflow: WorkOrderWorkflow; tracked: TrackedCommand | null; selectedOrder: WorkOrder | null; onSelectOrder: (order: WorkOrder | null) => void; onSessionInvalid: () => void; onOpenOrders: () => void; powerOn: boolean; lineStatus: LineStatus | undefined }) {
   const [orders, setOrders] = useState<WorkOrder[] | null>(null)
   const [revision, setRevision] = useState(0)
-  const [confirmation, setConfirmation] = useState<(BindBody & { order_id: string; epoch: string }) | null>(null)
   const [autoEnd, setAutoEnd] = useState(true)
   // Starting on readiness needs operate permission; a production manager loads and an operator starts.
   const canAutoStart = session.roles.includes('operator')
@@ -339,14 +337,13 @@ function JobStep({ live, source, session, workflow, tracked, selectedOrder, onSe
     : checks.find(([, ok]) => ok !== true) ? `${checks.find(([, ok]) => ok !== true)![0]} 조건을 확인해야 합니다.`
       : order && workflow.orderBlocked(order.id) ? '같은 작업지시의 원래 요청 기록을 먼저 확인해 주세요.'
         : !order ? '불러올 작업지시를 고르세요.' : !screenUInt64(values['Line.ControlVersion']) || !workflowId(values['Line.CounterEpoch']) ? '제어 버전과 카운터 구간을 확인해야 합니다.' : ''
-  const changed = confirmation && (confirmation.order_id !== order?.id || confirmation.epoch !== values['Line.CounterEpoch'] || confirmation.expected_work_order_version !== order?.row_version || confirmation.expected_control_version !== values['Line.ControlVersion'])
   return <div id="work-order-binding" className="cs-step">
     <div className="cs-job">
       <div className="cs-orders" role="radiogroup" aria-label="불러올 작업지시">
         {orders === null ? <p className="lc-hint">작업지시를 불러오고 있습니다.</p>
           : orders.length === 0 ? <div className="cs-pending">불러올 작업지시가 없습니다.<button type="button" className="lc-button primary" onClick={onOpenOrders}>작업지시 만들기 →</button></div>
             : orders.map(item => <label key={item.id} data-checked={order?.id === item.id}>
-              <input type="radio" name="binding-order" value={item.id} checked={order?.id === item.id} onChange={() => { onSelectOrder(item); setConfirmation(null) }} />
+              <input type="radio" name="binding-order" value={item.id} checked={order?.id === item.id} onChange={() => onSelectOrder(item)} />
               <span><strong>{item.id}</strong><small>{item.item_id} · {item.recipe_version_id} · 목표 {item.target_quantity.toLocaleString('ko-KR')}개</small></span>
             </label>)}
         <div className="cs-orders-foot"><button type="button" className="lc-link" onClick={() => setRevision(value => value + 1)}>목록 새로 조회</button>{!!orders?.length && <button type="button" className="lc-link" onClick={onOpenOrders}>+ 다른 작업지시 만들기</button>}</div>
@@ -354,19 +351,12 @@ function JobStep({ live, source, session, workflow, tracked, selectedOrder, onSe
       <ul className="cs-checks" aria-label="불러오기 조건">{checks.map(([label, ok]) => <li key={label} data-ok={ok === true ? 'yes' : ok === null ? 'unknown' : 'no'}>{ok === true ? '✓' : ok === null ? '?' : '✗'} {label}</li>)}</ul>
     </div>
     {/* Nothing to load: the empty card above is the only action, no dead button. */}
-    {!(orders !== null && orders.length === 0 && !confirmation) && <>
+    {!(orders !== null && orders.length === 0) && <>
     <div className="lc-checks">
       <label><input id="binding-auto-end" type="checkbox" checked={autoEnd} onChange={event => setAutoEnd(event.target.checked)} /> 목표 도달 시 자동 종료</label>
       {canAutoStart ? <label><input id="binding-start-when-ready" type="checkbox" checked={startWhenReady} onChange={event => setStartWhenReady(event.target.checked)} /> 예열 끝나면 자동 시작</label> : <span className="lc-hint">자동 시작은 작업자 권한이 필요합니다. 불러온 뒤 작업자가 시작합니다.</span>}
     </div>
-    {!confirmation ? <button id="binding-prepare" type="button" className="lc-button primary big" disabled={!!reason} onClick={() => order && setConfirmation({ command_id: crypto.randomUUID(), order_id: order.id, epoch: values['Line.CounterEpoch'] as string, line_id: source.line_id, source_id: source.source_id, stream_id: source.stream_id, expected_work_order_version: order.row_version, expected_control_version: values['Line.ControlVersion'] as string })}>{order ? `${order.id} 불러오기` : '작업 불러오기'}<small>누르면 확인 후 공정 설정과 목표 수량을 PLC로 보냅니다</small></button>
-      : <div className="lc-confirm" role="group" aria-label="작업 불러오기 확인">
-        <strong>{order?.id}를 라인에 불러올까요?</strong>
-        <span>공정 설정과 목표 {order?.target_quantity}개를 PLC로 보냅니다.{canAutoStart && startWhenReady ? ' 예열이 끝나면 자동으로 운전을 시작합니다.' : ''}</span>
-        {changed && <span className="lc-reason">확인하는 동안 상태가 바뀌었습니다. 취소 후 다시 확인해 주세요.</span>}
-        <div><button id="binding-submit" type="button" className="lc-button primary" disabled={!!reason || !!changed} onClick={() => { if (!reason && !changed && order) { void workflow.submit('bind', { command_id: confirmation.command_id, line_id: confirmation.line_id, source_id: confirmation.source_id, stream_id: confirmation.stream_id, expected_work_order_version: confirmation.expected_work_order_version, expected_control_version: confirmation.expected_control_version, auto_end_at_target: autoEnd, start_when_ready: canAutoStart && startWhenReady, work_order_id: confirmation.order_id, actor: session.login }, order); setConfirmation(null) } }}>불러오기 요청</button>
-          <button id="binding-cancel-confirm" type="button" className="lc-button" onClick={() => setConfirmation(null)}>취소</button></div>
-      </div>}
+    <button id="binding-prepare" type="button" className="lc-button primary big" disabled={!!reason} onClick={() => { if (!reason && order) void workflow.submit('bind', { command_id: crypto.randomUUID(), line_id: source.line_id, source_id: source.source_id, stream_id: source.stream_id, expected_work_order_version: order.row_version, expected_control_version: values['Line.ControlVersion'] as string, auto_end_at_target: autoEnd, start_when_ready: canAutoStart && startWhenReady, work_order_id: order.id, actor: session.login }, order) }}>{order ? `${order.id} 불러오기` : '작업 불러오기'}<small>공정 설정과 목표 {order ? `${order.target_quantity.toLocaleString('ko-KR')}개` : '수량'}를 PLC로 보냅니다{canAutoStart && startWhenReady ? ' · 예열이 끝나면 자동 시작' : ''}</small></button>
     {reason && <p id="binding-reason" className="lc-reason">{reason}</p>}
     </>}
     {lineStatus?.unresolved && <p className="lc-hint" role="status">{lineStatus.unresolved.kind === 'LOAD_JOB' ? '작업 불러오기를 PLC가 처리하고 있습니다.' : '앞선 명령을 PLC가 처리하고 있습니다.'} ({lineStatus.unresolved.status})</p>}
@@ -389,7 +379,7 @@ function RunStep({ live, cmd, ended }: { live: LiveLine; cmd: LineCommands; ende
     <div className="cs-gauge"><div><span>양품 / 목표</span><strong>{made.good ?? '—'}<small> / {made.target ?? '—'}</small></strong><span>불량 <b>{made.reject ?? '—'}</b></span></div><div className="lc-bar light"><span style={{ width: `${(made.ratio ?? 0) * 100}%` }} /></div></div>
     {ended ? <p className="lc-hint">생산이 끝났습니다. ⑤ 단계에서 정산을 확인하세요.</p> : <>
       <CommandButtons cmd={cmd} values={live.controlValues} only={['PAUSE', 'START', 'END_RUN']} />
-      <SpeedControl cmd={cmd} />
+      <SpeedControl cmd={cmd} current={live.known('Sealer.ActualSpeed')} />
     </>}
   </div>
 }

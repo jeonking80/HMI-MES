@@ -54,11 +54,13 @@ interface TimeSeriesChartProps {
   markers?: Marker[]
   /** Spans where no series has data; drawn as hatched gaps instead of connecting lines. */
   gaps?: { from: number; to: number; label?: string }[]
+  /** Labelled spans drawn behind the lines, e.g. which work order ran when. */
+  periods?: { from: number; to: number; label: string }[]
   showPoints?: boolean
 }
 
 /** Line chart with one y-axis. Null values break the line; they are never drawn as zero. */
-export function TimeSeriesChart({ title, unit, from, to, series, height = 240, band = false, thresholds = [], markers = [], gaps = [], showPoints = false }: TimeSeriesChartProps) {
+export function TimeSeriesChart({ title, unit, from, to, series, height = 240, band = false, thresholds = [], markers = [], gaps = [], periods = [], showPoints = false }: TimeSeriesChartProps) {
   const [ref, width] = useWidth<HTMLDivElement>()
   const patternId = useId().replace(/:/g, '')
   const [active, setActive] = useState<number | null>(null)
@@ -129,10 +131,14 @@ export function TimeSeriesChart({ title, unit, from, to, series, height = 240, b
       <text className="chart-unit" x={margin.left - 8} y={10} textAnchor="end">{unit}</text>
       {timeTicks(from, to, plotWidth).map((tick, _index, ticks) => <text key={tick} className="chart-tick" x={x(tick)} y={height - 8} textAnchor="middle">{tickLabel(tick, ticks)}</text>)}
       <line className="chart-axis" x1={margin.left} x2={margin.left + plotWidth} y1={margin.top + plotHeight} y2={margin.top + plotHeight} />
+      {periods.map(period => <g key={`period-${period.from}`}>
+        <rect className="chart-period" x={x(Math.max(from, period.from))} y={margin.top} width={Math.max(1, x(Math.min(to, period.to)) - x(Math.max(from, period.from)))} height={plotHeight} />
+      </g>)}
       {gaps.map(gap => <g key={gap.from}>
         <rect x={x(gap.from)} y={margin.top} width={Math.max(1, x(gap.to) - x(gap.from))} height={plotHeight} fill={`url(#gap-${patternId})`} />
         {x(gap.to) - x(gap.from) > 64 && <text className="chart-gap-label" x={(x(gap.from) + x(gap.to)) / 2} y={margin.top + 14} textAnchor="middle">{gap.label ?? '데이터 없음'}</text>}
       </g>)}
+      {periods.map(period => <text key={`period-label-${period.from}`} className="chart-period-label" x={x(Math.max(from, period.from)) + 4} y={margin.top + plotHeight - 6}>{period.label}</text>)}
       {thresholds.map(item => <g key={`${item.label}-${item.value}`}>
         <line className={`chart-threshold ${item.tone}`} x1={margin.left} x2={margin.left + plotWidth} y1={y(item.value)} y2={y(item.value)} />
         <text className="chart-threshold-label" x={margin.left + plotWidth + 6} y={y(item.value)} dy="0.32em">{item.label}</text>

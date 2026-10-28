@@ -16,6 +16,7 @@ from urllib.parse import urlsplit
 from apps.simulator.auth import SimulatorAuth
 from apps.simulator.certificates import SERVER_URI, provision_development_certificates
 from apps.simulator.controller import SimulatorController
+from apps.simulator.process import OPERATING_PROCESS
 from apps.simulator.storage import RecoveryRequired, RetentionBlocked, SimulatorStorage
 from contracts.models import UINT64_MAX
 
@@ -100,7 +101,9 @@ async def serve(args) -> None:
     if origin.scheme != "http" or origin.hostname not in {"localhost", "127.0.0.1", "::1"}:
         raise ValueError("Local launcher requires an explicit loopback HTTP origin")
     with SimulatorStorage(args.database) as storage:
-        controller = SimulatorController(storage, now=datetime.now(UTC))
+        controller = SimulatorController(
+            storage, now=datetime.now(UTC), process_config=OPERATING_PROCESS
+        )
         auth = SimulatorAuth(storage.connection, allowed_origins={args.origin})
         with storage.transaction():
             auth.initialize_schema()

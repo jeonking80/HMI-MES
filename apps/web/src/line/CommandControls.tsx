@@ -20,7 +20,7 @@ export function CommandButtons({ cmd, values, compact = false, only }: { cmd: Li
   if (!kinds.length) return <p className="lc-note">{cmd.kinds.length ? '지금 이 단계에서 보낼 명령이 없습니다.' : '이 계정은 운전 명령 권한이 없습니다. 결과 조회만 할 수 있습니다.'}</p>
   const recommended = stepGuide(values).recommended
   const reasons = kinds.map(kind => cmd.disabledReason(kind))
-  const firstReason = reasons.find(Boolean) ?? ''
+  const recommendedReason = recommended && kinds.includes(recommended) ? reasons[kinds.indexOf(recommended)] : ''
   const allBlocked = reasons.every(Boolean)
   return <div className="lc-commands">
     <div className={`lc-command-grid${compact ? ' compact' : ''}`} data-control-version={cmd.controlVersion}>
@@ -30,7 +30,8 @@ export function CommandButtons({ cmd, values, compact = false, only }: { cmd: Li
         <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">{icons[kind]}</svg>{shortLabels[kind] ?? commandLabels[kind]}
       </button>)}
     </div>
-    {(allBlocked || firstReason) && <p className="lc-reason" role="status">{allBlocked ? reasons[0] : firstReason}</p>}
+    {/* Explain a blocked button only when it is the one to press now, or when nothing can be pressed. */}
+    {(allBlocked || recommendedReason) && <p className="lc-reason" role="status">{allBlocked ? reasons[0] : recommendedReason}</p>}
     {cmd.confirmEnd && <div className="lc-confirm" role="group" aria-labelledby="end-confirm-heading">
       <strong id="end-confirm-heading">현재 작업을 종료할까요?</strong>
       <span>신규 투입을 멈추고 재공을 정리한 뒤 끝냅니다. 종료되면 이 실행은 다시 시작할 수 없습니다.</span>
@@ -40,29 +41,31 @@ export function CommandButtons({ cmd, values, compact = false, only }: { cmd: Li
   </div>
 }
 
-/** Speed within ±20 % of the job's baseline while running or paused. Temperature is fixed by the loaded job. */
-export function SpeedControl({ cmd }: { cmd: LineCommands }) {
+/** Line speed (one setpoint for infeed, sealer and outfeed) within ±20 % of the job's baseline while running or paused. */
+export function SpeedControl({ cmd, current }: { cmd: LineCommands; current: unknown }) {
   const [input, setInput] = useState('')
   if (!cmd.canSetSpeed) return null
   const base = cmd.speedBase
-  const value = input === '' && base ? String(base.speed) : input
+  const now = typeof current === 'number' && Number.isFinite(current) ? Math.round(current * 10) / 10 : null
+  const start = now ?? base?.speed ?? null
+  const value = input === '' && start !== null ? String(start) : input
   const step = (delta: number) => {
     const next = Math.round((Number(value || 0) + delta) * 10) / 10
     setInput(String(cmd.speedRange ? Math.min(cmd.speedRange.max, Math.max(cmd.speedRange.min, next)) : next))
   }
   const blocked = cmd.disabledReason('SET_PARAMETERS')
   const problem = cmd.speedProblem(value)
-  const changed = base !== null && Number(value) !== base.speed
-  return <form id="speed-adjust" className="lc-speed" onSubmit={event => { event.preventDefault(); cmd.setSpeed(value) }}>
-    <label htmlFor="speed-adjust-value">운전 속도</label>
+  const changed = start !== null && Number(value) !== start
+  return <form id="speed-adjust" className="lc-speed" onSubmit={event => { event.preventDefault(); cmd.setSpeed(value); setInput('') }}>
+    <label htmlFor="speed-adjust-value">라인 속도<small>투입 · 실링 · 배출 공통 · 현재 {now ?? '—'} m/min</small></label>
     <div className="lc-stepper">
       <button type="button" aria-label="속도 0.5 낮추기" onClick={() => step(-0.5)}>−</button>
       <input id="speed-adjust-value" type="number" step="0.1" inputMode="decimal" min={cmd.speedRange?.min} max={cmd.speedRange?.max} value={value} onChange={event => setInput(event.target.value)} />
       <span>m/min</span>
       <button type="button" aria-label="속도 0.5 높이기" onClick={() => step(0.5)}>+</button>
     </div>
-    <button id="command-SET_PARAMETERS" type="submit" className="lc-button primary" disabled={!!blocked || !!problem || !changed}>{changed && base ? `적용 · ${base.speed} → ${value}` : '적용'}</button>
-    <p className="lc-hint">{blocked || problem || (cmd.speedRange ? `허용 ${cmd.speedRange.min}~${cmd.speedRange.max} m/min · 온도는 작업 설정값으로 고정` : '')}</p>
+    <button id="command-SET_PARAMETERS" type="submit" className="lc-button primary" disabled={!!blocked || !!problem || !changed}>{changed ? `${value} m/min 적용` : '적용'}</button>
+    <p className="lc-hint">{blocked || problem || (cmd.speedRange && base ? `작업 기준 ${base.speed} m/min · 허용 ${cmd.speedRange.min}~${cmd.speedRange.max} m/min` : '')}</p>
   </form>
 }
 

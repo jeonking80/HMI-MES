@@ -109,6 +109,11 @@ class ProcessConfig:
         _require(all(p in ("GOOD", "REJECT") for p in self.pattern), "invalid inspection pattern")
 
 
+# Operating line: random inspection outcomes at a plausible reject rate. The
+# fixed GOOD, GOOD, REJECT pattern stays the deterministic default for tests.
+OPERATING_PROCESS = ProcessConfig(pattern=(), reject_probability=0.03)
+
+
 @dataclass(frozen=True)
 class Item:
     item_id: int
