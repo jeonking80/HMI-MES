@@ -61,6 +61,8 @@ interface PollOptions {
   onSessionInvalid: () => void
   fetch?: typeof fetch
   online?: () => boolean
+  /** False while nobody can see the screen: the poll pauses instead of reading the line every second. */
+  visible?: () => boolean
   now?: () => number
   setTimer?: (callback: () => void, delay: number) => number
   clearTimer?: (timer: number) => void
@@ -71,6 +73,8 @@ export function createScreenPoller(options: PollOptions) {
   const scope = { ...options.scope }
   const request = options.fetch ?? globalThis.fetch.bind(globalThis)
   const online = options.online ?? (() => true)
+  const visible = options.visible ?? (() => true)
+  let paused = false
   const now = options.now ?? (() => performance.now())
   const setTimer = options.setTimer ?? ((callback, delay) => globalThis.setTimeout(callback, delay))
   const clearTimer = options.clearTimer ?? (timer => globalThis.clearTimeout(timer))
@@ -130,12 +134,13 @@ export function createScreenPoller(options: PollOptions) {
       lastArrival = now()
       options.onProjection(projection)
       publish('synced')
-      nextTimer = setTimer(() => { nextTimer = undefined; void poll() }, SCREEN_POLL_INTERVAL)
+      nextTimer = setTimer(() => { nextTimer = undefined; if (visible()) void poll(); else paused = true }, SCREEN_POLL_INTERVAL)
     } catch (error) { if (current()) fail(error instanceof ScreenPollingAuthError) }
   }
   return {
     start() { if (!started && alive) { started = true; void poll() } },
     offline() { if (started && alive && !terminal) fail() },
+    resume() { if (paused && alive && !terminal) { paused = false; lastArrival = now(); void poll() } },
     watchdog() { if (active && screenWatchdogExpired(lastArrival, now())) fail() },
     stop() { alive = false; terminal = true; retire(); if (nextTimer !== undefined) clearTimer(nextTimer) },
   }

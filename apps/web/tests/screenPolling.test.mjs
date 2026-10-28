@@ -166,3 +166,21 @@ test('401/403 invalidate session exactly once, remain terminal, and never retry'
     await assert.rejects(decode(new Response('', { status })), ScreenPollingAuthError)
   }
 })
+
+test('a hidden screen stops polling and resumes with one read when shown again', async () => {
+  let calls = 0, shown = true
+  const poll = harness(async () => { calls++; return json(frame()) }, { visible: () => shown })
+  poll.controller.start(); await flush()
+  assert.equal(calls, 1)
+  shown = false
+  await poll.advance(10_000)
+  assert.equal(calls, 1, 'no reads while hidden')
+  assert.equal(poll.timers.size, 0)
+  shown = true
+  poll.controller.resume(); await flush()
+  assert.equal(calls, 2)
+  assert.equal(poll.phases.at(-1).phase, 'synced')
+  poll.controller.resume(); await flush()
+  assert.equal(calls, 2, 'resume without a pause does not add a read')
+  poll.controller.stop()
+})
