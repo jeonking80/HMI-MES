@@ -108,15 +108,23 @@ def lock_registration_namespace(connection, kind):
     _lock(connection, json.dumps(["mes-registration-namespace", kind], separators=(",", ":")))
 
 
+def recipe_parameters(row) -> Parameters:
+    """A stored recipe's setpoints; a recipe without a pressure keeps its original identity."""
+    pressure = row.get("air_pressure_bar")
+    return Parameters(
+        temperature_c=row["temperature_c"],
+        speed_m_per_min=row["speed_m_per_min"],
+        **({} if pressure is None else {"air_pressure_bar": pressure}),
+    )
+
+
 def _recipe(row):
     return RecipeVersion(
         id=row["id"],
         recipe_id=row["recipe_id"],
         version=row["version"],
         item_id=row["item_id"],
-        parameters=Parameters(
-            temperature_c=row["temperature_c"], speed_m_per_min=row["speed_m_per_min"]
-        ),
+        parameters=recipe_parameters(row),
         created_by=row["created_by"],
         created_at=row["created_at"],
     )
@@ -183,14 +191,19 @@ def register_recipe_version(
     _registered_item(connection, definition.item_id, revision)
     values = definition.model_dump(exclude={"parameters"})
     values.update(definition.parameters.model_dump())
+    values.setdefault("air_pressure_bar", None)
     values.update(created_by=actor, created_at=now)
+    pressure = values["air_pressure_bar"] is not None
     row = (
         connection.execute(
             text(
-                "INSERT INTO recipe_versions VALUES "
-                "(:id,:recipe_id,:version,:item_id,:temperature_c,:speed_m_per_min,"
-                ":created_by,:created_at) "
-                "RETURNING *"
+                "INSERT INTO recipe_versions(id,recipe_id,version,item_id,temperature_c,"
+                "speed_m_per_min,created_by,created_at"
+                + (",air_pressure_bar" if pressure else "")
+                + ") VALUES (:id,:recipe_id,:version,:item_id,:temperature_c,:speed_m_per_min,"
+                ":created_by,:created_at"
+                + (",:air_pressure_bar" if pressure else "")
+                + ") RETURNING *"
             ),
             values,
         )

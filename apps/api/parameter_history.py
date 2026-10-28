@@ -4,7 +4,7 @@ import hashlib
 import json
 
 from contracts.models import Parameters
-from contracts.parameter_history import validate_parameter_history, validate_speed_adjustment
+from contracts.parameter_history import validate_parameter_history, validate_running_adjustment
 
 
 def validate_parameter_change(event, original_parameters, original_recipe_version):
@@ -14,7 +14,7 @@ def validate_parameter_change(event, original_parameters, original_recipe_versio
     if payload.baseline_parameters != original or payload.recipe_version != original_recipe_version:
         raise ValueError("Parameter change differs from original baseline")
     for parameters in (payload.previous_parameters, payload.parameters):
-        validate_speed_adjustment(parameters, original)
+        validate_running_adjustment(parameters, original)
 
 
 def validate_parameter_evidence(summary, original_parameters, original_recipe_version, rows):

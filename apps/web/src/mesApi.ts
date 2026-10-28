@@ -4,7 +4,7 @@ import { screenUInt64 } from './screenState'
 export type RegistrationKind = 'recipe' | 'order'
 export interface RecipeDefinition {
   id: string; recipe_id: string; version: string; item_id: string
-  parameters: { temperature_c: number; speed_m_per_min: number }
+  parameters: { temperature_c: number; speed_m_per_min: number; air_pressure_bar?: number }
 }
 export interface RecipeVersion extends RecipeDefinition { created_by: string; created_at: string }
 export interface OrderDefinition {
@@ -47,7 +47,8 @@ export function parseRecipe(value: unknown): RecipeVersion {
   const parameters = record(result.parameters)
   if (![result.id, result.recipe_id, result.version, result.item_id].every(validId)
     || typeof parameters.temperature_c !== 'number' || !Number.isFinite(parameters.temperature_c) || parameters.temperature_c < 0
-    || typeof parameters.speed_m_per_min !== 'number' || !Number.isFinite(parameters.speed_m_per_min) || parameters.speed_m_per_min <= 0) throw new Error('Unconfirmed recipe')
+    || typeof parameters.speed_m_per_min !== 'number' || !Number.isFinite(parameters.speed_m_per_min) || parameters.speed_m_per_min <= 0
+    || (parameters.air_pressure_bar !== undefined && (typeof parameters.air_pressure_bar !== 'number' || !Number.isFinite(parameters.air_pressure_bar) || parameters.air_pressure_bar <= 0))) throw new Error('Unconfirmed recipe')
   created(result)
   return result as unknown as RecipeVersion
 }
@@ -74,6 +75,7 @@ export function sameDefinition(kind: RegistrationKind, stored: Registration, exp
     const wanted = expected as RecipeDefinition
     return actual.id === wanted.id && actual.recipe_id === wanted.recipe_id && actual.version === wanted.version && actual.item_id === wanted.item_id
       && actual.parameters.temperature_c === wanted.parameters.temperature_c && actual.parameters.speed_m_per_min === wanted.parameters.speed_m_per_min
+      && actual.parameters.air_pressure_bar === wanted.parameters.air_pressure_bar
   }
   const actual = stored as WorkOrder
   const wanted = expected as OrderDefinition

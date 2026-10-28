@@ -90,7 +90,12 @@ def project_tags(
             "Infeed.BufferCount": int(slots[0] is not None),
             "Sealer.TemperaturePV": float(plc.inputs.temperature_c),
             "Sealer.TemperatureSP": float(plc.parameters.temperature_c) if plc.parameters else 0.0,
-            "Sealer.AirPressure": float(plc.inputs.pressure_bar),
+            # Regulated sealing pressure: the recipe setpoint, never above the supply.
+            "Sealer.AirPressure": float(
+                min(plc.inputs.pressure_bar, plc.parameters.air_pressure_bar)
+                if plc.parameters and plc.parameters.air_pressure_bar is not None
+                else plc.inputs.pressure_bar
+            ),
             "Sealer.HeaterOn": heater_enabled(plc, process),
             "Sealer.GuardClosed": plc.inputs.guard_closed,
             "Sealer.Ready": plc.ready,

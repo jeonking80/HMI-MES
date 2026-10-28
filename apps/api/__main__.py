@@ -79,6 +79,7 @@ def parser() -> argparse.ArgumentParser:
         register.add_argument("--" + name, required=True)
     register.add_argument("--temperature-c", required=True, type=float)
     register.add_argument("--speed-m-per-min", required=True, type=float)
+    register.add_argument("--air-pressure-bar", type=float)
     register.add_argument("--target-quantity", required=True, type=int)
     serve.add_argument("--key-id", required=True)
     serve.add_argument("--token-file", type=Path, required=True)
@@ -286,7 +287,13 @@ def main(argv=None) -> int:
                 recipe_version=args.recipe_version,
                 counter_epoch=args.counter_epoch,
                 parameters=Parameters(
-                    temperature_c=args.temperature_c, speed_m_per_min=args.speed_m_per_min
+                    temperature_c=args.temperature_c,
+                    speed_m_per_min=args.speed_m_per_min,
+                    **(
+                        {}
+                        if args.air_pressure_bar is None
+                        else {"air_pressure_bar": args.air_pressure_bar}
+                    ),
                 ),
                 target_quantity=args.target_quantity,
                 now=datetime.now(UTC),

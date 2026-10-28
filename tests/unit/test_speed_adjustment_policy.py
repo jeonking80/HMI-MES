@@ -105,12 +105,68 @@ def test_recipe_percentage_does_not_override_plc_absolute_speed_limits(baseline,
         {"execution_id": "run-B"},
         {"expected_control_version": 99},
         {"args": {"recipe_version": "recipe-2"}},
-        {"args": {"parameters": {"temperature_c": 151.0, "speed_m_per_min": 11.0}}},
+        {"args": {"parameters": {"temperature_c": 160.001, "speed_m_per_min": 11.0}}},
+        {"args": {"parameters": {"temperature_c": 139.999, "speed_m_per_min": 11.0}}},
+        {
+            "args": {
+                "parameters": {
+                    "temperature_c": 150.0,
+                    "speed_m_per_min": 11.0,
+                    "air_pressure_bar": 5.0,
+                }
+            }
+        },
     ],
 )
-def test_active_adjustment_refuses_identity_version_recipe_or_temperature_change(changes):
+def test_active_adjustment_refuses_identity_version_recipe_or_far_setpoint(changes):
     state = active()
     assert not check_command(state, request(state, 11.0, **changes), now=AT).allowed
+
+
+@pytest.mark.parametrize("temperature", [140.0, 145.5, 160.0])
+def test_active_temperature_moves_within_ten_degrees_of_load_recipe(temperature):
+    before = active()
+    command = request(
+        before, 10.0, args={"parameters": {"temperature_c": temperature, "speed_m_per_min": 10.0}}
+    )
+    assert check_command(before, command, now=AT).allowed
+    after = execute_command(before, command).state
+    assert after.parameters.temperature_c == temperature and after.recipe_baseline == BASE
+
+
+def test_active_pressure_moves_within_half_a_bar_and_plc_limits():
+    loaded = Parameters(temperature_c=150.0, speed_m_per_min=10.0, air_pressure_bar=5.5)
+    before = active(baseline=loaded)
+
+    def pressure(value):
+        return request(
+            before,
+            10.0,
+            args={
+                "parameters": {
+                    "temperature_c": 150.0,
+                    "speed_m_per_min": 10.0,
+                    "air_pressure_bar": value,
+                }
+            },
+        )
+
+    for value in (5.0, 5.5, 6.0):
+        assert check_command(before, pressure(value), now=AT).allowed
+    assert not check_command(before, pressure(4.99), now=AT).allowed
+    assert not check_command(before, pressure(6.01), now=AT).allowed
+    # A job loaded with a pressure cannot drop it mid-run.
+    assert not check_command(before, request(before, 10.0), now=AT).allowed
+
+
+def test_parameters_without_pressure_keep_their_original_identity():
+    assert BASE.model_dump(mode="json") == {"temperature_c": 150.0, "speed_m_per_min": 10.0}
+    assert (
+        Parameters(temperature_c=150.0, speed_m_per_min=10.0, air_pressure_bar=5.5).model_dump(
+            mode="json"
+        )["air_pressure_bar"]
+        == 5.5
+    )
 
 
 def event(seq=1, *, previous=BASE, speed=12.0, **changes):

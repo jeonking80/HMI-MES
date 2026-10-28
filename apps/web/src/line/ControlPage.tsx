@@ -16,7 +16,7 @@ import { LampChip, MetricBox, SourcePicker, StateBadge } from './parts'
 import { newIntentBlocked, powerLabels, production, toneOf } from './logic'
 import { useLineCommands } from './useLineCommands'
 import type { LineCommands } from './useLineCommands'
-import { CommandButtons, CommandLookup, CommandResult, SpeedControl } from './CommandControls'
+import { CommandButtons, CommandLookup, CommandResult, SetpointControl } from './CommandControls'
 import './line.css'
 
 /* The serverless API serves few requests at once; the 1 s screen poll must not queue behind a burst
@@ -382,7 +382,7 @@ function RunStep({ live, cmd, ended }: { live: LiveLine; cmd: LineCommands; ende
     <div className="cs-gauge"><div><span>양품 / 목표</span><strong>{made.good ?? '—'}<small> / {made.target ?? '—'}</small></strong><span>불량 <b>{made.reject ?? '—'}</b></span></div><div className="lc-bar light"><span style={{ width: `${(made.ratio ?? 0) * 100}%` }} /></div></div>
     {ended ? <p className="lc-hint">생산이 끝났습니다. ⑤ 단계에서 정산을 확인하세요.</p> : <>
       <CommandButtons cmd={cmd} values={live.controlValues} only={['PAUSE', 'START', 'END_RUN']} />
-      <SpeedControl cmd={cmd} current={live.known('Sealer.ActualSpeed')} />
+      <SetpointControl cmd={cmd} known={live.known} />
     </>}
   </div>
 }

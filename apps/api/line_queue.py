@@ -33,7 +33,7 @@ from contracts.models import (
     UTCTimestamp,
 )
 
-REENROLL_REVISIONS = frozenset({"0026_queue_reenroll"})
+REENROLL_REVISIONS = frozenset({"0026_queue_reenroll", "0027_recipe_pressure"})
 
 QUEUE_LOCK = "mes-line-queue"
 

@@ -340,6 +340,22 @@ def queue_reenroll_statements():
     ]
 
 
+def recipe_pressure_statements():
+    """Exact 0026 -> 0027 optional recipe sealing pressure statements."""
+    config = Config(str(ROOT / "alembic.ini"))
+    script = ScriptDirectory.from_config(config)
+    module = script.get_revision("0027_recipe_pressure").module
+    preflight = item_statements()[:5]
+    preflight[2] = preflight[2].replace("0020_line_queue", "0026_queue_reenroll")
+    return [
+        *preflight,
+        *module.upgrade_statements(),
+        "SET LOCAL search_path = pg_catalog, public, pg_temp",
+        "UPDATE public.alembic_version SET version_num='0027_recipe_pressure' "
+        "WHERE version_num='0026_queue_reenroll'",
+    ]
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -365,6 +381,7 @@ def main(argv=None):
             "retention-segments-grants",
             "mes-edit-upgrade",
             "queue-reenroll-upgrade",
+            "recipe-pressure-upgrade",
         ),
     )
     target = parser.parse_args(argv).target
@@ -387,6 +404,7 @@ def main(argv=None):
         "retention-segments-grants": retention_segments_grant_statements,
         "mes-edit-upgrade": mes_edit_statements,
         "queue-reenroll-upgrade": queue_reenroll_statements,
+        "recipe-pressure-upgrade": recipe_pressure_statements,
     }[target]
     json.dump(renderer(), sys.stdout, ensure_ascii=False, indent=1)
 

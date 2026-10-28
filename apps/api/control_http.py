@@ -31,7 +31,7 @@ from apps.api.settlement import SettlementScopeError, reconcile_execution
 from apps.api.snapshot import SnapshotNotFound, read_snapshot
 from contracts.conflict_codes import ConflictReason
 from contracts.models import CommandRequest, ContractModel, Identifier, Parameters
-from contracts.parameter_history import validate_speed_adjustment
+from contracts.parameter_history import validate_running_adjustment
 from contracts.tags.validate import load_contract
 
 _TAGS = {tag["logical_name"] for tag in load_contract()["tags"]}
@@ -204,7 +204,7 @@ def _preflight(connection, body, source, now):
             if args.recipe_version != execution["recipe_version"]:
                 _deny()
             try:
-                validate_speed_adjustment(
+                validate_running_adjustment(
                     args.parameters, Parameters.model_validate(execution["parameters"])
                 )
             except ValueError:

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { commandLabels, statusLabels } from '../commands'
 import type { CommandKind } from '../commands'
 import { stepGuide } from '../commandGuide'
-import type { LineCommands } from './useLineCommands'
+import type { LineCommands, Setpoint } from './useLineCommands'
 
 const icons: Record<CommandKind, ReactNode> = {
   START: <path d="M7 4L20 12L7 20Z" fill="currentColor" />,
@@ -41,31 +41,62 @@ export function CommandButtons({ cmd, values, compact = false, only }: { cmd: Li
   </div>
 }
 
-/** Line speed (one setpoint for infeed, sealer and outfeed) within ±20 % of the job's baseline while running or paused. */
-export function SpeedControl({ cmd, current }: { cmd: LineCommands; current: unknown }) {
-  const [input, setInput] = useState('')
+const setpointRows: { kind: Setpoint; label: string; scope: string; unit: string; step: number; tag: string }[] = [
+  { kind: 'speed', label: '라인 속도', scope: '투입 · 실링 · 배출 공통', unit: 'm/min', step: 0.5, tag: 'Sealer.ActualSpeed' },
+  { kind: 'temperature', label: '실링 온도', scope: '02 실링기 설정', unit: '℃', step: 1, tag: 'Sealer.TemperatureSP' },
+  { kind: 'pressure', label: '실링 공압', scope: '02 실링기 설정', unit: 'bar', step: 0.1, tag: 'Sealer.AirPressure' },
+]
+
+const runningSpeed = new Map<string, number>()
+
+/** Running setpoints near the LOAD recipe, sent together as one SET_PARAMETERS; the PLC judges them. */
+export function SetpointControl({ cmd, known, only }: { cmd: LineCommands; known: (tag: string) => unknown; only?: Setpoint[] }) {
+  const [inputs, setInputs] = useState<Partial<Record<Setpoint, string>>>({})
   if (!cmd.canSetSpeed) return null
-  const base = cmd.speedBase
-  const now = typeof current === 'number' && Number.isFinite(current) ? Math.round(current * 10) / 10 : null
-  const start = now ?? base?.speed ?? null
-  const value = input === '' && start !== null ? String(start) : input
-  const step = (delta: number) => {
-    const next = Math.round((Number(value || 0) + delta) * 10) / 10
-    setInput(String(cmd.speedRange ? Math.min(cmd.speedRange.max, Math.max(cmd.speedRange.min, next)) : next))
+  const base = cmd.setpointBase
+  const current = (kind: Setpoint, tag: string): number | null => {
+    const value = known(tag)
+    if (typeof value === 'number' && Number.isFinite(value) && (kind !== 'speed' || value > 0)) {
+      const rounded = Math.round(value * 10) / 10
+      if (kind === 'speed' && base) runningSpeed.set(base.execution, rounded)
+      return rounded
+    }
+    // Paused: the belt reads 0 m/min, so keep the speed it last ran at for this execution.
+    if (kind === 'speed' && base && runningSpeed.has(base.execution)) return runningSpeed.get(base.execution)!
+    return base ? (kind === 'speed' ? base.speed : kind === 'temperature' ? base.temperature : base.pressure) : null
   }
+  const rows = setpointRows.filter(row => (!only || only.includes(row.kind)) && !(row.kind === 'pressure' && base && base.pressure === null))
+  const values = Object.fromEntries(setpointRows.map(row => {
+    const now = current(row.kind, row.tag)
+    return [row.kind, inputs[row.kind] ?? (now === null ? '' : String(now))]
+  })) as Record<Setpoint, string>
+  const changed = rows.filter(row => values[row.kind] !== '' && Number(values[row.kind]) !== current(row.kind, row.tag))
+  const problems = rows.map(row => changed.includes(row) ? cmd.setpointProblem(row.kind, values[row.kind]) : '').filter(Boolean)
   const blocked = cmd.disabledReason('SET_PARAMETERS')
-  const problem = cmd.speedProblem(value)
-  const changed = start !== null && Number(value) !== start
-  return <form id="speed-adjust" className="lc-speed" onSubmit={event => { event.preventDefault(); cmd.setSpeed(value); setInput('') }}>
-    <label htmlFor="speed-adjust-value">라인 속도<small>투입 · 실링 · 배출 공통 · 현재 {now ?? '—'} m/min</small></label>
-    <div className="lc-stepper">
-      <button type="button" aria-label="속도 0.5 낮추기" onClick={() => step(-0.5)}>−</button>
-      <input id="speed-adjust-value" type="number" step="0.1" inputMode="decimal" min={cmd.speedRange?.min} max={cmd.speedRange?.max} value={value} onChange={event => setInput(event.target.value)} />
-      <span>m/min</span>
-      <button type="button" aria-label="속도 0.5 높이기" onClick={() => step(0.5)}>+</button>
-    </div>
-    <button id="command-SET_PARAMETERS" type="submit" className="lc-button primary" disabled={!!blocked || !!problem || !changed}>{changed ? `${value} m/min 적용` : '적용'}</button>
-    <p className="lc-hint">{blocked || problem || (cmd.speedRange && base ? `작업 기준 ${base.speed} m/min · 허용 ${cmd.speedRange.min}~${cmd.speedRange.max} m/min` : '')}</p>
+  const step = (row: (typeof setpointRows)[number], delta: number) => {
+    const range = cmd.ranges[row.kind]
+    const next = Math.round((Number(values[row.kind] || 0) + delta) * 10) / 10
+    setInputs(previous => ({ ...previous, [row.kind]: String(range ? Math.min(range.max, Math.max(range.min, next)) : next) }))
+  }
+  return <form id="setpoint-adjust" className="lc-speed" onSubmit={event => {
+    event.preventDefault()
+    cmd.setSetpoints({ speed: values.speed, temperature: values.temperature, pressure: base?.pressure === null ? null : values.pressure })
+    setInputs({})
+  }}>
+    {rows.map(row => {
+      const range = cmd.ranges[row.kind], now = current(row.kind, row.tag)
+      return <div key={row.kind} className="lc-setpoint">
+        <label htmlFor={`setpoint-${row.kind}`}>{row.label}<small>{row.scope} · 현재 {now ?? '—'} {row.unit}{range ? ` · 허용 ${range.min}~${range.max}` : ''}</small></label>
+        <div className="lc-stepper">
+          <button type="button" aria-label={`${row.label} ${row.step} 낮추기`} onClick={() => step(row, -row.step)}>−</button>
+          <input id={`setpoint-${row.kind}`} type="number" step="0.1" inputMode="decimal" min={range?.min} max={range?.max} value={values[row.kind]} onChange={event => setInputs(previous => ({ ...previous, [row.kind]: event.target.value }))} />
+          <span>{row.unit}</span>
+          <button type="button" aria-label={`${row.label} ${row.step} 높이기`} onClick={() => step(row, row.step)}>+</button>
+        </div>
+      </div>
+    })}
+    <button id="command-SET_PARAMETERS" type="submit" className="lc-button primary" disabled={!!blocked || problems.length > 0 || changed.length === 0}>{changed.length ? `${changed.map(row => `${row.label} ${values[row.kind]}${row.unit}`).join(' · ')} 적용` : '변경 적용'}</button>
+    <p className="lc-hint">{blocked || problems[0] || (base ? `작업 기준 ${base.speed} m/min · ${base.temperature} ℃${base.pressure === null ? '' : ` · ${base.pressure} bar`} · 실행 여부는 PLC가 판정합니다` : '현재 실행의 기준 설정값을 확인하고 있습니다.')}</p>
   </form>
 }
 

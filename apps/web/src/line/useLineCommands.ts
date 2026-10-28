@@ -20,6 +20,8 @@ export interface LineCommandsInput {
 const identifier = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 128 && !/\s/.test(value)
 export const stateNames: Record<string, string> = { 0: 'STOPPED', 1: 'READY', 2: 'RUNNING', 3: 'PAUSED', 4: 'STOPPING', 5: 'FAULT', 6: 'ESTOP', 7: 'RECOVERY_REQUIRED' }
 
+export type Setpoint = 'speed' | 'temperature' | 'pressure'
+
 export function useLineCommands({ source, session, blockedReason, newIntentBlocked = '', values, tracked, setTracked, onSessionInvalid }: LineCommandsInput) {
   const [confirmEnd, setConfirmEnd] = useState<{ execution: string; version: string; epoch: string } | null>(null)
   const [lookupAttempt, setLookupAttempt] = useState(0)
@@ -37,9 +39,10 @@ export function useLineCommands({ source, session, blockedReason, newIntentBlock
   const finished = tracked !== null && (terminal(tracked.result) || tracked.phase === 'REJECTED')
   const endRun = tracked?.request?.command.kind === 'END_RUN'
   const state = values['Line.State']
-  // CX-35: speed may move within ±20 % of the LOAD baseline (and 1–60 m/min) while running or paused.
+  // While running or paused the setpoints may move near the LOAD recipe: speed ±20 % (1–60 m/min),
+  // sealing temperature ±10 ℃ (50–200 ℃) and sealing pressure ±0.5 bar (4.5–6 bar). The PLC decides.
   const activeExecution = typeof values['Line.ActiveExecutionId'] === 'string' && values['Line.ActiveExecutionId'] ? values['Line.ActiveExecutionId'] as string : null
-  const [baseline, setBaseline] = useState<{ execution: string; temperature: number; speed: number; recipe: string } | null>(null)
+  const [baseline, setBaseline] = useState<{ execution: string; temperature: number; speed: number; pressure: number | null; recipe: string } | null>(null)
   const known = baseline?.execution === activeExecution
   useEffect(() => {
     if (!activeExecution || !producer || known) return
@@ -47,20 +50,27 @@ export function useLineCommands({ source, session, blockedReason, newIntentBlock
     const query = new URLSearchParams({ execution_id: activeExecution, line_id: source.line_id, source_id: source.source_id, stream_id: source.stream_id })
     // Right after a load the record may not be readable yet: keep asking until it is.
     const read = () => void commandHTTP(`/api/v1/execution-record?${query}`, controller.signal).then(value => {
-      const execution = (value as { execution?: { recipe_version?: unknown; parameters?: { temperature_c?: unknown; speed_m_per_min?: unknown } } }).execution
-      const temperature = execution?.parameters?.temperature_c, speed = execution?.parameters?.speed_m_per_min
-      if (typeof temperature === 'number' && typeof speed === 'number' && typeof execution?.recipe_version === 'string') setBaseline({ execution: activeExecution, temperature, speed, recipe: execution.recipe_version })
+      const execution = (value as { execution?: { recipe_version?: unknown; parameters?: { temperature_c?: unknown; speed_m_per_min?: unknown; air_pressure_bar?: unknown } } }).execution
+      const temperature = execution?.parameters?.temperature_c, speed = execution?.parameters?.speed_m_per_min, pressure = execution?.parameters?.air_pressure_bar
+      if (typeof temperature === 'number' && typeof speed === 'number' && (pressure === undefined || typeof pressure === 'number') && typeof execution?.recipe_version === 'string') setBaseline({ execution: activeExecution, temperature, speed, pressure: pressure ?? null, recipe: execution.recipe_version })
     }).catch(() => {})
     read()
     const timer = window.setInterval(read, 4000)
     return () => { controller.abort(); window.clearInterval(timer) }
   }, [activeExecution, producer, known, source.line_id, source.source_id, source.stream_id])
-  const speedBase = baseline && baseline.execution === activeExecution ? baseline : null
-  const speedRange = speedBase ? { min: Math.max(1, Math.ceil(speedBase.speed * 0.8 * 10) / 10), max: Math.min(60, Math.floor(speedBase.speed * 1.2 * 10) / 10) } : null
-  const speedProblem = (input: string) => {
-    const value = Number(input)
-    return !speedRange ? '현재 실행의 기준 속도를 확인하고 있습니다.' : input === '' || !Number.isFinite(value) || value < speedRange.min || value > speedRange.max ? `${speedRange.min}~${speedRange.max} m/min 안에서 입력해 주세요.` : ''
+  const setpointBase = baseline && baseline.execution === activeExecution ? baseline : null
+  const round = (value: number) => Math.round(value * 10) / 10
+  const ranges: Record<Setpoint, { min: number; max: number } | null> = setpointBase ? {
+    speed: { min: Math.max(1, Math.ceil(setpointBase.speed * 0.8 * 10) / 10), max: Math.min(60, Math.floor(setpointBase.speed * 1.2 * 10) / 10) },
+    temperature: { min: Math.max(50, round(setpointBase.temperature - 10)), max: Math.min(200, round(setpointBase.temperature + 10)) },
+    pressure: setpointBase.pressure === null ? null : { min: Math.max(4.5, round(setpointBase.pressure - 0.5)), max: Math.min(6, round(setpointBase.pressure + 0.5)) },
+  } : { speed: null, temperature: null, pressure: null }
+  const units: Record<Setpoint, string> = { speed: 'm/min', temperature: '℃', pressure: 'bar' }
+  const setpointProblem = (kind: Setpoint, input: string) => {
+    const value = Number(input), range = ranges[kind]
+    return !setpointBase ? '현재 실행의 기준 설정값을 확인하고 있습니다.' : !range ? '이 작업은 공압 설정 없이 불러왔습니다.' : input === '' || !Number.isFinite(value) || value < range.min || value > range.max ? `${range.min}~${range.max} ${units[kind]} 안에서 입력해 주세요.` : ''
   }
+
 
   useEffect(() => () => { postController.current?.abort() }, [])
   useEffect(() => {
@@ -173,8 +183,14 @@ export function useLineCommands({ source, session, blockedReason, newIntentBlock
   function askEnd() {
     setConfirmEnd({ execution: String(values['Line.ActiveExecutionId']), version: String(values['Line.ControlVersion']), epoch: String(values['Line.CounterEpoch']) })
   }
-  function setSpeed(input: string) {
-    if (!speedProblem(input) && !disabledReason('SET_PARAMETERS') && speedBase) void submit('SET_PARAMETERS', { recipe_version: speedBase.recipe, parameters: { temperature_c: speedBase.temperature, speed_m_per_min: Number(input) } })
+  /** One SET_PARAMETERS with every setpoint: the changed ones and the current values of the rest. */
+  function setSetpoints(next: Record<Setpoint, string | null>) {
+    if (!setpointBase || disabledReason('SET_PARAMETERS')) return
+    if ((['speed', 'temperature', 'pressure'] as Setpoint[]).some(kind => next[kind] !== null && setpointProblem(kind, next[kind]!))) return
+    void submit('SET_PARAMETERS', { recipe_version: setpointBase.recipe, parameters: {
+      temperature_c: Number(next.temperature), speed_m_per_min: Number(next.speed),
+      ...(setpointBase.pressure === null ? {} : { air_pressure_bar: Number(next.pressure) }),
+    } })
   }
   function lookupAgain() {
     if (!tracked || !scoped || posting) return
@@ -196,7 +212,7 @@ export function useLineCommands({ source, session, blockedReason, newIntentBlock
     && result.evidence.execution_id === values['Line.ActiveExecutionId']
   return {
     operator, producer, kinds, disabledReason, submit, askEnd, confirmEnd, cancelEnd: () => setConfirmEnd(null), endConfirmationReason,
-    speedBase, speedRange, speedProblem, setSpeed, canSetSpeed: producer && [2, 3].includes(Number(state)),
+    setpointBase, ranges, setpointProblem, setSetpoints, canSetSpeed: producer && [2, 3].includes(Number(state)),
     tracked, scoped, posting, finished, polling, lookupMessage, lookupAgain, lookupId, acknowledge, result, feedbackMatches,
     controlVersion: uint64String(values['Line.ControlVersion']) ? String(values['Line.ControlVersion']) : undefined,
   }

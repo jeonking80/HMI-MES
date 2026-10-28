@@ -124,6 +124,17 @@ class Parameters(ContractModel):
         float, Field(strict=True, ge=0), AfterValidator(lambda value: 0.0 if value == 0 else value)
     ]
     speed_m_per_min: Annotated[float, Field(strict=True, gt=0)]
+    # Sealing (regulated) air pressure. Absent on recipes and records made before it existed;
+    # the line then seals at supply pressure.
+    air_pressure_bar: Annotated[float, Field(strict=True, gt=0)] | None = None
+
+    @model_serializer(mode="wrap")
+    def serialize_pressure(self, handler):
+        body = handler(self)
+        # Records made without a pressure keep their original identity.
+        if self.air_pressure_bar is None:
+            body.pop("air_pressure_bar", None)
+        return body
 
 
 class LoadJobArguments(ContractModel):

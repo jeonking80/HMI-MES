@@ -46,7 +46,7 @@ from contracts.models import (
     StateEvent,
     UTCTimestamp,
 )
-from contracts.parameter_history import validate_parameter_history, validate_speed_adjustment
+from contracts.parameter_history import validate_parameter_history, validate_running_adjustment
 
 _TIME = TypeAdapter(UTCTimestamp)
 _ID = TypeAdapter(Identifier)
@@ -369,7 +369,7 @@ class SimulatorController:
                     or archived[3] != hashlib.sha256(row["event_json"].encode()).hexdigest()
                 ):
                     raise ValueError("Parameter source evidence is missing")
-                validate_speed_adjustment(event.payload.parameters, baseline)
+                validate_running_adjustment(event.payload.parameters, baseline)
                 previous = event.payload.parameters
                 previous_version = event.payload.control_version
                 previous_time = event.occurred_at
