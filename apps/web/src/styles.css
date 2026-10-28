@@ -251,6 +251,7 @@ input:disabled { background:#f1f4f7; }
 .rc-params { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; }
 .rc-params div { background:#f3f6fa; border-radius:12px; padding:16px; }
 .rc-params span { display:block; font-size:.82rem; color:#5f7186; }
+.rc-params .rc-unset { display:block; margin-top:8px; font-style:normal; font-size:.9rem; color:#5f7186; }
 .rc-params strong { font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:1.8rem; }
 .rc-params small { font-family:var(--font-sans); font-size:.85rem; color:#5f7186; }
 .rc-next { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; padding-top:14px; border-top:1px solid #e4eaf0; }

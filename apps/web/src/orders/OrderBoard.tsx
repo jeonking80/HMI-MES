@@ -19,13 +19,24 @@ const time = (value: string | null) => {
 }
 const settlementLabels = { PENDING: '정산 전', SETTLED: '정산 완료', MISMATCH: '정산 불일치', CONFLICT: '정산 충돌' }
 
+/** Events and runs on one time line, oldest first; each run replaces its bare "loaded" event. */
+function timeline(events: OrderEvent[], runs: OrderRun[]) {
+  const ordered = [...runs].sort((a, b) => a.bound_at.localeCompare(b.bound_at))
+  return [
+    ...events.filter(event => event.action !== 'BIND_EXECUTION').map((event, index) => ({ key: `event-${index}`, at: event.occurred_at, body: <><strong>{eventLabels[event.action] ?? event.action}</strong>{event.changes?.map(change => ` · ${fieldLabels[change.field] ?? change.field} ${change.before} → ${change.after}`).join('')} · {event.actor}</> })),
+    ...ordered.map((run, index) => ({ key: run.execution_id, at: run.bound_at, body: <><strong>{index + 1}회째 실행</strong> · {settlementLabels[run.settlement_status]} · 양품 {run.good_quantity ?? '?'} · 불량 {run.reject_quantity ?? '?'} · {run.bound_by}</> })),
+  ].sort((a, b) => a.at.localeCompare(b.at))
+}
+
 function progressOf(order: OrderSummary) {
   const run = order.execution
   if (order.phase === 'DONE' && run) return `양품 ${run.good_quantity ?? '?'} · 불량 ${run.reject_quantity ?? '?'}`
   if (order.phase === 'RUNNING' && run) return run.good_quantity === null ? '생산 중' : `생산 중 ${run.good_quantity}/${order.target_quantity}`
   if (order.phase === 'WAITING') {
     const waiting = order.queue_position !== null ? `대기열 ${order.queue_position + 1}번` : '불러오기 대기'
-    return run && order.runs > 0 ? `${waiting} · ${order.runs}회 실행 · 최근 양품 ${run.good_quantity ?? '?'} · 불량 ${run.reject_quantity ?? '?'}` : waiting
+    if (!run || order.runs === 0) return waiting
+    const last = `${order.runs}회 실행 · 최근 ${run.good_quantity ?? '?'}개 (불량 ${run.reject_quantity ?? '?'})`
+    return order.queue_position !== null ? `${waiting} · ${last}` : last
   }
   if (order.phase === 'CANCELLED') return '취소됨'
   return '배포 전'
@@ -177,8 +188,7 @@ export default function OrderBoard({ session, lines, recipes, canWrite, canBind,
           <section className="wo-timeline" aria-label="진행 기록">
             <h4>진행 기록</h4>
             <ol>
-              {(history?.id === selected.id ? history.events : []).map((event, index) => <li key={index}><span>{time(event.occurred_at)}</span><span><strong>{eventLabels[event.action] ?? event.action}</strong>{event.changes?.map(change => ` · ${fieldLabels[change.field] ?? change.field} ${change.before} → ${change.after}`).join('')} · {event.actor}</span></li>)}
-              {(history?.id === selected.id ? history.runs : []).map((run, index, runs) => <li key={run.execution_id}><span>{time(run.bound_at)}</span><span><strong>{runs.length - index}회째 실행 · {settlementLabels[run.settlement_status]}</strong> · 양품 {run.good_quantity ?? '?'} · 불량 {run.reject_quantity ?? '?'} · {run.bound_by}</span></li>)}
+              {(history?.id === selected.id ? timeline(history.events, history.runs) : []).map(entry => <li key={entry.key}><span>{time(entry.at)}</span><span>{entry.body}</span></li>)}
               {history?.id !== selected.id && <li><span /><span>기록을 조회하고 있습니다.</span></li>}
             </ol>
           </section>
