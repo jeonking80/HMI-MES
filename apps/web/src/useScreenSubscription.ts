@@ -23,6 +23,7 @@ export function useScreenSubscription(scope: ScreenScope, csrf: string, onSessio
       const poller = createScreenPoller({
         scope: expectedScope, initialProjection: projection.current,
         online: () => navigator.onLine,
+        visible: () => document.visibilityState === 'visible',
         onProjection: value => { if (alive) { projection.current = value; receivedAt.current = Date.now() } },
         onPhase: (phase, message) => { if (alive) setSubscription({ projection: projection.current, phase, message, now: Date.now(), receivedAt: receivedAt.current }) },
         onSessionInvalid,
@@ -31,8 +32,10 @@ export function useScreenSubscription(scope: ScreenScope, csrf: string, onSessio
       const watchdog = window.setInterval(() => poller.watchdog(), 250)
       const aging = window.setInterval(() => { if (alive) setSubscription(previous => ({ ...previous, now: Date.now() })) }, 500)
       const offline = () => poller.offline()
+      const shown = () => { if (document.visibilityState === 'visible') poller.resume() }
       window.addEventListener('offline', offline)
-      return () => { alive = false; poller.stop(); window.removeEventListener('offline', offline); window.clearInterval(watchdog); window.clearInterval(aging) }
+      document.addEventListener('visibilitychange', shown)
+      return () => { alive = false; poller.stop(); window.removeEventListener('offline', offline); document.removeEventListener('visibilitychange', shown); window.clearInterval(watchdog); window.clearInterval(aging) }
     }
     let generation = 0
     let reconnects = 0

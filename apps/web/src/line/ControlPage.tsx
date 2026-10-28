@@ -71,7 +71,7 @@ function usePowerState(onSessionInvalid: () => void) {
   const [now, setNow] = useState(seenAt)
   useEffect(() => {
     const controller = new AbortController()
-    const tick = () => { load(controller.signal).catch(() => { if (!controller.signal.aborted) setError(true) }) }
+    const tick = () => { if (document.visibilityState !== 'visible' && !kind) return; load(controller.signal).catch(() => { if (!controller.signal.aborted) setError(true) }) }
     tick()
     // Side reads stay off the 1 s screen poll's beat: few, slow and staggered (see POLL_* below);
     // while the host is switching, follow it closely so the screen shows when it is done.
@@ -94,9 +94,10 @@ function useLineStatus(source: Source, onSessionInvalid: () => void): LineStatus
   const key = `${source.line_id}|${source.source_id}|${source.stream_id}`
   useEffect(() => {
     const controller = new AbortController()
-    let busy = false
+    let busy = false, loaded = false
     const tick = async () => {
-      if (busy) return
+      // A hidden tab keeps its last answer and stops reading until it is shown again.
+      if (busy || (document.visibilityState !== 'visible' && loaded)) return
       busy = true
       try {
         const response = await fetch(`/api/v1/line-status?${new URLSearchParams({ line_id: source.line_id, source_id: source.source_id, stream_id: source.stream_id })}`, { credentials: 'same-origin', cache: 'no-store', signal: controller.signal })
@@ -104,6 +105,7 @@ function useLineStatus(source: Source, onSessionInvalid: () => void): LineStatus
         if (!response.ok) return
         const raw = await response.json() as { execution: null | { execution_id: string; work_order_id: string; bound_at: string; bound_by: string; target_quantity: number | null; auto_end: boolean | null; start_when_ready: boolean | null; settlement: ActiveRun['settlement']; good_quantity: number | null; reject_quantity: number | null; end_reason: string | null; ended_at: string | null }; unresolved_command: LineStatus['unresolved'] }
         const e = raw.execution
+        loaded = true
         if (!controller.signal.aborted) setStatus({ key, value: { unresolved: raw.unresolved_command ?? null, run: e ? {
           executionId: e.execution_id, workOrderId: e.work_order_id, registeredAt: e.bound_at, target: e.target_quantity, autoEnd: e.auto_end, startWhenReady: e.start_when_ready, loadedBy: e.bound_by, settlement: e.settlement,
           summary: e.settlement === 'PENDING' ? null : { good: e.good_quantity === null ? '—' : String(e.good_quantity), reject: e.reject_quantity === null ? '—' : String(e.reject_quantity), endReason: e.end_reason, endedAt: e.ended_at },
@@ -299,13 +301,14 @@ function JobStep({ live, source, session, workflow, tracked, selectedOrder, onSe
   const [startWhenReady, setStartWhenReady] = useState(canAutoStart)
   useEffect(() => {
     const controller = new AbortController()
-    let busy = false
+    let busy = false, loaded = false
     const load = async () => {
-      if (busy) return
+      if (busy || (document.visibilityState !== 'visible' && loaded)) return
       busy = true
       try {
         // One light read: the overview already knows which released orders were never run.
         const items = await readOverview(source.line_id, controller.signal)
+        loaded = true
         if (!controller.signal.aborted) setOrders(items.filter(item => item.phase === 'WAITING'))
       } catch (cause) {
         if (!controller.signal.aborted && ((cause as { status?: number })?.status === 401 || (cause as { status?: number })?.status === 403)) onSessionInvalid()
