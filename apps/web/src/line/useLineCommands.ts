@@ -40,17 +40,21 @@ export function useLineCommands({ source, session, blockedReason, newIntentBlock
   // CX-35: speed may move within ±20 % of the LOAD baseline (and 1–60 m/min) while running or paused.
   const activeExecution = typeof values['Line.ActiveExecutionId'] === 'string' && values['Line.ActiveExecutionId'] ? values['Line.ActiveExecutionId'] as string : null
   const [baseline, setBaseline] = useState<{ execution: string; temperature: number; speed: number; recipe: string } | null>(null)
+  const known = baseline?.execution === activeExecution
   useEffect(() => {
-    if (!activeExecution || !producer) return
+    if (!activeExecution || !producer || known) return
     const controller = new AbortController()
     const query = new URLSearchParams({ execution_id: activeExecution, line_id: source.line_id, source_id: source.source_id, stream_id: source.stream_id })
-    void commandHTTP(`/api/v1/execution-record?${query}`, controller.signal).then(value => {
+    // Right after a load the record may not be readable yet: keep asking until it is.
+    const read = () => void commandHTTP(`/api/v1/execution-record?${query}`, controller.signal).then(value => {
       const execution = (value as { execution?: { recipe_version?: unknown; parameters?: { temperature_c?: unknown; speed_m_per_min?: unknown } } }).execution
       const temperature = execution?.parameters?.temperature_c, speed = execution?.parameters?.speed_m_per_min
       if (typeof temperature === 'number' && typeof speed === 'number' && typeof execution?.recipe_version === 'string') setBaseline({ execution: activeExecution, temperature, speed, recipe: execution.recipe_version })
     }).catch(() => {})
-    return () => controller.abort()
-  }, [activeExecution, producer, source.line_id, source.source_id, source.stream_id])
+    read()
+    const timer = window.setInterval(read, 4000)
+    return () => { controller.abort(); window.clearInterval(timer) }
+  }, [activeExecution, producer, known, source.line_id, source.source_id, source.stream_id])
   const speedBase = baseline && baseline.execution === activeExecution ? baseline : null
   const speedRange = speedBase ? { min: Math.max(1, Math.ceil(speedBase.speed * 0.8 * 10) / 10), max: Math.min(60, Math.floor(speedBase.speed * 1.2 * 10) / 10) } : null
   const speedProblem = (input: string) => {
