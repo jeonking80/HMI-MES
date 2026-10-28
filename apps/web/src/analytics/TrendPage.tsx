@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
-import { parseTrend, query } from './api'
+import { parseExecutionReports, parseTrend, query } from './api'
 import type { PointQuality, Trend, TrendSeries } from './api'
 import { Legend, TimeSeriesChart } from './charts'
 import { SERIES_COLORS } from './scale'
 import type { ChartSeries } from './charts'
-import { alignedEnd, analogTags, clock, dateTime, focusWindow, MISSING, tagLabels, secondClock } from './format'
+import { alignedEnd, analogTags, clock, dateTime, focusWindow, measureLabel, MISSING, tagLabels, secondClock } from './format'
 import { useResource, useSources } from './hooks'
 import type { Source } from './hooks'
 import { Card, ChartOrTable, EmptyState, PageNotice, RefreshStatus, ScopePicker } from './ui'
@@ -21,8 +21,10 @@ const qualityLabels: Record<PointQuality, string> = {
   GOOD: '정상', PARTIAL: '일부 표본', UNCERTAIN: '품질 불확실', BAD: '품질 나쁨', MISSING: '데이터 없음', TIME_UNKNOWN: '시간 불명', RETENTION_EXPIRED: '보존 기간 지남',
 }
 const groups = [
-  { label: '투입', prefix: 'Infeed.' }, { label: '실링', prefix: 'Sealer.' }, { label: '배출', prefix: 'Outfeed.' },
+  { label: '01 투입기', prefix: 'Infeed.' }, { label: '02 실링기', prefix: 'Sealer.' }, { label: '03 배출기', prefix: 'Outfeed.' },
 ]
+/** Gaps closer than this many steps are one band: start-up flicker is not dozens of stripes. */
+const MERGE_STEPS = 30
 
 /**
  * Spans where no series in the group has a value, so the chart shows a gap instead of a joined line.
@@ -42,7 +44,13 @@ function gapsFor(series: TrendSeries[], stepMs: number) {
     if (last && last.to >= t && last.timeUnknown === timeUnknown) last.to = t + stepMs
     else gaps.push({ from: t, to: t + stepMs, timeUnknown })
   }
-  return gaps.map(gap => ({ from: gap.from, to: gap.to, label: gap.timeUnknown ? '시간 불명' : '데이터 없음' }))
+  const merged: typeof gaps = []
+  for (const gap of gaps) {
+    const last = merged[merged.length - 1]
+    if (last && gap.from - last.to <= MERGE_STEPS * stepMs) { last.to = gap.to; last.timeUnknown = last.timeUnknown && gap.timeUnknown }
+    else merged.push({ ...gap })
+  }
+  return merged.map(gap => ({ from: gap.from, to: gap.to, label: gap.timeUnknown ? '시간 불명' : '데이터 없음' }))
 }
 
 function clipGaps(gaps: { from: number; to: number; label: string }[], view: { from: number; to: number }) {
@@ -74,6 +82,12 @@ export default function TrendPage({ scope, onScope, onSessionInvalid }: { scope:
     from: new Date(from).toISOString().replace('.000Z', 'Z'), to: new Date(to).toISOString().replace('.000Z', 'Z'), resolution: 'auto',
   }) : null
   const trend = useResource(path, parseTrend, onSessionInvalid)
+  // Which work order ran when, drawn behind every chart.
+  const runs = useResource(scope ? query('/api/v1/reports/executions', {
+    line_id: scope.line_id, from: new Date(from).toISOString().replace('.000Z', 'Z'), to: new Date(to).toISOString().replace('.000Z', 'Z'), limit: '20',
+  }) : null, parseExecutionReports, onSessionInvalid)
+  const periods = (runs.data?.items ?? []).filter(run => run.started_at && (!run.source_id || !scope || (run.source_id === scope.source_id && run.stream_id === scope.stream_id)))
+    .map(run => ({ from: Date.parse(run.started_at!), to: run.ended_at ? Date.parse(run.ended_at) : to, label: run.work_order_id.replace(/^WO-\d{8}-/, 'WO-') }))
   const data: Trend | null = trend.data
   // Color follows the tag's selection order, so removing one tag never repaints the others.
   const colorOf = (tag: string) => {
@@ -118,7 +132,7 @@ export default function TrendPage({ scope, onScope, onSessionInvalid }: { scope:
           return <label key={tag} className={`tag-option${checked ? ' is-checked' : ''}`}>
             <input type="checkbox" checked={checked} disabled={!checked && tags.length >= MAX_TAGS} onChange={() => toggle(tag)} />
             {checked && <span className="legend-swatch" style={{ background: colorOf(tag) }} />}
-            {tagLabels[tag]}
+            {measureLabel(tag)}
           </label>
         })}
       </div>)}
@@ -128,14 +142,14 @@ export default function TrendPage({ scope, onScope, onSessionInvalid }: { scope:
     {scope && !tags.length && <EmptyState title="태그를 하나 이상 선택해 주세요." />}
     {scope && tags.length > 0 && !data && !trend.error && <EmptyState title="추세를 불러오는 중입니다." />}
     {data && <div className={trend.loading ? 'is-refreshing' : ''}>
-      {data.series.some(item => item.points.some(point => point.quality === 'TIME_UNKNOWN')) && <PageNotice tone="unknown" title="수집 시각을 확인할 수 없는 값은 그리지 않았습니다.">
-        값은 수집됐지만 설비와 서버의 시각이 일치한다는 근거(시간 정책)가 없어 어느 시점의 값인지 확정할 수 없습니다. 추정 시각에 배치하지 않고 &lsquo;시간 불명&rsquo;으로 표시합니다.
+      {data.series.some(item => item.points.some(point => point.quality === 'TIME_UNKNOWN')) && <PageNotice tone="unknown" title="일부 값은 수집 시각을 확인할 수 없어 그리지 않았습니다.">
+        설비 시계와 서버 시계를 맞춰 보기 전(전원을 켠 직후)에 들어온 값입니다. 차트에는 &lsquo;시간 불명&rsquo; 띠로 표시합니다.
       </PageNotice>}
-      <p className="data-footnote">{dateTime(data.from)} ~ {dateTime(data.to)} · {data.resolution === 'second' ? '1초 원시값' : '1분 집계(평균, 음영은 최소~최대)'} · 정책 {data.policy_version}</p>
+      <p className="trend-context">{scope?.line_name ?? scope?.line_id} · {dateTime(data.from)} ~ {dateTime(data.to)} · {data.resolution === 'second' ? '1초 값' : '1분 평균 (음영은 최소~최대)'}{periods.length ? ' · 파란 배경은 작업지시가 돌던 구간' : ''}</p>
       {focus && <div className="focus-bar" role="status">
         {fullSpan
           ? <span>조회 기간 전체를 보고 있습니다. 값이 있는 구간이 짧아 차트에서 작게 보입니다.</span>
-          : <span><b>값이 있는 구간만 확대해 보고 있습니다</b> ({clock(new Date(focus.from).toISOString())} ~ {clock(new Date(focus.to).toISOString())}). 나머지 기간은 값이 없으며, 아래 유효 표본·누락 수는 조회 기간 전체 기준입니다.</span>}
+          : <span><b>값이 있는 구간만 확대해 보고 있습니다</b> ({clock(new Date(focus.from).toISOString())} ~ {clock(new Date(focus.to).toISOString())}). 나머지 기간은 설비가 꺼져 있었거나 값이 없습니다.</span>}
         <button type="button" className="button secondary compact" aria-pressed={fullSpan} onClick={() => setFullSpan(value => !value)}>{fullSpan ? '값이 있는 구간 확대' : '전체 기간 보기'}</button>
       </div>}
       {byUnit.map(([unit, series]) => {
@@ -143,9 +157,9 @@ export default function TrendPage({ scope, onScope, onSessionInvalid }: { scope:
           id: item.tag_id, label: tagLabels[item.tag_id] ?? item.tag_id, color: colorOf(item.tag_id),
           points: item.points.filter(point => !view || (Date.parse(point.t) >= view.from && Date.parse(point.t) < view.to)).map(point => ({ t: Date.parse(point.t), value: point.value, min: point.min, max: point.max, note: point.quality === 'GOOD' ? undefined : `${qualityLabels[point.quality]} (${point.valid_count}/${point.expected_count})` })),
         }))
-        return <Card key={unit} title={series.map(item => tagLabels[item.tag_id] ?? item.tag_id).join(' · ')} kicker={`단위 ${unit}`}
+        return <Card key={unit} title={series.map(item => tagLabels[item.tag_id] ?? item.tag_id).join(' / ')} kicker={`${scope?.line_name ?? scope?.line_id ?? ''} · 단위 ${unit}`}
           actions={series.length > 1 ? <Legend items={chartSeries.map(item => ({ label: item.label, color: item.color }))} /> : undefined}>
-          <ChartOrTable label={unit} chart={<TimeSeriesChart title={series.map(item => tagLabels[item.tag_id]).join(', ')} unit={unit} from={view!.from} to={view!.to} series={chartSeries} band={data.resolution === 'minute'} gaps={clipGaps(gapsFor(series, stepMs), view!)} />}
+          <ChartOrTable label={unit} chart={<TimeSeriesChart title={series.map(item => tagLabels[item.tag_id]).join(', ')} unit={unit} from={view!.from} to={view!.to} series={chartSeries} band={data.resolution === 'minute'} gaps={clipGaps(gapsFor(series, stepMs), view!)} periods={periods} />}
             table={<table className="data-table">
               <thead><tr><th scope="col">시각</th>{series.map(item => <th key={item.tag_id} scope="col">{tagLabels[item.tag_id]} ({unit})</th>)}<th scope="col">품질</th></tr></thead>
               <tbody>{series[0].points.map((point, index) => <tr key={point.t}>
@@ -154,10 +168,7 @@ export default function TrendPage({ scope, onScope, onSessionInvalid }: { scope:
                 <td>{series.map(item => qualityLabels[item.points[index]?.quality ?? 'MISSING']).join(' / ')}</td>
               </tr>)}</tbody>
             </table>} />
-          <ul className="coverage-list">{series.map(item => {
-            const summary = coverage(item)
-            return <li key={item.tag_id}><span className="legend-swatch" style={{ background: colorOf(item.tag_id) }} />{tagLabels[item.tag_id]}: 유효 표본 {summary.ratio === null ? MISSING : `${(summary.ratio * 100).toFixed(1)}%`}{summary.missing > 0 && <b> · 누락 {summary.missing}구간</b>}{summary.timeUnknown > 0 && <b> · 시간 불명 {summary.timeUnknown}구간</b>}</li>
-          })}</ul>
+          {series.some(item => coverage(item).missing > 0) && <p className="trend-context">회색 띠는 값이 들어오지 않은 구간입니다 (설비 꺼짐 · 통신 끊김).</p>}
         </Card>
       })}
     </div>}

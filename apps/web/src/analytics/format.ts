@@ -82,11 +82,13 @@ export const unknownReasonLabels: Record<string, string> = {
 }
 
 export const tagLabels: Record<string, string> = {
-  'Infeed.MotorCurrent': '투입 모터 전류', 'Infeed.ActualSpeed': '투입 속도',
-  'Sealer.MotorCurrent': '실링 모터 전류', 'Sealer.ActualSpeed': '실링 속도',
-  'Sealer.TemperaturePV': '실링 온도', 'Sealer.TemperatureSP': '실링 설정 온도', 'Sealer.AirPressure': '실링 공기 압력',
-  'Outfeed.MotorCurrent': '배출 모터 전류', 'Outfeed.ActualSpeed': '배출 속도',
+  'Infeed.MotorCurrent': '01 투입기 · 모터 전류', 'Infeed.ActualSpeed': '01 투입기 · 실제 속도',
+  'Sealer.MotorCurrent': '02 실링기 · 모터 전류', 'Sealer.ActualSpeed': '02 실링기 · 실제 속도',
+  'Sealer.TemperaturePV': '02 실링기 · 현재 온도', 'Sealer.TemperatureSP': '02 실링기 · 설정 온도', 'Sealer.AirPressure': '02 실링기 · 공압',
+  'Outfeed.MotorCurrent': '03 배출기 · 모터 전류', 'Outfeed.ActualSpeed': '03 배출기 · 실제 속도',
 }
+/** The measure alone, for the tag picker where the equipment is already the group heading. */
+export const measureLabel = (tag: string) => (tagLabels[tag] ?? tag).replace(/^.* · /, '')
 
 export const analogTags = Object.keys(tagLabels)
 

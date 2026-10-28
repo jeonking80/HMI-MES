@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { FormEvent } from 'react'
 import {
   AlarmHTTPError, alarmCanAct, alarmIdentifier, alarmQuery, alarmReference, alarmRequest, alarmStatusLabels,
   alarmText, originalLineFaultCode, parseActionPage, parseAlarmIntent, parseAlarmPage, parseAlarmReceipt, parseAlarmRow, sameAlarmScope,
@@ -33,14 +32,18 @@ function useAlarmRead<T>(path: string | null, parse: (value: unknown) => T, onSe
   return { data: result?.key === key ? result.data : null, error: result?.key === key ? result.error : '', refresh }
 }
 
+type AssetFilter = AlarmAsset | 'ALL'
+const assetNames: Record<AlarmAsset, string> = { Sealer: '실링기', Line: '라인 PLC' }
+const kindNames: Record<string, string> = { TEMPERATURE_DEVIATION: '실링 온도 이탈', PRESSURE_LOW: '실링 공압 부족', PLC_FAULT: 'PLC 고장' }
+const severityNames: Record<string, string> = { CRITICAL: '위험', HIGH: '높음', WARNING: '경고', LOW: '낮음' }
+const severityName = (value: string) => severityNames[value] ?? value
+const PAGE = 20
+
 export default function AlarmPanel({ session, source, onSessionInvalid, ledger, setLedger }: AlarmPanelProps) {
-  const [asset, setAsset] = useState<AlarmAsset>('Sealer')
-  const scope = useMemo<AlarmScope>(() => ({ line_id: source.line_id, source_id: source.source_id, stream_id: source.stream_id, asset_id: asset }), [source.line_id, source.source_id, source.stream_id, asset])
+  const [asset, setAsset] = useState<AssetFilter>('ALL')
   const [view, setView] = useState<'attention' | 'all'>('attention')
-  const [severityInput, setSeverityInput] = useState('')
   const [severity, setSeverity] = useState('')
-  const [filterError, setFilterError] = useState('')
-  const [cursor, setCursor] = useState<string | null>(null)
+  const [shownCount, setShownCount] = useState(PAGE)
   const [selected, setSelected] = useState<AlarmRow | null>(null)
   const [historyCursor, setHistoryCursor] = useState<string | null>(null)
   const [note, setNote] = useState('')
@@ -55,12 +58,36 @@ export default function AlarmPanel({ session, source, onSessionInvalid, ledger, 
     const current = controllers.current
     return () => { current.forEach(controller => controller.abort()); current.clear() }
   }, [])
-  const listQuery = alarmQuery(scope)
-  listQuery.set('view', view); listQuery.set('limit', '20')
-  if (severity) listQuery.set('severity', severity)
-  if (cursor) listQuery.set('before_alarm_id', cursor)
-  const parseList = useCallback((value: unknown) => parseAlarmPage(value, scope), [scope])
-  const list = useAlarmRead<AlarmPage>(`/api/v1/alarms?${listQuery}`, parseList, onSessionInvalid)
+  const sealerScope = useMemo<AlarmScope>(() => ({ line_id: source.line_id, source_id: source.source_id, stream_id: source.stream_id, asset_id: 'Sealer' }), [source.line_id, source.source_id, source.stream_id])
+  const lineScope = useMemo<AlarmScope>(() => ({ ...sealerScope, asset_id: 'Line' }), [sealerScope])
+  const listPath = (target: AlarmScope) => {
+    const query = alarmQuery(target)
+    query.set('view', view); query.set('limit', String(Math.min(50, shownCount)))
+    if (severity) query.set('severity', severity)
+    return `/api/v1/alarms?${query}`
+  }
+  const parseSealer = useCallback((value: unknown) => parseAlarmPage(value, sealerScope), [sealerScope])
+  const parseLine = useCallback((value: unknown) => parseAlarmPage(value, lineScope), [lineScope])
+  const sealerList = useAlarmRead<AlarmPage>(asset !== 'Line' ? listPath(sealerScope) : null, parseSealer, onSessionInvalid)
+  const lineList = useAlarmRead<AlarmPage>(asset !== 'Sealer' ? listPath(lineScope) : null, parseLine, onSessionInvalid)
+  const lists = asset === 'ALL' ? [sealerList, lineList] : asset === 'Sealer' ? [sealerList] : [lineList]
+  const listError = lists.find(item => item.error)?.error ?? ''
+  const loaded = lists.every(item => item.data)
+  const pages = lists.map(item => item.data).filter((item): item is AlarmPage => item !== null)
+  const rows = pages.flatMap(item => item.items).sort((a, b) => b.instance.raised_evidence.observed_at.localeCompare(a.instance.raised_evidence.observed_at))
+  const shown = rows.slice(0, shownCount)
+  const more = rows.length > shownCount || pages.some(item => item.has_more)
+  const ruleKinds = new Map(pages.flatMap(item => item.coverage.installed_channels.map(channel => [channel.rule_id, channel.kind] as const)))
+  const severities = [...new Set(['CRITICAL', 'HIGH', 'WARNING', 'LOW', ...pages.flatMap(item => item.coverage.installed_channels.map(channel => channel.severity))])]
+  const refreshSealer = sealerList.refresh, refreshLine = lineList.refresh
+  const refreshLists = useCallback(() => { refreshSealer(); refreshLine() }, [refreshSealer, refreshLine])
+  // New alarms show up without a button: a light reread every 15 s while the page is visible.
+  useEffect(() => {
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') refreshLists() }, 15_000)
+    return () => window.clearInterval(timer)
+  }, [refreshLists])
+  const scope = useMemo<AlarmScope>(() => selected && selected.instance.scope.line_id === sealerScope.line_id && selected.instance.scope.source_id === sealerScope.source_id && selected.instance.scope.stream_id === sealerScope.stream_id
+    ? selected.instance.scope : asset === 'Line' ? lineScope : sealerScope, [selected, asset, sealerScope, lineScope])
   const currentSelected = selected && sameAlarmScope(selected.instance.scope, scope) ? selected : null
   const alarmId = currentSelected?.instance.alarm_id
   const ruleId = currentSelected?.instance.rule.rule_id
@@ -78,7 +105,7 @@ export default function AlarmPanel({ session, source, onSessionInvalid, ledger, 
   const parseHistory = useCallback((value: unknown) => parseActionPage(value, alarmId ?? ''), [alarmId])
   const history = useAlarmRead<ActionPage>(alarmId ? `/api/v1/alarm-actions?${targetQuery}` : null, parseHistory, onSessionInvalid)
   const canAct = alarmCanAct(session)
-  const refresh = () => { list.refresh(); detail.refresh(); history.refresh() }
+  const refresh = () => { refreshLists(); detail.refresh(); history.refresh() }
   const ownsLedgerScope = ledger !== null && sameAlarmScope(ledger.reference.scope, scope)
 
   async function submit(kind: AlarmIntent['kind']) {
@@ -153,41 +180,27 @@ export default function AlarmPanel({ session, source, onSessionInvalid, ledger, 
     }
   }
   function choose(row: AlarmRow) { setSelected(row); setHistoryCursor(null); setEditing(null); setNote(''); setValidation(''); setLookupId(''); setLookupMessage('') }
-  function chooseAsset(next: string) {
-    if (busy || (next !== 'Sealer' && next !== 'Line')) return
-    setAsset(next); setCursor(null); setSelected(null); setHistoryCursor(null)
-    setEditing(null); setNote(''); setValidation(''); setLookupId(''); setLookupMessage('')
-  }
-  function filter(event: FormEvent) {
-    event.preventDefault()
-    if (severityInput && !alarmIdentifier(severityInput)) { setFilterError('심각도 코드는 공백 없는 1~128자로 입력해 주세요.'); return }
-    setSeverity(severityInput); setCursor(null); setFilterError('')
-  }
+  function resetSelection() { setShownCount(PAGE); setSelected(null); setHistoryCursor(null); setEditing(null); setNote(''); setValidation(''); setLookupId(''); setLookupMessage('') }
   return <section className="alarm-center" aria-labelledby="alarm-center-heading">
-    <div className="monitor-heading"><div><p className="section-kicker">ALARM CENTER · {asset.toUpperCase()}</p><h2 id="alarm-center-heading">{asset === 'Line' ? '라인 PLC 고장 알람' : '실링기 아날로그 알람'}</h2></div><button type="button" className="button secondary" onClick={refresh}>기록 새로 조회</button></div>
-    <p className="form-help">{asset === 'Line' ? '라인 PLC에 기록된 고장과 발생 당시 코드를 조회합니다.' : '실링 온도 이탈 · 공압 부족의 저장된 사건을 조회합니다.'} 알람 확인과 조치 메모는 고장 해제나 리셋을 수행하지 않습니다.</p>
-    <p className="alarm-scope">{source.line_id} · {source.source_id} / {source.stream_id} · {asset}</p>
-    <label className="alarm-asset-choice">알람 대상<select aria-label="알람 대상" value={asset} disabled={busy} onChange={event => chooseAsset(event.target.value)}><option value="Sealer">실링기 · 온도/압력</option><option value="Line">논리 라인 · PLC 고장</option></select></label>
-    <form className="alarm-filters" onSubmit={filter}>
-      <label>조회 범위<select value={view} onChange={event => { setView(event.target.value as 'attention' | 'all'); setCursor(null) }}><option value="attention">활성 · 복귀 미확인</option><option value="all">전체 저장 이력</option></select></label>
-      <label>심각도 코드 (정확히 일치)<input value={severityInput} onChange={event => setSeverityInput(event.target.value)} maxLength={128} placeholder="전체 심각도" list="alarm-severities" /></label>
-      <datalist id="alarm-severities">{[...new Set(list.data?.coverage.installed_channels.map(channel => channel.severity) ?? [])].map(item => <option key={item} value={item} />)}</datalist>
-      <button type="submit" className="button secondary">필터 적용</button>
-    </form>
-    {filterError && <p className="message error" role="alert">{filterError}</p>}
-    {list.error ? <p className="message error" role="alert">{list.error}</p> : !list.data ? <p role="status">알람 기록을 조회하고 있습니다.</p> : <>
-      <p className="message caution">설치 채널 {list.data.coverage.installed_channel_count}개 · 수집 실행 상태 불명 · 실행 설정 상태 불명. 설치 기록이나 빈 목록은 현재 정상 또는 전체 알람 감시를 보장하지 않습니다.</p>
-      {list.data.items.length === 0 ? <p id="alarm-empty">이 조회 범위에서 조회된 알람 없음. 현재 설비 정상 여부는 확인하지 않았습니다.</p> : <ul className="alarm-list">{list.data.items.map(row => <li key={row.instance.alarm_id} data-alarm-id={row.instance.alarm_id} data-alarm-status={row.status}>
+    <div className="monitor-heading"><div><p className="section-kicker">ALARM CENTER</p><h2 id="alarm-center-heading">알람</h2></div></div>
+    <p className="form-help">실링기 온도 · 공압 이탈과 라인 PLC 고장 기록입니다. 15초마다 자동으로 새로 읽습니다. 알람 확인과 조치 메모는 설비 고장을 해제하거나 리셋하지 않습니다.</p>
+    <div className="alarm-filters">
+      <label>대상<select aria-label="알람 대상" value={asset} disabled={busy} onChange={event => { setAsset(event.target.value as AssetFilter); resetSelection() }}><option value="ALL">전체</option><option value="Sealer">실링기 · 온도/공압</option><option value="Line">라인 PLC · 고장</option></select></label>
+      <label>범위<select aria-label="조회 범위" value={view} onChange={event => { setView(event.target.value as 'attention' | 'all'); resetSelection() }}><option value="attention">조치 필요 (발생 중 · 미확인)</option><option value="all">전체 이력</option></select></label>
+      <label>심각도<select aria-label="심각도" value={severity} onChange={event => { setSeverity(event.target.value); resetSelection() }}><option value="">전체</option>{severities.map(item => <option key={item} value={item}>{severityName(item)}</option>)}</select></label>
+    </div>
+    {listError ? <p className="message error" role="alert">{listError}</p> : !loaded ? <p role="status">알람 기록을 조회하고 있습니다.</p> : <>
+      {shown.length === 0 ? <p id="alarm-empty">이 조건의 알람 기록이 없습니다.</p> : <ul className="alarm-list">{shown.map(row => <li key={row.instance.alarm_id} data-alarm-id={row.instance.alarm_id} data-alarm-status={row.status}>
         <button type="button" className="alarm-select" onClick={() => choose(row)} aria-pressed={alarmId === row.instance.alarm_id}>
-          <span className={`alarm-status alarm-status-${row.status}`}>{alarmStatusLabels[row.status]}</span><strong>{row.instance.rule.rule_id}</strong><span>심각도 {row.instance.rule.severity} · 규칙 {row.instance.rule.version}</span><span>발생 {displayTime(row.instance.raised_evidence.observed_at)}</span>{asset === 'Line' && <span>원래 발생 고장 코드 {originalLineFaultCode(row.instance) ?? '확인 불가'}</span>}<small>{row.instance.alarm_id}</small>
+          <span className={`alarm-status alarm-status-${row.status}`}>{alarmStatusLabels[row.status]}</span><strong>{assetNames[row.instance.scope.asset_id]} · {kindNames[ruleKinds.get(row.instance.rule.rule_id) ?? ''] ?? row.instance.rule.rule_id}</strong><span>심각도 {severityName(row.instance.rule.severity)}</span><span>발생 {displayTime(row.instance.raised_evidence.observed_at)}</span>{row.instance.scope.asset_id === 'Line' && <span>고장 코드 {originalLineFaultCode(row.instance) ?? '확인 불가'}</span>}
         </button>
       </li>)}</ul>}
-      <div className="alarm-pages"><button type="button" className="button secondary" disabled={!cursor} onClick={() => setCursor(null)}>처음 목록</button><button type="button" className="button secondary" disabled={!list.data.has_more} onClick={() => setCursor(list.data!.next_before_alarm_id)}>이전 발생 더 조회</button></div>
+      {more && <div className="alarm-pages"><button type="button" className="button secondary" disabled={shownCount >= 50} onClick={() => setShownCount(count => Math.min(50, count + PAGE))}>더 보기</button></div>}
     </>}
     {currentSelected && <section className="alarm-detail" aria-labelledby="alarm-detail-heading"><h3 id="alarm-detail-heading">선택 사건의 정확한 이력</h3>
       <p className="alarm-id">{currentSelected.instance.alarm_id} · {currentSelected.instance.rule.rule_id}</p>
       {detail.error ? <p className="message error" role="alert">{detail.error}</p> : !detail.data ? <p role="status">선택 사건을 다시 확인하고 있습니다.</p> : <>
-        {asset === 'Line' && <p className="alarm-fault-code">원래 발생 고장 코드: {originalLineFaultCode(detail.data.instance) ?? '확인 불가'} · 현재 PLC 값이 아닙니다.</p>}<dl className="alarm-facts"><div><dt>상태</dt><dd>{alarmStatusLabels[detail.data.status]}</dd></div><div><dt>발생</dt><dd>{displayTime(detail.data.instance.raised_evidence.observed_at)}</dd></div><div><dt>조건 종료</dt><dd>{detail.data.instance.condition_closed_at ? `${displayTime(detail.data.instance.condition_closed_at)} · ${detail.data.instance.closure_reason === 'NORMAL_RETURN' ? '정상 복귀' : '규칙 변경'}` : '복귀 기록 없음 · 활성 알람 유지'}</dd></div><div><dt>사용자 확인</dt><dd>{detail.data.instance.acknowledged_at ? `${detail.data.instance.acknowledged_by} · ${displayTime(detail.data.instance.acknowledged_at)}` : '확인 기록 없음'}</dd></div></dl>
+        {scope.asset_id === 'Line' && <p className="alarm-fault-code">원래 발생 고장 코드: {originalLineFaultCode(detail.data.instance) ?? '확인 불가'} · 현재 PLC 값이 아닙니다.</p>}<dl className="alarm-facts"><div><dt>상태</dt><dd>{alarmStatusLabels[detail.data.status]}</dd></div><div><dt>발생</dt><dd>{displayTime(detail.data.instance.raised_evidence.observed_at)}</dd></div><div><dt>조건 종료</dt><dd>{detail.data.instance.condition_closed_at ? `${displayTime(detail.data.instance.condition_closed_at)} · ${detail.data.instance.closure_reason === 'NORMAL_RETURN' ? '정상 복귀' : '규칙 변경'}` : '복귀 기록 없음 · 활성 알람 유지'}</dd></div><div><dt>사용자 확인</dt><dd>{detail.data.instance.acknowledged_at ? `${detail.data.instance.acknowledged_by} · ${displayTime(detail.data.instance.acknowledged_at)}` : '확인 기록 없음'}</dd></div></dl>
         <details><summary>발생 판정 근거</summary><p>품질 {detail.data.instance.raised_evidence.quality} · 시각 품질 {detail.data.instance.raised_evidence.time_quality}</p><ul>{detail.data.instance.raised_evidence.readings.map((reading, index) => <li key={`${reading.name}/${index}`}>{reading.name}: {displayReading(reading.value)}</li>)}</ul><p className="alarm-id">근거 ID: {detail.data.instance.raised_evidence.references.join(', ')}</p></details>
         {!canAct ? <p className="message caution">현재 역할에는 알람 확인·조치 기록 권한이 없습니다. 기록 조회는 가능합니다.</p> : <button type="button" id="alarm-acknowledge" className="button primary" disabled={busy || !!ledger || detail.data.instance.acknowledged_at !== null} onClick={() => void submit('ACKNOWLEDGE')}>이 발생 사건 확인</button>}
       </>}

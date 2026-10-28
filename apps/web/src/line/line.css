@@ -177,9 +177,11 @@
 .lc-speed > label { font-weight:700; font-size:.88rem; flex:1 1 auto; }
 .lc-stepper { display:inline-flex; align-items:center; border:1px solid var(--border-strong); border-radius:10px; overflow:hidden; }
 .lc-stepper button { width:42px; height:42px; border:0; background:var(--surface-muted); font-size:1.1rem; cursor:pointer; }
-.lc-stepper input { width:72px; height:42px; border:0; text-align:right; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:1.05rem; }
+.lc-stepper input { width:92px; padding:0 6px; -moz-appearance:textfield; appearance:textfield; height:42px; border:0; text-align:right; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:1.05rem; }
 .lc-stepper span { padding:0 8px 0 4px; color:var(--text-muted); font-size:.8rem; }
 .lc-speed .lc-hint { flex-basis:100%; margin:0; }
+.lc-speed label small { display:block; font-weight:400; font-size:.75rem; color:var(--text-muted); }
+.lc-stepper input::-webkit-outer-spin-button, .lc-stepper input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
 .lc-result { display:flex; flex-direction:column; gap:10px; padding:14px; border-radius:12px; background:var(--surface-muted); }
 .lc-result-head { display:flex; justify-content:space-between; align-items:baseline; gap:8px; font-size:.86rem; color:var(--text-muted); }
 .lc-result-head strong { color:var(--text); font-size:.95rem; }
