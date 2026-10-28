@@ -65,38 +65,44 @@ export function SetpointControl({ cmd, known, only }: { cmd: LineCommands; known
     if (kind === 'speed' && base && runningSpeed.has(base.execution)) return runningSpeed.get(base.execution)!
     return base ? (kind === 'speed' ? base.speed : kind === 'temperature' ? base.temperature : base.pressure) : null
   }
-  const rows = setpointRows.filter(row => (!only || only.includes(row.kind)) && !(row.kind === 'pressure' && base && base.pressure === null))
+  const rows = setpointRows.filter(row => !only || only.includes(row.kind))
+  const usable = (kind: Setpoint) => !(kind === 'pressure' && (!base || base.pressure === null))
   const values = Object.fromEntries(setpointRows.map(row => {
     const now = current(row.kind, row.tag)
     return [row.kind, inputs[row.kind] ?? (now === null ? '' : String(now))]
   })) as Record<Setpoint, string>
-  const changed = rows.filter(row => values[row.kind] !== '' && Number(values[row.kind]) !== current(row.kind, row.tag))
-  const problems = rows.map(row => changed.includes(row) ? cmd.setpointProblem(row.kind, values[row.kind]) : '').filter(Boolean)
+  const changed = rows.filter(row => usable(row.kind) && values[row.kind] !== '' && Number(values[row.kind]) !== current(row.kind, row.tag))
+  const problems = changed.map(row => cmd.setpointProblem(row.kind, values[row.kind])).filter(Boolean)
   const blocked = cmd.disabledReason('SET_PARAMETERS')
   const step = (row: (typeof setpointRows)[number], delta: number) => {
     const range = cmd.ranges[row.kind]
     const next = Math.round((Number(values[row.kind] || 0) + delta) * 10) / 10
     setInputs(previous => ({ ...previous, [row.kind]: String(range ? Math.min(range.max, Math.max(range.min, next)) : next) }))
   }
-  return <form id="setpoint-adjust" className="lc-speed" onSubmit={event => {
+  return <form id="setpoint-adjust" className="lc-setpoints" onSubmit={event => {
     event.preventDefault()
     cmd.setSetpoints({ speed: values.speed, temperature: values.temperature, pressure: base?.pressure === null ? null : values.pressure })
     setInputs({})
   }}>
+    <div className="lc-setpoint-head" aria-hidden="true"><span>설정</span><span>현재</span><span>바꿀 값</span></div>
     {rows.map(row => {
       const range = cmd.ranges[row.kind], now = current(row.kind, row.tag)
-      return <div key={row.kind} className="lc-setpoint">
-        <label htmlFor={`setpoint-${row.kind}`}>{row.label}<small>{row.scope} · 현재 {now ?? '—'} {row.unit}{range ? ` · 허용 ${range.min}~${range.max}` : ''}</small></label>
-        <div className="lc-stepper">
+      const dirty = changed.includes(row)
+      return <div key={row.kind} className="lc-setpoint" data-changed={dirty || undefined}>
+        <label htmlFor={`setpoint-${row.kind}`}><strong>{row.label}</strong><small>{row.scope}{range ? ` · 허용 ${range.min}~${range.max} ${row.unit}` : ''}</small></label>
+        <span className="lc-setpoint-now">{now ?? '—'}<small> {row.unit}</small></span>
+        {usable(row.kind) ? <div className="lc-stepper">
           <button type="button" aria-label={`${row.label} ${row.step} 낮추기`} onClick={() => step(row, -row.step)}>−</button>
           <input id={`setpoint-${row.kind}`} type="number" step="0.1" inputMode="decimal" min={range?.min} max={range?.max} value={values[row.kind]} onChange={event => setInputs(previous => ({ ...previous, [row.kind]: event.target.value }))} />
-          <span>{row.unit}</span>
           <button type="button" aria-label={`${row.label} ${row.step} 높이기`} onClick={() => step(row, row.step)}>+</button>
-        </div>
+        </div> : <span className="lc-setpoint-off">공압 없이 불러온 작업</span>}
       </div>
     })}
-    <button id="command-SET_PARAMETERS" type="submit" className="lc-button primary" disabled={!!blocked || problems.length > 0 || changed.length === 0}>{changed.length ? `${changed.map(row => `${row.label} ${values[row.kind]}${row.unit}`).join(' · ')} 적용` : '변경 적용'}</button>
-    <p className="lc-hint">{blocked || problems[0] || (base ? `작업 기준 ${base.speed} m/min · ${base.temperature} ℃${base.pressure === null ? '' : ` · ${base.pressure} bar`} · 실행 여부는 PLC가 판정합니다` : '현재 실행의 기준 설정값을 확인하고 있습니다.')}</p>
+    <div className="lc-setpoint-foot">
+      <p className="lc-hint">{blocked || problems[0] || (changed.length ? changed.map(row => `${row.label} ${current(row.kind, row.tag) ?? '—'} → ${values[row.kind]} ${row.unit}`).join(' · ') : '값을 바꾸면 적용 버튼이 켜집니다. 실행 여부는 PLC가 판정합니다.')}</p>
+      {changed.length > 0 && <button type="button" className="lc-button" onClick={() => setInputs({})}>되돌리기</button>}
+      <button id="command-SET_PARAMETERS" type="submit" className="lc-button primary" disabled={!!blocked || problems.length > 0 || changed.length === 0}>적용</button>
+    </div>
   </form>
 }
 

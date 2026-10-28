@@ -322,3 +322,28 @@
 .cs-spinner { flex:0 0 22px; width:22px; height:22px; border-radius:50%; border:3px solid #c7dbee; border-top-color:#215e91; animation:cs-spin .8s linear infinite; }
 @keyframes cs-spin { to { transform:rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .cs-spinner { animation-duration:2.4s; } }
+
+/* Running setpoints: one aligned row per setpoint, apply on the right. */
+.lc-setpoints { display:flex; flex-direction:column; gap:8px; margin-top:14px; padding-top:14px; border-top:1px solid #e4eaf0; }
+.lc-window .lc-setpoints { margin-top:0; padding-top:0; border-top:0; }
+.lc-setpoint-head, .lc-setpoint { display:grid; grid-template-columns:minmax(0,1fr) 96px 188px; align-items:center; gap:12px; }
+.lc-setpoint-head { font-size:.72rem; font-weight:700; color:var(--text-muted); padding:0 10px; }
+.lc-setpoint-head span:not(:first-child) { text-align:right; }
+.lc-setpoint { padding:8px 10px; border-radius:10px; background:var(--surface-muted); }
+.lc-setpoint[data-changed] { box-shadow:inset 3px 0 0 var(--blue-500, #2f6fb3); }
+.lc-setpoint label { display:flex; flex-direction:column; gap:2px; min-width:0; font-size:.9rem; }
+.lc-setpoint label small { font-size:.74rem; color:var(--text-muted); }
+.lc-setpoint-now { text-align:right; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:1.05rem; font-weight:700; }
+.lc-setpoint-now small { font-family:inherit; font-size:.72rem; font-weight:400; color:var(--text-muted); }
+.lc-setpoint-off { text-align:right; font-size:.8rem; color:var(--text-muted); }
+.lc-setpoint .lc-stepper { display:grid; grid-template-columns:42px minmax(0,1fr) 42px; width:100%; background:#fff; }
+.lc-setpoint .lc-stepper input { width:100%; text-align:center; padding:0; }
+.lc-setpoint-foot { display:flex; align-items:center; gap:10px; margin-top:4px; }
+.lc-setpoint-foot .lc-hint { flex:1 1 auto; margin:0; }
+.lc-setpoint-foot .lc-button.primary { min-width:120px; }
+@media (max-width: 640px) {
+  .lc-setpoint-head { display:none; }
+  .lc-setpoint { grid-template-columns:minmax(0,1fr) auto; }
+  .lc-setpoint .lc-stepper, .lc-setpoint-off { grid-column:1 / -1; }
+  .lc-setpoint-foot { flex-wrap:wrap; }
+}
