@@ -381,7 +381,7 @@ def test_stale_version_and_version_exhaustion_cannot_change_the_order(state, ver
         "ENDED",
     ],
 )
-async def test_every_bound_phase_refuses_cancellation_without_touching_original_evidence(
+async def test_running_or_unresolved_run_refuses_cancellation_without_touching_evidence(
     state, client, phase
 ):
     release(state)
@@ -454,9 +454,19 @@ async def test_every_bound_phase_refuses_cancellation_without_touching_original_
         headers=headers(state),
         json={"cancellation_id": "cancel-A", "expected_row_version": "3"},
     )
-    assert response.status_code == 409
-    assert {table: rows(state, table) for table in tables} == before
-    assert rows(state, "work_order_cancellations") == []
+    after = {table: rows(state, table) for table in tables}
+    if phase in {"FAILED", "REJECTED", "EXPIRED"}:
+        # A definitively refused load never ran: the reusable order may be retired, while the
+        # refused run's evidence stays exactly as it was.
+        assert response.status_code == 200
+        assert len(rows(state, "work_order_cancellations")) == 1
+        for table in tables:
+            if table not in {"work_orders", "mes_management_audit"}:
+                assert after[table] == before[table]
+    else:
+        assert response.status_code == 409
+        assert after == before
+        assert rows(state, "work_order_cancellations") == []
     assert (await client.get("/api/v1/work-orders/work-A/bindings/load-A")).json()[
         "receipt"
     ] == bound

@@ -18,10 +18,12 @@ from apps.api.settlement import reconcile_execution
 from apps.api.snapshot import SnapshotNotFound, read_snapshot
 from apps.api.work_order_workflow import BindIntent, _order_lock, bind_work_order
 from apps.api.work_orders import (
+    REUSE_REVISIONS,
     RegistrationConflict,
     RegistrationNotFound,
     WorkOrdersUnavailable,
     _lock,
+    active_run,
 )
 from contracts.models import (
     UINT64_MAX,
@@ -33,7 +35,9 @@ from contracts.models import (
     UTCTimestamp,
 )
 
-REENROLL_REVISIONS = frozenset({"0026_queue_reenroll", "0027_recipe_pressure"})
+REENROLL_REVISIONS = frozenset(
+    {"0026_queue_reenroll", "0027_recipe_pressure", "0028_work_order_reuse"}
+)
 
 QUEUE_LOCK = "mes-line-queue"
 
@@ -211,12 +215,9 @@ def update_queue(
     source = _configured(db, scope, lock=True)
     for entry in intent.entries:
         order = orders[entry.work_order_id]
-        linked = db.execute(
-            text("SELECT 1 FROM work_order_execution_links WHERE work_order_id=:id"),
-            {"id": entry.work_order_id},
-        ).first()
-        if order["status"] != "RELEASED" or linked:
-            raise RegistrationConflict("Queue enrollment requires an unbound released order")
+        # A finished order may be queued again; only one still running cannot.
+        if order["status"] != "RELEASED" or active_run(db, entry.work_order_id) is not None:
+            raise RegistrationConflict("Queue enrollment requires a released order not running")
         if int(order["row_version"]) != entry.expected_row_version:
             raise RegistrationConflict("Queued work-order version changed")
     now = TypeAdapter(UTCTimestamp).validate_python(clock())
@@ -275,6 +276,21 @@ def update_queue(
             else:
                 raise RegistrationConflict("Edited work order re-enrollment requires schema 0026")
             identity = str(uuid5(NAMESPACE_URL, key))
+            # A reusable order queued again after a run: its earlier entry is bound evidence.
+            bound = db.execute(
+                text("SELECT 1 FROM line_queue_entries WHERE entry_id=:entry AND state='BOUND'"),
+                {"entry": identity},
+            ).first()
+            if bound is not None:
+                if schema_revision(db) not in REUSE_REVISIONS:
+                    raise RegistrationConflict(
+                        "Queuing a finished order again requires schema 0028"
+                    )
+                runs = db.execute(
+                    text("SELECT count(*) FROM line_queue_entries WHERE work_order_id=:order"),
+                    {"order": entry.work_order_id},
+                ).scalar_one()
+                identity = str(uuid5(NAMESPACE_URL, json.dumps([*json.loads(key), int(runs)])))
         load_id = str(uuid5(NAMESPACE_URL, "mes-queue-load:" + identity))
         db.execute(
             text(
@@ -326,6 +342,14 @@ def _block(db, policy, reason, now):
         {"line": policy["line_id"], "reason": reason, "now": now},
     )
     _audit(db, policy["line_id"], policy["enabled_by"], "BLOCK_QUEUE", now, {"reason": reason})
+
+
+# The run that answers a queue entry: the queue's own load, or a manual load of the same order
+# made after it was enrolled. Earlier runs of a reusable order belong to earlier entries.
+_ENTRY_LINK = text(
+    "SELECT * FROM work_order_execution_links WHERE work_order_id=:id "
+    "AND (load_command_id=:command OR bound_at>=:at) ORDER BY bound_at DESC LIMIT 1"
+)
 
 
 def _record_binding(db, policy, entry, receipt, now, *, manual=False):
@@ -481,8 +505,12 @@ def advance_line_once(
     # Manual binding can consume an explicitly enrolled first order, with original evidence.
     link = (
         db.execute(
-            text("SELECT * FROM work_order_execution_links WHERE work_order_id=:id"),
-            {"id": entry["work_order_id"]},
+            _ENTRY_LINK,
+            {
+                "id": entry["work_order_id"],
+                "command": entry["load_command_id"],
+                "at": entry["created_at"],
+            },
         )
         .mappings()
         .first()
@@ -500,8 +528,12 @@ def advance_line_once(
     # Re-read after binding locks, since manual bind/cancel does not take the queue lock.
     link = (
         db.execute(
-            text("SELECT * FROM work_order_execution_links WHERE work_order_id=:id"),
-            {"id": entry["work_order_id"]},
+            _ENTRY_LINK,
+            {
+                "id": entry["work_order_id"],
+                "command": entry["load_command_id"],
+                "at": entry["created_at"],
+            },
         )
         .mappings()
         .first()

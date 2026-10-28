@@ -4,6 +4,7 @@ import type { Session } from '../auth'
 import type { RecipeVersion, WorkOrder } from '../mesApi'
 import { MesHTTPError, validDate } from '../mesApi'
 import { editOrder, endReasonLabels, eventLabels, fieldLabels, phaseLabels, readHistory, readOverview } from './orderApi'
+import type { OrderRun } from './orderApi'
 import type { EditBody, OrderEvent, OrderPhase, OrderSummary } from './orderApi'
 
 type Filter = OrderPhase | 'ALL'
@@ -22,7 +23,10 @@ function progressOf(order: OrderSummary) {
   const run = order.execution
   if (order.phase === 'DONE' && run) return `양품 ${run.good_quantity ?? '?'} · 불량 ${run.reject_quantity ?? '?'}`
   if (order.phase === 'RUNNING' && run) return run.good_quantity === null ? '생산 중' : `생산 중 ${run.good_quantity}/${order.target_quantity}`
-  if (order.phase === 'WAITING') return order.queue_position !== null ? `대기열 ${order.queue_position + 1}번` : '불러오기 대기'
+  if (order.phase === 'WAITING') {
+    const waiting = order.queue_position !== null ? `대기열 ${order.queue_position + 1}번` : '불러오기 대기'
+    return run && order.runs > 0 ? `${waiting} · ${order.runs}회 실행 · 최근 양품 ${run.good_quantity ?? '?'} · 불량 ${run.reject_quantity ?? '?'}` : waiting
+  }
   if (order.phase === 'CANCELLED') return '취소됨'
   return '배포 전'
 }
@@ -41,7 +45,7 @@ export default function OrderBoard({ session, lines, recipes, canWrite, canBind,
   const [seenFocus, setSeenFocus] = useState<string | null>(null)
   if (focusId && focusId !== seenFocus) { setSeenFocus(focusId); setSelectedId(focusId) }
   const [tick, setTick] = useState(0)
-  const [history, setHistory] = useState<{ id: string; events: OrderEvent[] } | null>(null)
+  const [history, setHistory] = useState<{ id: string; events: OrderEvent[]; runs: OrderRun[] } | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
   const [form, setForm] = useState({ recipe: '', target: '', date: '' })
   const [revision, setRevision] = useState<Revision | null>(null)
@@ -67,12 +71,12 @@ export default function OrderBoard({ session, lines, recipes, canWrite, canBind,
   if (picked && filter !== 'ALL' && picked.phase !== filter) setFilter(picked.phase)
   const shown = (items ?? []).filter(item => filter === 'ALL' || item.phase === filter)
   const selected = items?.find(item => item.id === selectedId) ?? shown[0] ?? null
-  const historyKey = selected ? `${selected.id}|${selected.row_version}|${selected.execution?.settlement_status ?? ''}` : ''
+  const historyKey = selected ? `${selected.id}|${selected.row_version}|${selected.runs}|${selected.execution?.settlement_status ?? ''}` : ''
   useEffect(() => {
     if (!historyKey) return
     const id = historyKey.split('|')[0]
     const controller = new AbortController()
-    readHistory(id, controller.signal).then(events => setHistory({ id, events })).catch(() => {})
+    readHistory(id, controller.signal).then(value => setHistory({ id, ...value })).catch(() => {})
     return () => controller.abort()
   }, [historyKey])
 
@@ -142,7 +146,7 @@ export default function OrderBoard({ session, lines, recipes, canWrite, canBind,
           </div></div>
           <div className="rc-params">
             <div><span>공정 설정</span><strong className="wo-small">{selected.recipe_version_id}</strong><small>{recipeOf(selected.recipe_version_id) ? `${recipeOf(selected.recipe_version_id)?.parameters.temperature_c} ℃ · ${recipeOf(selected.recipe_version_id)?.parameters.speed_m_per_min} m/min` : ''}</small></div>
-            <div><span>{selected.execution ? '양품 / 목표' : '목표 양품'}</span><strong>{selected.execution ? <>{selected.execution.good_quantity ?? '?'}<small> / {selected.target_quantity}개</small></> : <>{selected.target_quantity}<small> 개</small></>}</strong>{selected.execution && <small>불량 {selected.execution.reject_quantity ?? '?'} · {settlementLabels[selected.execution.settlement_status]}{selected.execution.end_reason ? ` · ${endReasonLabels[selected.execution.end_reason] ?? selected.execution.end_reason}` : ''}</small>}</div>
+            <div><span>{selected.execution ? (selected.phase === 'RUNNING' ? '양품 / 목표' : `최근 실행 (${selected.runs}회째) 양품 / 목표`) : '목표 양품'}</span><strong>{selected.execution ? <>{selected.execution.good_quantity ?? '?'}<small> / {selected.target_quantity}개</small></> : <>{selected.target_quantity}<small> 개</small></>}</strong>{selected.execution && <small>불량 {selected.execution.reject_quantity ?? '?'} · {settlementLabels[selected.execution.settlement_status]}{selected.execution.end_reason ? ` · ${endReasonLabels[selected.execution.end_reason] ?? selected.execution.end_reason}` : ''}</small>}</div>
           </div>
 
           {editing === selected.id && canWrite ? <form className="wo-edit" onSubmit={event => submit(event, selected)}>
@@ -161,8 +165,9 @@ export default function OrderBoard({ session, lines, recipes, canWrite, canBind,
             {['DRAFT', 'WAITING'].includes(selected.phase) && canWrite && <button type="button" className="button secondary danger-text" disabled={!!pendingRevision || isBlocked(selected.id) || selected.queue_position !== null} onClick={() => onCancel(selected)}>취소</button>}
             {selected.queue_position !== null && canWrite && <span className="form-help">대기열에 들어 있어 수정·취소할 수 없습니다. 운전 제어의 대기열에서 먼저 빼 주세요.</span>}
             {selected.phase === 'RUNNING' && <button type="button" className="button primary" onClick={onOpenControl}>운전 제어에서 보기 →</button>}
-            {selected.phase === 'DONE' && <button type="button" className="button secondary" onClick={onReports}>실적 보기 →</button>}
-            {['RUNNING', 'DONE'].includes(selected.phase) && <span className="form-help">라인에 불러온 작업지시는 기록으로 남아 수정·취소할 수 없습니다.</span>}
+            {(selected.phase === 'DONE' || selected.runs > 0) && <button type="button" className="button secondary" onClick={onReports}>실적 보기 →</button>}
+            {selected.phase === 'RUNNING' && <span className="form-help">실행 중에는 수정·취소할 수 없습니다. 정산이 끝나면 다시 불러오거나 고칠 수 있습니다.</span>}
+            {selected.phase === 'DONE' && <span className="form-help">끝난 작업지시입니다.</span>}
           </div>}
           {revision && revision.order === selected.id && revision.phase !== 'done' && <div className={`message ${revision.phase === 'sending' ? '' : revision.phase === 'unknown' ? 'caution' : 'error'}`} role="status">
             <p>{revision.message}</p>
@@ -173,7 +178,7 @@ export default function OrderBoard({ session, lines, recipes, canWrite, canBind,
             <h4>진행 기록</h4>
             <ol>
               {(history?.id === selected.id ? history.events : []).map((event, index) => <li key={index}><span>{time(event.occurred_at)}</span><span><strong>{eventLabels[event.action] ?? event.action}</strong>{event.changes?.map(change => ` · ${fieldLabels[change.field] ?? change.field} ${change.before} → ${change.after}`).join('')} · {event.actor}</span></li>)}
-              {selected.execution?.ended_at && <li><span>{time(selected.execution.ended_at)}</span><span><strong>생산 종료 · {settlementLabels[selected.execution.settlement_status]}</strong> · 양품 {selected.execution.good_quantity ?? '?'} · 불량 {selected.execution.reject_quantity ?? '?'}</span></li>}
+              {(history?.id === selected.id ? history.runs : []).map((run, index, runs) => <li key={run.execution_id}><span>{time(run.bound_at)}</span><span><strong>{runs.length - index}회째 실행 · {settlementLabels[run.settlement_status]}</strong> · 양품 {run.good_quantity ?? '?'} · 불량 {run.reject_quantity ?? '?'} · {run.bound_by}</span></li>)}
               {history?.id !== selected.id && <li><span /><span>기록을 조회하고 있습니다.</span></li>}
             </ol>
           </section>

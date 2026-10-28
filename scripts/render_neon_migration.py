@@ -356,6 +356,22 @@ def recipe_pressure_statements():
     ]
 
 
+def work_order_reuse_statements():
+    """Exact 0027 -> 0028 reusable work-order statements (many runs per order)."""
+    config = Config(str(ROOT / "alembic.ini"))
+    script = ScriptDirectory.from_config(config)
+    module = script.get_revision("0028_work_order_reuse").module
+    preflight = item_statements()[:5]
+    preflight[2] = preflight[2].replace("0020_line_queue", "0027_recipe_pressure")
+    return [
+        *preflight,
+        *module.upgrade_statements(),
+        "SET LOCAL search_path = pg_catalog, public, pg_temp",
+        "UPDATE public.alembic_version SET version_num='0028_work_order_reuse' "
+        "WHERE version_num='0027_recipe_pressure'",
+    ]
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -382,6 +398,7 @@ def main(argv=None):
             "mes-edit-upgrade",
             "queue-reenroll-upgrade",
             "recipe-pressure-upgrade",
+            "work-order-reuse-upgrade",
         ),
     )
     target = parser.parse_args(argv).target
@@ -405,6 +422,7 @@ def main(argv=None):
         "mes-edit-upgrade": mes_edit_statements,
         "queue-reenroll-upgrade": queue_reenroll_statements,
         "recipe-pressure-upgrade": recipe_pressure_statements,
+        "work-order-reuse-upgrade": work_order_reuse_statements,
     }[target]
     json.dump(renderer(), sys.stdout, ensure_ascii=False, indent=1)
 

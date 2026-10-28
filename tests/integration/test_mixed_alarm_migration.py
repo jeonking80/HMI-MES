@@ -443,6 +443,7 @@ def test_explicit_mixed_feature_set_rejects_old_heads_without_claiming_coordinat
         "0025_mes_edit_audit",
         "0026_queue_reenroll",
         "0027_recipe_pressure",
+        "0028_work_order_reuse",
     }
     assert OLD not in supported
     # No fake writer/helper mirrors the proposed admission algorithm. The actual
