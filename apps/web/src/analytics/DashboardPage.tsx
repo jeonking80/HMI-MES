@@ -44,8 +44,8 @@ export default function DashboardPage({ scope, onScope, onSessionInvalid }: { sc
     {scope && !data && !dashboard.error && <EmptyState title="현황을 불러오는 중입니다." />}
     {data && <div className={dashboard.loading ? 'is-refreshing' : ''}>
       {freshnessNotice(data)}
-      {data.time.unknown_ratio !== null && data.time.unknown_ratio >= 0.5 && <PageNotice tone="unknown" title={`보고 시간의 ${percent(data.time.unknown_ratio)}를 가동·정지로 판정하지 못했습니다.`}>
-        시스템이 수집하지 않았거나 수집 시각을 신뢰할 근거가 없는 구간은 불명으로 남깁니다. 불명을 정지나 가동으로 바꾸지 않으므로 가동 비율이 낮게 보일 수 있습니다.
+      {data.time.unknown_ratio !== null && data.time.unknown_ratio >= 0.5 && <PageNotice tone="unknown" title={`오늘 ${percent(data.time.unknown_ratio)}는 설비 데이터가 없는 시간입니다.`}>
+        설비가 꺼져 있었거나 통신이 끊긴 시간입니다. 가동·정지로 추정하지 않고 &lsquo;불명&rsquo;으로 따로 두므로, 가동 비율은 하루 전체 기준으로 낮게 보입니다.
       </PageNotice>}
       <div className="kpi-grid">
         <KpiTile label="양품 수량" value={quantity(data.production.good)} unit="개" tone="neutral">
@@ -74,7 +74,6 @@ export default function DashboardPage({ scope, onScope, onSessionInvalid }: { sc
             <p className="run-progress"><b>{quantity(data.active_execution.good)}</b> / {data.active_execution.target_quantity?.toLocaleString('ko-KR') ?? '목표 미등록'}개 · {percent(data.active_execution.progress_ratio, 0)}</p>
             <dl className="run-facts">
               <div><dt>실적 정산</dt><dd>{settlementLabels[data.active_execution.settlement_status] ?? data.active_execution.settlement_status}</dd></div>
-              <div><dt>실행 ID</dt><dd title={data.active_execution.execution_id}>{data.active_execution.execution_id.slice(0, 8)}…</dd></div>
             </dl>
           </div> : <EmptyState title="진행 중인 작업이 없습니다.">작업지시를 배포하고 라인에 연결하면 여기에 표시됩니다.</EmptyState>}
         </Card>
@@ -107,7 +106,7 @@ export default function DashboardPage({ scope, onScope, onSessionInvalid }: { sc
           <tbody>{data.hourly.map(bucket => <tr key={bucket.hour_start}><th scope="row">{clock(bucket.hour_start)}</th><td>{quantity(bucket.good)}</td><td>{quantity(bucket.reject)}</td><td>{duration(bucket.running_seconds)}</td><td>{duration(bucket.unknown_seconds)}</td></tr>)}</tbody>
         </table>} />
       </Card>
-      <p className="data-footnote">기준 시각 {dateTime(data.generated_at)} · 수량 기준 {data.production.basis === 'RECEIVED_EVENTS' ? '수신된 생산 사건(정산 전 잠정)' : data.production.basis}</p>
+      <p className="data-footnote">기준 시각 {dateTime(data.generated_at)} · 수량은 {data.production.basis === 'RECEIVED_EVENTS' ? '설비에서 받은 생산 기록 기준 (정산 전 값 포함)' : data.production.basis}</p>
     </div>}
   </div>
 }

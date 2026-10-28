@@ -149,8 +149,12 @@ export function CommandResult({ cmd }: { cmd: LineCommands }) {
 export function CommandLookup({ cmd }: { cmd: LineCommands }) {
   const [id, setId] = useState('')
   if (cmd.tracked) return null
-  return <form className="lc-lookup" onSubmit={event => { event.preventDefault(); cmd.lookupId(id.trim()) }}>
-    <label htmlFor="command-lookup-id">이전 명령 ID로 결과 조회</label>
-    <div><input id="command-lookup-id" required maxLength={128} value={id} onChange={event => setId(event.target.value)} /><button id="command-lookup-submit" type="submit" className="lc-button">조회</button></div>
-  </form>
+  // A recovery tool for a command whose answer was lost (e.g. after a reload); folded away by default.
+  return <details className="lc-card lc-lookup-box"><summary>지난 요청 결과 찾기</summary>
+    <form className="lc-lookup" onSubmit={event => { event.preventDefault(); cmd.lookupId(id.trim()) }}>
+      <label htmlFor="command-lookup-id">요청 ID</label>
+      <div><input id="command-lookup-id" required maxLength={128} value={id} onChange={event => setId(event.target.value)} /><button id="command-lookup-submit" type="submit" className="lc-button">조회</button></div>
+      <p className="lc-hint">새로고침 등으로 결과를 놓친 요청을 ID로 다시 확인합니다. 새 요청을 보내지 않습니다.</p>
+    </form>
+  </details>
 }

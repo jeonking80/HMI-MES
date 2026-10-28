@@ -347,3 +347,9 @@
   .lc-setpoint .lc-stepper, .lc-setpoint-off { grid-column:1 / -1; }
   .lc-setpoint-foot { flex-wrap:wrap; }
 }
+
+.lc-lookup-box { padding:12px 16px; }
+.lc-lookup-box summary { cursor:pointer; font-size:.85rem; font-weight:700; color:var(--text-muted); }
+.lc-lookup-box .lc-lookup { margin-top:10px; }
+.lc-lookup > div { display:flex; gap:8px; align-items:stretch; }
+.lc-lookup > div input { flex:1 1 auto; min-width:0; }

@@ -3,7 +3,7 @@ import { parseExecutionReports, parseSpc, query } from './api'
 import { TimeSeriesChart } from './charts'
 import { SERIES_COLORS } from './scale'
 import type { Threshold } from './charts'
-import { clock, dateTime, decimal, MISSING, seoulToday, tagLabels } from './format'
+import { clock, dateTime, decimal, seoulToday, tagLabels } from './format'
 import { useResource, useSources } from './hooks'
 import type { Source } from './hooks'
 import { Card, ChartOrTable, EmptyState, KpiTile, PageNotice, RefreshStatus, ScopePicker } from './ui'
@@ -69,9 +69,8 @@ export default function SpcPage({ scope, onScope, onSessionInvalid }: { scope: S
     {!scope && <EmptyState title="라인을 선택해 주세요." />}
     {scope && executions.data && !runs.length && <EmptyState title="최근 7일 안에 실행이 없습니다.">관리도는 실행 하나의 실링 데이터를 기준으로 그립니다.</EmptyState>}
     {data && <div className={spc.loading ? 'is-refreshing' : ''}>
-      <PageNotice tone="info" title="통계적 공정관리(SPC) · 머신러닝이 아닌 통계 규칙 기반입니다.">
-        부분군 {data.subgroup_size}개 표본(1분마다 12초 간격) · 기준선은 실행 초기 {data.baseline?.subgroups ?? 0}개 부분군 · {data.rules_version}
-      </PageNotice>
+      <p className="data-footnote">1분마다 표본 {data.subgroup_size}개의 평균과 범위를 그립니다. 실행 처음 20분으로 관리한계를 정하고, 그 뒤 값이 한계를 벗어나거나 한쪽으로 몰리면 이상 신호로 표시합니다.</p>
+      {data.subgroups.length === 0 ? <EmptyState title="이 실행은 관리도를 그릴 만큼 길지 않았습니다.">1분 이상 생산한 실행을 고르면 관리도가 나옵니다.</EmptyState> : <>
       {data.baseline_limitation === 'ORIGINAL_PREFIX_RAW_UNAVAILABLE'
         ? <PageNotice tone="unknown" title="이 실행의 기준선은 더 이상 증명할 수 없습니다.">실행 초기의 원시 기록이 보관 기간을 지나 삭제되었습니다. 이후 데이터가 쌓여도 처음 20개 부분군을 대신하지 않으므로 관리한계와 공정능력을 계산하지 않습니다.</PageNotice>
         : data.baseline_limitation === 'EXECUTION_OUTSIDE_RAW_RETENTION'
@@ -89,7 +88,7 @@ export default function SpcPage({ scope, onScope, onSessionInvalid }: { scope: S
       </div>
       {data.trend_warning && <div className={`trend-warning ${data.trend_warning.projected_cross ? 'warn' : 'neutral'}`}>
         <strong>{data.trend_warning.projected_cross ? `추세가 유지되면 ${clock(data.trend_warning.projected_cross.at)}경 ${data.trend_warning.projected_cross.limit}에 도달할 수 있습니다.` : '규격 한계 도달 추정 없음'}</strong>
-        <span>최근 15분 선형 회귀 · 기울기 {data.trend_warning.slope_per_minute === null ? MISSING : `${decimal(data.trend_warning.slope_per_minute, 3)} ${data.unit}/분`} · 결정계수 {decimal(data.trend_warning.r2)}. 추세 기반 추정이며 발생을 보장하지 않습니다.</span>
+        <span>최근 15분의 변화 추세로 추정한 값입니다{data.trend_warning.slope_per_minute === null ? '' : ` (분당 ${decimal(data.trend_warning.slope_per_minute, 3)} ${data.unit})`}. 실제로 도달한다는 뜻은 아닙니다.</span>
       </div>}
       <Card title={`X̄ 관리도 · ${tagLabels[data.tag_id] ?? data.tag_id}`} kicker="AVERAGE">
         <ChartOrTable label="X̄ 관리도" chart={<TimeSeriesChart title="부분군 평균" unit={data.unit} showPoints
@@ -109,6 +108,7 @@ export default function SpcPage({ scope, onScope, onSessionInvalid }: { scope: S
       {violations.length > 0 && <Card title="이상 신호 목록" kicker="SIGNALS">
         <ul className="signal-list">{violations.map(item => <li key={item.t}><b>{clock(item.t)}</b><span>평균 {decimal(item.mean)} {data.unit}</span><span>{item.violations.map(rule => ruleLabels[rule] ?? rule).join(' · ')}</span></li>)}</ul>
       </Card>}
+      </>}
       <p className="data-footnote">규격 {data.spec ? `${decimal(data.spec.lsl, 1)} ~ ${decimal(data.spec.usl, 1)} ${data.unit} (근거: ${data.spec.source}) · 개별값 기준이므로 X̄ 관리도에는 그리지 않고 공정능력 계산에만 사용합니다` : '없음 — 공정능력을 산정하지 않습니다'} · 기준 시각 {dateTime(data.generated_at)}</p>
     </div>}
   </div>

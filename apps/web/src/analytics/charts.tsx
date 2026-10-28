@@ -57,10 +57,12 @@ interface TimeSeriesChartProps {
   /** Labelled spans drawn behind the lines, e.g. which work order ran when. */
   periods?: { from: number; to: number; label: string }[]
   showPoints?: boolean
+  /** Smallest y-range drawn, for trends where measurement noise must stay visibly small. */
+  minSpan?: number
 }
 
 /** Line chart with one y-axis. Null values break the line; they are never drawn as zero. */
-export function TimeSeriesChart({ title, unit, from, to, series, height = 240, band = false, thresholds = [], markers = [], gaps = [], periods = [], showPoints = false }: TimeSeriesChartProps) {
+export function TimeSeriesChart({ title, unit, from, to, series, height = 240, band = false, thresholds = [], markers = [], gaps = [], periods = [], showPoints = false, minSpan = 0 }: TimeSeriesChartProps) {
   const [ref, width] = useWidth<HTMLDivElement>()
   const patternId = useId().replace(/:/g, '')
   const [active, setActive] = useState<number | null>(null)
@@ -70,7 +72,11 @@ export function TimeSeriesChart({ title, unit, from, to, series, height = 240, b
   const values = series.flatMap(item => item.points.flatMap(point => [point.value, band ? point.min : null, band ? point.max : null]))
     .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
     .concat(thresholds.map(item => item.value), markers.map(item => item.value))
-  const ticks = values.length ? niceTicks(Math.min(...values), Math.max(...values)) : []
+  // A steady value must not fill the plot: a 0.1 ℃ wobble drawn floor-to-ceiling reads as a fault.
+  const span = minSpan
+  let low = values.length ? Math.min(...values) : 0, high = values.length ? Math.max(...values) : 1
+  if (high - low < span) { const middle = (high + low) / 2; low = middle - span / 2; high = middle + span / 2 }
+  const ticks = values.length ? niceTicks(low, high) : []
   const yMin = ticks[0] ?? 0
   const yMax = ticks[ticks.length - 1] ?? 1
   const x = (t: number) => margin.left + ((t - from) / Math.max(1, to - from)) * plotWidth
@@ -138,7 +144,12 @@ export function TimeSeriesChart({ title, unit, from, to, series, height = 240, b
         <rect x={x(gap.from)} y={margin.top} width={Math.max(1, x(gap.to) - x(gap.from))} height={plotHeight} fill={`url(#gap-${patternId})`} />
         {x(gap.to) - x(gap.from) > 64 && <text className="chart-gap-label" x={(x(gap.from) + x(gap.to)) / 2} y={margin.top + 14} textAnchor="middle">{gap.label ?? '데이터 없음'}</text>}
       </g>)}
-      {periods.map(period => <text key={`period-label-${period.from}`} className="chart-period-label" x={x(Math.max(from, period.from)) + 4} y={margin.top + plotHeight - 6}>{period.label}</text>)}
+      {periods.reduce<{ at: number; label: string; key: number }[]>((shown, period) => {
+        // Short runs side by side: label only where there is room, never on top of another label.
+        const at = x(Math.max(from, period.from)) + 4
+        if (!shown.length || at - shown[shown.length - 1].at > 64) shown.push({ at, label: period.label, key: period.from })
+        return shown
+      }, []).map(label => <text key={`period-label-${label.key}`} className="chart-period-label" x={label.at} y={margin.top + plotHeight - 6}>{label.label}</text>)}
       {thresholds.map(item => <g key={`${item.label}-${item.value}`}>
         <line className={`chart-threshold ${item.tone}`} x1={margin.left} x2={margin.left + plotWidth} y1={y(item.value)} y2={y(item.value)} />
         <text className="chart-threshold-label" x={margin.left + plotWidth + 6} y={y(item.value)} dy="0.32em">{item.label}</text>

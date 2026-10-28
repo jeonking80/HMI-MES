@@ -63,6 +63,12 @@ function ExecutionReports({ session, scope, onScope, onSessionInvalid }: Props) 
   const params = scope ? { line_id: scope.line_id, from: range.from, to: range.to } : null
   const reports = useResource(params ? query('/api/v1/reports/executions', { ...params, limit: '50' }) : null, parseExecutionReports, onSessionInvalid)
   const items = reports.data?.items ?? []
+  // Runs of a reusable work order, numbered in start order within the listed period.
+  const runOrdinal = new Map<string, number>(), perOrder = new Map<string, number>()
+  for (const item of [...items].sort((a, b) => a.registered_at.localeCompare(b.registered_at))) {
+    const next = (perOrder.get(item.work_order_id) ?? 0) + 1
+    perOrder.set(item.work_order_id, next); runOrdinal.set(item.execution_id, next)
+  }
   return <>
     <div className="filter-row">
       <ScopePicker id="report-scope" sources={sources.data} value={scope} onChange={value => { onScope(value); setSelected(null) }} />
@@ -74,11 +80,11 @@ function ExecutionReports({ session, scope, onScope, onSessionInvalid }: Props) 
     {reports.error && <PageNotice tone="bad" title="작업별 실적을 조회하지 못했습니다.">{reports.error}</PageNotice>}
     {!scope && <EmptyState title="라인을 선택해 주세요." />}
     {scope && reports.data && items.length === 0 && <EmptyState title="기간 안에 등록된 실행이 없습니다.">작업지시를 라인에 연결하면 실행 단위로 실적이 쌓입니다.</EmptyState>}
-    {items.length > 0 && <Card title="작업별 실적" kicker="EXECUTIONS">
+    {items.length > 0 && <Card title="작업별 실적" kicker="EXECUTIONS" actions={<span className="data-footnote">같은 작업지시를 여러 번 돌리면 회차별로 따로 남습니다 (조회 기간 안 기준).</span>}>
       <div className="table-scroll"><table className="data-table selectable">
         <thead><tr><th scope="col">작업지시 · 품목</th><th scope="col">설정</th><th scope="col">목표</th><th scope="col">양품</th><th scope="col">불량</th><th scope="col">폐기</th><th scope="col">수율</th><th scope="col">가동 비율</th><th scope="col">시작</th><th scope="col">정산</th></tr></thead>
         <tbody>{items.map(item => <tr key={item.execution_id} className={selected?.execution_id === item.execution_id ? 'is-selected' : ''}>
-          <th scope="row"><button type="button" className="link-button" aria-pressed={selected?.execution_id === item.execution_id} onClick={() => setSelected(item)}>{item.work_order_id}</button><small>{item.item_id ?? '품목 미연결'}</small></th>
+          <th scope="row"><button type="button" className="link-button" aria-pressed={selected?.execution_id === item.execution_id} onClick={() => setSelected(item)}>{item.work_order_id}</button><small>{runOrdinal.get(item.execution_id) ? `${runOrdinal.get(item.execution_id)}회째 · ` : ''}{item.item_id ?? '품목 미연결'}</small></th>
           <td>{item.recipe_version}</td>
           <td>{item.target_quantity?.toLocaleString('ko-KR') ?? '—'}</td>
           <td>{quantity(item.totals.good)}</td><td>{quantity(item.totals.reject)}</td><td>{quantity(item.totals.scrap)}</td>

@@ -49,6 +49,7 @@ function LiveMonitor({ live, source, power, session, onSessionInvalid, workflow,
   const made = production(known)
   const issues = issuesOf(live)
   const execution = live.executionId
+  const workOrder = useWorkOrderOf(source, execution, onSessionInvalid)
   const recipe = known('Line.RecipeVersion')
   const zoneIssue = (zone: ZoneId) => issues.find(item => item.zone === zone)
   const powerOff = power !== null && power !== 'NOT_MANAGED' && power !== 'RUNNING'
@@ -69,7 +70,7 @@ function LiveMonitor({ live, source, power, session, onSessionInvalid, workflow,
       <div className="lc-mimic-head">
         <div className="lc-mimic-state">
           <StateBadge id="line-state" state={live.lineState ?? 'UNKNOWN'} large />
-          <div className="lc-job"><span>현재 실행</span><strong>{execution ? <>{execution.length > 18 ? `${execution.slice(0, 18)}…` : execution}{typeof recipe === 'string' && recipe ? <small> · {recipe}</small> : null}</> : '없음'}</strong></div>
+          <div className="lc-job"><span>현재 작업</span><strong>{execution ? <>{workOrder ?? '작업지시 확인 중'}{typeof recipe === 'string' && recipe ? <small> · {recipe}</small> : null}</> : '없음'}</strong></div>
         </div>
         <div className="lc-mimic-totals">
           <div className="lc-progress"><div><span>양품 진행</span><strong data-process-value="Line.GoodTotal">{made.good ?? '—'} / {made.target ?? '—'}</strong></div><div className="lc-bar"><span style={{ width: `${(made.ratio ?? 0) * 100}%` }} /></div></div>
@@ -109,6 +110,23 @@ function LiveMonitor({ live, source, power, session, onSessionInvalid, workflow,
 
     {open && <ZoneWindow zone={zones.find(item => item.id === open)!} live={live} cmd={cmd} issue={zoneIssue(open)?.text ?? null} onClose={() => setOpen(null)} onOpenControl={() => { setOpen(null); onOpenControl(open) }} />}
   </>
+}
+
+/** The work order behind the PLC's active execution, read once per execution (not on the 1 s beat). */
+function useWorkOrderOf(source: { line_id: string; source_id: string; stream_id: string }, execution: string | null, onSessionInvalid: () => void) {
+  const [known, setKnown] = useState<{ execution: string; workOrder: string } | null>(null)
+  useEffect(() => {
+    if (!execution) return
+    const controller = new AbortController()
+    void fetch(`/api/v1/line-status?${new URLSearchParams({ line_id: source.line_id, source_id: source.source_id, stream_id: source.stream_id })}`, { credentials: 'same-origin', cache: 'no-store', signal: controller.signal })
+      .then(async response => {
+        if (response.status === 401) { onSessionInvalid(); return }
+        const value = response.ok ? await response.json() as { execution?: { execution_id?: string; work_order_id?: string } | null } : null
+        if (value?.execution?.execution_id === execution && value.execution.work_order_id) setKnown({ execution, workOrder: value.execution.work_order_id })
+      }).catch(() => {})
+    return () => controller.abort()
+  }, [execution, source.line_id, source.source_id, source.stream_id, onSessionInvalid])
+  return known && known.execution === execution ? known.workOrder : null
 }
 
 /** One zone over the monitoring screen: only what this equipment has. Line-wide commands live in operation control. */

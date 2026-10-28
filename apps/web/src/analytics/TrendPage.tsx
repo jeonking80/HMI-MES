@@ -4,7 +4,7 @@ import type { PointQuality, Trend, TrendSeries } from './api'
 import { Legend, TimeSeriesChart } from './charts'
 import { SERIES_COLORS } from './scale'
 import type { ChartSeries } from './charts'
-import { alignedEnd, analogTags, clock, dateTime, focusWindow, measureLabel, MISSING, tagLabels, secondClock } from './format'
+import { alignedEnd, analogTags, clock, dateTime, focusWindow, measureLabel, MISSING, tagLabels, secondClock, trendMinSpan } from './format'
 import { useResource, useSources } from './hooks'
 import type { Source } from './hooks'
 import { Card, ChartOrTable, EmptyState, PageNotice, RefreshStatus, ScopePicker } from './ui'
@@ -87,7 +87,7 @@ export default function TrendPage({ scope, onScope, onSessionInvalid }: { scope:
     line_id: scope.line_id, from: new Date(from).toISOString().replace('.000Z', 'Z'), to: new Date(to).toISOString().replace('.000Z', 'Z'), limit: '20',
   }) : null, parseExecutionReports, onSessionInvalid)
   const periods = (runs.data?.items ?? []).filter(run => run.started_at && (!run.source_id || !scope || (run.source_id === scope.source_id && run.stream_id === scope.stream_id)))
-    .map(run => ({ from: Date.parse(run.started_at!), to: run.ended_at ? Date.parse(run.ended_at) : to, label: run.work_order_id.replace(/^WO-\d{8}-/, 'WO-') }))
+    .map(run => ({ from: Date.parse(run.started_at!), to: run.ended_at ? Date.parse(run.ended_at) : to, label: run.work_order_id.replace(/^WO-\d{8}-/, 'WO-') })).sort((a, b) => a.from - b.from)
   const data: Trend | null = trend.data
   // Color follows the tag's selection order, so removing one tag never repaints the others.
   const colorOf = (tag: string) => {
@@ -159,7 +159,7 @@ export default function TrendPage({ scope, onScope, onSessionInvalid }: { scope:
         }))
         return <Card key={unit} title={series.map(item => tagLabels[item.tag_id] ?? item.tag_id).join(' / ')} kicker={`${scope?.line_name ?? scope?.line_id ?? ''} · 단위 ${unit}`}
           actions={series.length > 1 ? <Legend items={chartSeries.map(item => ({ label: item.label, color: item.color }))} /> : undefined}>
-          <ChartOrTable label={unit} chart={<TimeSeriesChart title={series.map(item => tagLabels[item.tag_id]).join(', ')} unit={unit} from={view!.from} to={view!.to} series={chartSeries} band={data.resolution === 'minute'} gaps={clipGaps(gapsFor(series, stepMs), view!)} periods={periods} />}
+          <ChartOrTable label={unit} chart={<TimeSeriesChart title={series.map(item => tagLabels[item.tag_id]).join(', ')} unit={unit} from={view!.from} to={view!.to} series={chartSeries} band={data.resolution === 'minute'} gaps={clipGaps(gapsFor(series, stepMs), view!)} periods={periods} minSpan={trendMinSpan[unit] ?? 0} />}
             table={<table className="data-table">
               <thead><tr><th scope="col">시각</th>{series.map(item => <th key={item.tag_id} scope="col">{tagLabels[item.tag_id]} ({unit})</th>)}<th scope="col">품질</th></tr></thead>
               <tbody>{series[0].points.map((point, index) => <tr key={point.t}>

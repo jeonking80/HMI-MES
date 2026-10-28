@@ -111,3 +111,6 @@ export function focusWindow(times: number[], from: number, to: number, stepMs: n
   const pad = Math.max((last - first) * 0.1, 10 * stepMs)
   return { from: Math.max(from, first - pad), to: Math.min(to, last + pad) }
 }
+
+/** Trend y-range floor per unit (SPC keeps its own statistical scale). */
+export const trendMinSpan: Record<string, number> = { '℃': 10, '°C': 10, bar: 1, 'm/min': 2, A: 1 }
