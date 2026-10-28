@@ -172,18 +172,10 @@
 .lc-command:disabled { background:var(--surface-muted); border-color:var(--border); color:#93a1b1; cursor:not-allowed; box-shadow:none; }
 .lc-confirm { margin-top:12px; display:flex; flex-direction:column; gap:6px; padding:14px; border-radius:12px; border:1px solid #e7a59d; background:#fff8f7; font-size:.86rem; }
 .lc-confirm > div { display:flex; gap:8px; margin-top:6px; }
-.lc-speed { display:flex; flex-wrap:wrap; align-items:center; gap:10px 12px; margin-top:14px; padding-top:14px; border-top:1px solid #e4eaf0; }
-.lc-window .lc-speed { margin-top:0; padding-top:0; border-top:0; }
-.lc-speed > label { font-weight:700; font-size:.88rem; flex:1 1 auto; }
-.lc-setpoint { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; flex-basis:100%; }
-.lc-setpoint > label { font-weight:700; font-size:.88rem; flex:1 1 220px; }
-.lc-setpoint > label small { display:block; font-weight:400; font-size:.75rem; color:var(--text-muted); }
 .lc-stepper { display:inline-flex; align-items:center; border:1px solid var(--border-strong); border-radius:10px; overflow:hidden; }
 .lc-stepper button { width:42px; height:42px; border:0; background:var(--surface-muted); font-size:1.1rem; cursor:pointer; }
 .lc-stepper input { width:92px; padding:0 6px; -moz-appearance:textfield; appearance:textfield; height:42px; border:0; text-align:right; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:1.05rem; }
 .lc-stepper span { padding:0 8px 0 4px; color:var(--text-muted); font-size:.8rem; }
-.lc-speed .lc-hint { flex-basis:100%; margin:0; }
-.lc-speed label small { display:block; font-weight:400; font-size:.75rem; color:var(--text-muted); }
 .lc-stepper input::-webkit-outer-spin-button, .lc-stepper input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
 .lc-result { display:flex; flex-direction:column; gap:10px; padding:14px; border-radius:12px; background:var(--surface-muted); }
 .lc-result-head { display:flex; justify-content:space-between; align-items:baseline; gap:8px; font-size:.86rem; color:var(--text-muted); }
@@ -353,3 +345,32 @@
 .lc-lookup-box .lc-lookup { margin-top:10px; }
 .lc-lookup > div { display:flex; gap:8px; align-items:stretch; }
 .lc-lookup > div input { flex:1 1 auto; min-width:0; }
+
+.lc-speed-card { margin-top:16px; }
+.lc-speed-card .lc-card-head { margin-bottom:6px; }
+.lc-speed-card .lc-card-head h3 small { margin-left:6px; font-size:.75rem; font-weight:400; color:var(--text-muted); }
+.lc-speed-card .lc-card-head > span { font-size:.82rem; color:var(--text-muted); }
+.lc-speed-card .lc-card-head > span b { font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:.95rem; color:var(--text); }
+/* One compact row: the card head already names the setpoint and its current value. */
+.lc-speed-card .lc-setpoints { flex-direction:row; flex-wrap:wrap; align-items:center; gap:10px 12px; }
+.lc-speed-card .lc-setpoint { display:block; flex:0 0 188px; padding:0; background:none; box-shadow:none; }
+.lc-speed-card .lc-setpoint > label, .lc-speed-card .lc-setpoint-now { display:none; }
+.lc-speed-card .lc-setpoint-foot { flex:1 1 260px; margin:0; }
+.lc-speed-card .lc-setpoints { margin-top:0; padding-top:0; border-top:0; }
+.lc-speed-card .lc-setpoint-head { display:none; }
+.lc-speed-card .lc-hint { margin:0; }
+.lc-speed-card .lc-result { margin-top:10px; }
+
+/* Stepper: one 42 px row; the number sits on the buttons' centre line. */
+.lc-setpoint .lc-stepper { height:42px; align-items:stretch; }
+.lc-setpoint .lc-stepper button { height:40px; }
+.lc-setpoint .lc-stepper input { height:40px; min-height:0; margin:0; padding:0; border:0; border-radius:0; box-shadow:none; line-height:40px; background:#fff; }
+.lc-setpoint .lc-stepper input:focus { outline:none; }
+.lc-setpoint .lc-stepper:focus-within { border-color:var(--blue-500, #2f6fb3); box-shadow:0 0 0 2px rgb(47 111 179 / 18%); }
+@media (max-width: 640px) {
+  .lc-speed-card .lc-card-head { flex-direction:column; align-items:flex-start; gap:2px; }
+  .lc-speed-card .lc-card-head h3 small { display:block; margin:2px 0 0; }
+  .lc-speed-card .lc-setpoint { flex:1 1 100%; }
+  .lc-speed-card .lc-setpoint-foot { flex:1 1 100%; flex-wrap:wrap; justify-content:flex-end; }
+  .lc-speed-card .lc-setpoint-foot .lc-hint { flex:1 1 100%; }
+}
