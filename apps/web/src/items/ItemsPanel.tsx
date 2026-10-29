@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Session } from '../auth'
-import { itemsPath, MesHTTPError, mesRequest } from '../mesApi'
+import { itemsPath, MesHTTPError, mesRequest, parameterText } from '../mesApi'
 import type { ItemMaster, RecipeVersion, WorkOrder } from '../mesApi'
 import { nextItemId, UNITS } from './itemRules'
 
@@ -85,7 +85,7 @@ export default function ItemsPanel({ session, canWrite, items, loaded, recipes, 
         <div className="wo-timeline">
           <h4>공정 설정 {recipesOf(selected.id).length}</h4>
           {recipesOf(selected.id).length === 0 ? <p className="form-help">아직 이 품목의 공정 설정이 없습니다.</p>
-            : <ol>{recipesOf(selected.id).map(recipe => <li key={recipe.id}><span>{recipe.version}</span><span><strong>{recipe.recipe_id}</strong> · {recipe.parameters.temperature_c} ℃ · {recipe.parameters.speed_m_per_min} m/min</span></li>)}</ol>}
+            : <ol>{recipesOf(selected.id).map(recipe => <li key={recipe.id}><span>{recipe.version}</span><span><strong>{recipe.recipe_id}</strong> · {parameterText(recipe.parameters)}</span></li>)}</ol>}
         </div>
         <div className="wo-timeline">
           <h4>작업지시 {ordersOf(selected.id).length}</h4>

@@ -6,6 +6,9 @@ export interface RecipeDefinition {
   id: string; recipe_id: string; version: string; item_id: string
   parameters: { temperature_c: number; speed_m_per_min: number; air_pressure_bar?: number }
 }
+/** One-line process settings, e.g. "150 ℃ · 10 m/min · 5.5 bar"; pressure only when the version sets it. */
+export const parameterText = (parameters: { temperature_c: number; speed_m_per_min: number; air_pressure_bar?: number | null }, separator = ' · ') =>
+  [`${parameters.temperature_c} ℃`, `${parameters.speed_m_per_min} m/min`, ...(parameters.air_pressure_bar == null ? [] : [`${parameters.air_pressure_bar} bar`])].join(separator)
 export interface RecipeVersion extends RecipeDefinition { created_by: string; created_at: string }
 export interface OrderDefinition {
   id: string; item_id: string; line_id: string; recipe_version_id: string
