@@ -1,0 +1,97 @@
+{
+  "page_count": 15,
+  "layout": [
+    {
+      "page": 1,
+      "title": "설비가 실제로 한 일만 실적이 됩니다",
+      "overflow": false,
+      "images": true
+    },
+    {
+      "page": 2,
+      "title": "“버튼을 눌렀다”와 “설비가 움직였다”는 다릅니다",
+      "overflow": false,
+      "images": true
+    },
+    {
+      "page": 3,
+      "title": "두 앱은 DB를 공유하지 않고 OPC UA로만 연결합니다",
+      "overflow": false,
+      "images": true
+    },
+    {
+      "page": 4,
+      "title": "전원부터 정산까지 다섯 단계로 안내합니다",
+      "overflow": false,
+      "images": true
+    },
+    {
+      "page": 5,
+      "title": "속도·온도·공압을 바꾸되, 허용 여부는 PLC가 정합니다",
+      "overflow": false,
+      "images": true
+    },
+    {
+      "page": 6,
+      "title": "세 설비의 상태와 데이터 품질을 한 화면에서 봅니다",
+      "overflow": false,
+      "images": true
+    },
+    {
+      "page": 7,
+      "title": "작업지시는 한 번 만들고, 여러 번 실행합니다",
+      "overflow": false,
+      "images": true
+    },
+    {
+      "page": 8,
+      "title": "응답이 끊겨도 새 ID로 다시 실행하지 않습니다",
+      "overflow": false,
+      "images": true
+    },
+    {
+      "page": 9,
+      "title": "같은 사건이 두 번 와도 실적은 한 번만 반영합니다",
+      "overflow": false,
+      "images": true
+    },
+    {
+      "page": 10,
+      "title": "하루 생산과 실행별 실적을 같은 근거로 집계합니다",
+      "overflow": false,
+      "images": true
+    },
+    {
+      "page": 11,
+      "title": "공정값의 흐름과 관리 상태를 확인합니다",
+      "overflow": false,
+      "images": true
+    },
+    {
+      "page": 12,
+      "title": "통과한 범위와 남은 기준을 구분했습니다",
+      "overflow": false,
+      "images": true
+    },
+    {
+      "page": 13,
+      "title": "화면을 직접 써 보며 누락을 찾고, 규칙을 정했습니다",
+      "overflow": false,
+      "images": true
+    },
+    {
+      "page": 14,
+      "title": "결과를 모르면 다시 보내지 않고, 원래 ID로 묻습니다",
+      "overflow": false,
+      "images": true
+    },
+    {
+      "page": 15,
+      "title": "작업지시에서 정산까지, 공개 화면으로 따라갈 수 있습니다",
+      "overflow": false,
+      "images": true
+    }
+  ],
+  "source_commit": "59a1064c0ce855532f2abc91aafa63733891327f",
+  "captured_at": "2026-10-29"
+}

@@ -2,6 +2,8 @@
 
 가상 포장라인 설비를 **실제 암호화 OPC UA**로 연결해 설비 감시·제어, 알람, 작업지시, 생산실적 정산까지 이어지는 스마트팩토리 운영 시스템입니다. 현장 설비는 독립 실행되는 **설비 시뮬레이터 앱(가상 PLC 포함)**으로 구현했고, 운영 시스템은 그 데이터를 수집해 웹 HMI·MES 화면으로 제공합니다.
 
+**[포트폴리오 PDF (A4 가로 15쪽)](apps/web/public/portfolio/hmi-mes-portfolio.pdf)** · [구성과 촬영 범위](docs/HMI-MES-포트폴리오.md) — 2026-10-29 공개 배포를 실제 운전하며 촬영
+
 KULS가 공개한 [HMI 시스템 구성예시](https://www.kuls.co.kr/ict/kict/ict_smartfactory_hmi.php)(현장설비 → Master PLC → OPC 서버 → HMI·MES 서버 → 모니터링)를 기준으로 각 계층의 역할을 직접 구현했습니다.
 
 ![라인 모니터링 화면 — 실제 OPC UA 수집값으로 운전 중](docs/assets/screenshots/line-monitoring-running.png)
