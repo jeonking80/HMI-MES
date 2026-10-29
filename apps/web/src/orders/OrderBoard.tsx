@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import type { Session } from '../auth'
 import type { RecipeVersion, WorkOrder } from '../mesApi'
-import { MesHTTPError, validDate } from '../mesApi'
+import { MesHTTPError, parameterText, validDate } from '../mesApi'
 import { editOrder, endReasonLabels, eventLabels, fieldLabels, phaseLabels, readHistory, readOverview } from './orderApi'
 import type { OrderRun } from './orderApi'
 import type { EditBody, OrderEvent, OrderPhase, OrderSummary } from './orderApi'
@@ -156,7 +156,7 @@ export default function OrderBoard({ session, lines, recipes, canWrite, canBind,
             <p>{selected.item_id} · {lineName(selected.line_id)} · 예정일 {selected.planned_date}</p>
           </div></div>
           <div className="rc-params">
-            <div><span>공정 설정</span><strong className="wo-small">{selected.recipe_version_id}</strong><small>{recipeOf(selected.recipe_version_id) ? `${recipeOf(selected.recipe_version_id)?.parameters.temperature_c} ℃ · ${recipeOf(selected.recipe_version_id)?.parameters.speed_m_per_min} m/min` : ''}</small></div>
+            <div><span>공정 설정</span><strong className="wo-small">{selected.recipe_version_id}</strong><small>{recipeOf(selected.recipe_version_id) ? parameterText(recipeOf(selected.recipe_version_id)!.parameters) : ''}</small></div>
             <div><span>{selected.execution ? (selected.phase === 'RUNNING' ? '양품 / 목표' : `최근 실행 (${selected.runs}회째) 양품 / 목표`) : '목표 양품'}</span><strong>{selected.execution ? <>{selected.execution.good_quantity ?? '?'}<small> / {selected.target_quantity}개</small></> : <>{selected.target_quantity}<small> 개</small></>}</strong>{selected.execution && <small>불량 {selected.execution.reject_quantity ?? '?'} · {settlementLabels[selected.execution.settlement_status]}{selected.execution.end_reason ? ` · ${endReasonLabels[selected.execution.end_reason] ?? selected.execution.end_reason}` : ''}</small>}</div>
           </div>
 
@@ -164,7 +164,7 @@ export default function OrderBoard({ session, lines, recipes, canWrite, canBind,
             <h4>수정</h4>
             <p className="form-help">저장하면 이 작업지시에 바로 반영되고, 바뀐 값은 진행 기록에 남습니다.</p>
             <fieldset disabled={!!pendingRevision}><div className="mes-form-grid">
-              <div><label htmlFor="wo-edit-recipe">공정 설정</label><select id="wo-edit-recipe" value={form.recipe} onChange={event => setForm(previous => ({ ...previous, recipe: event.target.value }))}>{recipes.filter(item => item.item_id === selected.item_id).map(item => <option key={item.id} value={item.id}>{item.recipe_id} {item.version} ({item.parameters.temperature_c} ℃ / {item.parameters.speed_m_per_min} m/min)</option>)}</select></div>
+              <div><label htmlFor="wo-edit-recipe">공정 설정</label><select id="wo-edit-recipe" value={form.recipe} onChange={event => setForm(previous => ({ ...previous, recipe: event.target.value }))}>{recipes.filter(item => item.item_id === selected.item_id).map(item => <option key={item.id} value={item.id}>{item.recipe_id} {item.version} ({parameterText(item.parameters, ' / ')})</option>)}</select></div>
               <div><label htmlFor="wo-edit-target">목표 양품 수량 (개)</label><input id="wo-edit-target" type="number" min="1" step="1" value={form.target} onChange={event => setForm(previous => ({ ...previous, target: event.target.value }))} /></div>
               <div><label htmlFor="wo-edit-date">생산 예정일</label><input id="wo-edit-date" type="date" value={form.date} onChange={event => setForm(previous => ({ ...previous, date: event.target.value }))} /></div>
             </div>
