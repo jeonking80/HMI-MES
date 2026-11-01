@@ -153,3 +153,4 @@ body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .stack-table{font-size:11px;line-height:1.7}.stack-table td,.stack-table th{padding:9px 10px}.stack-table.conc{font-size:12.5px}.stack-table.conc td,.stack-table.conc th{padding:14px 12px}.stack-table.small{font-size:10.5px}.stack-table.small td,.stack-table.small th{padding:8px 9px}
 .ai-split .point p{font-size:11px}.ai-split .section-h{font-size:15px}
 .stack-table+.point{margin-top:14px}
+.metrics.three+.note{margin-bottom:10px}

@@ -1,97 +1,91 @@
 {
-  "page_count": 15,
+  "page_count": 14,
   "layout": [
     {
       "page": 1,
-      "title": "설비가 실제로 한 일만 실적이 됩니다",
+      "title": "HMI · MES 설비 운영 시스템",
       "overflow": false,
       "images": true
     },
     {
       "page": 2,
-      "title": "“버튼을 눌렀다”와 “설비가 움직였다”는 다릅니다",
+      "title": "설비가 실제로 한 일만 실적이 됩니다",
       "overflow": false,
       "images": true
     },
     {
       "page": 3,
-      "title": "두 앱은 DB를 공유하지 않고 OPC UA로만 연결합니다",
+      "title": "두 앱은 OPC UA로만 만나고, 화면과 게이트웨이는 API만 거칩니다",
       "overflow": false,
       "images": true
     },
     {
       "page": 4,
-      "title": "전원부터 정산까지 다섯 단계로 안내합니다",
+      "title": "계층마다 “실패했을 때 무엇이 남는가”를 기준으로 골랐습니다",
       "overflow": false,
       "images": true
     },
     {
       "page": 5,
-      "title": "속도·온도·공압을 바꾸되, 허용 여부는 PLC가 정합니다",
+      "title": "테이블을 수명에 따라 네 묶음으로 나눴습니다",
       "overflow": false,
       "images": true
     },
     {
       "page": 6,
-      "title": "세 설비의 상태와 데이터 품질을 한 화면에서 봅니다",
+      "title": "수집 요청 하나는 하나의 트랜잭션 안에서 끝납니다",
       "overflow": false,
       "images": true
     },
     {
       "page": 7,
-      "title": "작업지시는 한 번 만들고, 여러 번 실행합니다",
+      "title": "같은 사건은 원래 영수증으로 답하고, 처음 온 사건만 반영합니다",
       "overflow": false,
       "images": true
     },
     {
       "page": 8,
-      "title": "응답이 끊겨도 새 ID로 다시 실행하지 않습니다",
+      "title": "권한은 첫 제어 경로부터, 화면이 아니라 서버가 검사합니다",
       "overflow": false,
       "images": true
     },
     {
       "page": 9,
-      "title": "같은 사건이 두 번 와도 실적은 한 번만 반영합니다",
+      "title": "동시에 들어와도, 다시 들어와도, 중간에 죽어도 숫자가 맞아야 합니다",
       "overflow": false,
       "images": true
     },
     {
       "page": 10,
-      "title": "하루 생산과 실행별 실적을 같은 근거로 집계합니다",
+      "title": "사람이 반복하던 확인을 시스템이 대신합니다",
       "overflow": false,
       "images": true
     },
     {
       "page": 11,
-      "title": "공정값의 흐름과 관리 상태를 확인합니다",
+      "title": "작업지시 등록부터 정산 · 다음 작업까지 한 흐름으로 이어집니다",
       "overflow": false,
       "images": true
     },
     {
       "page": 12,
-      "title": "통과한 범위와 남은 기준을 구분했습니다",
+      "title": "단위에서 실제 경로까지, 실제 DB와 실제 브라우저로 시험했습니다",
       "overflow": false,
       "images": true
     },
     {
       "page": 13,
-      "title": "화면을 직접 써 보며 누락을 찾고, 규칙을 정했습니다",
+      "title": "구현은 AI에게 맡기고, 결정과 검증의 기준은 사람이 쥐었습니다",
       "overflow": false,
       "images": true
     },
     {
       "page": 14,
-      "title": "결과를 모르면 다시 보내지 않고, 원래 ID로 묻습니다",
-      "overflow": false,
-      "images": true
-    },
-    {
-      "page": 15,
-      "title": "작업지시에서 정산까지, 공개 화면으로 따라갈 수 있습니다",
+      "title": "하지 않은 것을 먼저 밝힙니다",
       "overflow": false,
       "images": true
     }
   ],
-  "source_commit": "59a1064c0ce855532f2abc91aafa63733891327f",
+  "source_commit": "8134cb8656a83709e669dfe05866825d842105ec",
   "captured_at": "2026-10-29"
 }
