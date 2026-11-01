@@ -6,6 +6,8 @@
 
 A4 가로 14쪽입니다. 사용자가 준 구성안 14개 항목을 그대로 따랐습니다.
 
+**제출용 저장소:** <https://github.com/jeonking80/portfolio/tree/main/HMI-MES> — 면접관에게는 이 저장소만 보여 줍니다. PDF 안의 문서 링크는 모두 이 저장소를 가리키고, 코드 저장소(HMI-MES) 링크는 넣지 않습니다. 빌드 스크립트가 코드 저장소 링크를 발견하면 생성을 멈춥니다. PDF를 다시 만들면 `apps/web/public/portfolio/hmi-mes-portfolio.pdf`를 제출용 저장소의 `HMI-MES/hmi-mes-portfolio.pdf`에도 복사합니다.
+
 ## 구성
 
 | 쪽 | 항목 | 내용 |
