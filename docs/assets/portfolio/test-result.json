@@ -1,0 +1,11 @@
+{
+  "commit": "c8a24c1",
+  "date": "2026-10-23",
+  "python_passed": 2354,
+  "python_failed": 0,
+  "python_errors": 0,
+  "web_passed": 91,
+  "note_title": "기준 커밋 이후의 변경",
+  "failure_note": "이 결과는 2026-10-23 커밋 c8a24c1의 전체 로컬 검사입니다. 이후 화면 개편과 품목 기준정보 도입에 맞춰 종단 시험 일부를 갱신하는 중이며, 최신 버전의 전체 통과는 아직 다시 확인하지 않았습니다.",
+  "source": "docs/DEVELOPMENT_STATUS.md 400행: 실행 코드 c8a24c1에서 ./scripts/check-local.sh 단일 실행 exit 0, Python 2,354 passed, 웹 91 passed, 타입·린트·빌드 통과"
+}

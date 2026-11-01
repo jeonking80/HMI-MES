@@ -1,0 +1,14 @@
+{
+  "tables": 62,
+  "immutable_tables": 21,
+  "db_functions": 25,
+  "triggers": 48,
+  "migrations": 28,
+  "migration_head": "0028_work_order_reuse",
+  "screens": 10,
+  "period": "2026.10.20 ~ 10.28 (9일)",
+  "commits": 312,
+  "codex_orders": 23,
+  "work_reports": 43,
+  "source": "로컬 Docker PostgreSQL 17에 alembic upgrade head 적용 후 information_schema·pg_proc 집계(2026-11-01). 테이블 수는 alembic_version 제외. 화면 수는 apps/web/src/navigation.ts 메뉴 항목. 커밋 수는 main 8134cb8 기준. 작업지시서는 docs/work-orders/CODEX_*.md, 작업 보고서는 docs/work-orders/reports/*.md 파일 수."
+}
